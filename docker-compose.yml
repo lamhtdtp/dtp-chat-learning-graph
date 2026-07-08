@@ -1,7 +1,11 @@
-# Chỉ Qdrant chạy qua Docker cho local dev. Postgres và Redis dùng bản NATIVE
-# đã có sẵn trên máy (Homebrew) — máy dev này vốn đã chạy 2 service đó cho các
-# project khác ở đúng cổng mặc định (5432/6379); dựng thêm container riêng chỉ
-# gây trùng cổng/nhầm lẫn không cần thiết. Xem README.md mục Setup dev.
+# Qdrant và Redis Stack chạy qua Docker; Postgres dùng bản NATIVE (Homebrew) đã
+# có sẵn trên máy dev ở cổng 5432.
+#
+# Vì sao Redis phải là Redis STACK (không dùng Redis native 6379): checkpointer
+# Redis của LangGraph (langgraph-checkpoint-redis -> redisvl) cần module
+# RediSearch (lệnh FT._LIST). Redis native Homebrew KHÔNG có module này (đã gặp
+# lỗi thật "unknown command FT._LIST"). Redis Stack đóng gói sẵn RediSearch.
+# Map ra 6380 để không đụng Redis native 6379 các project khác đang dùng.
 services:
   qdrant:
     image: qdrant/qdrant:latest
@@ -12,5 +16,15 @@ services:
       - qdrantdata:/qdrant/storage
     restart: unless-stopped
 
+  redis:
+    image: redis/redis-stack:latest
+    ports:
+      - "6380:6379" # Redis (native đã chiếm 6379) — REDIS_URL trỏ vào 6380
+      - "8001:8001" # RedisInsight UI (tuỳ chọn)
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+
 volumes:
   qdrantdata:
+  redisdata:

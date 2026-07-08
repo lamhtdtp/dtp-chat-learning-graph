@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     qdrant_collection: str = "sgk_toan"
 
     database_url: str = "postgresql+asyncpg://lamthanh@localhost:5432/chat_learning"
-    redis_url: str = "redis://localhost:6379/1"
+    redis_url: str = "redis://localhost:6380/0"
 
     jwt_secret: str = ""
 

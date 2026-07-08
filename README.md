@@ -16,22 +16,26 @@ cp .env.example .env   # điền GOOGLE_API_KEY và các credential khác
 pytest
 ```
 
-### Hạ tầng local (Postgres / Redis / Qdrant)
+### Hạ tầng local (Postgres / Redis Stack / Qdrant)
 
-Postgres và Redis dùng bản **native** cài qua Homebrew (không chạy container riêng —
-tránh trùng cổng 5432/6379 với service native đã có sẵn trên máy dev cho các project khác):
+Postgres dùng bản **native** (Homebrew) đã có sẵn ở cổng 5432. Qdrant và Redis Stack
+chạy qua Docker. Lưu ý: Redis phải là **Redis Stack** (không phải Redis native) vì
+checkpointer LangGraph cần module RediSearch — chạy ở cổng 6380 để không đụng Redis
+native 6379 các project khác đang dùng.
 
 ```bash
-brew services list                     # xác nhận postgresql@16, redis đang "started"
+brew services list                     # xác nhận postgresql@16 đang "started"
 createdb chat_learning                 # tạo 1 lần — DB riêng cho project này
-redis-cli -n 1 ping                    # Redis DB index 1 (tránh đụng DB 0 của project khác)
+
+docker compose up -d                   # qdrant (6333) + redis-stack (6380)
+curl localhost:6333/collections
+docker compose exec redis redis-cli MODULE LIST | grep -i search   # xác nhận RediSearch
 ```
 
-Qdrant chưa có bản native tương đương nên chạy qua Docker:
+Nạp thử dữ liệu SGK vào Qdrant (OCR tốn token, pilot vài trang trước):
 
 ```bash
-docker compose up -d      # chỉ có qdrant, xem docker-compose.yml
-curl localhost:6333/collections
+python -m app.ingestion.cli --tap 1 --sach cung_kham_pha_tap_1 --pages 5-8
 ```
 
 k8s manifest cho môi trường production (autoscale, HPA riêng ingestion/API — xem
