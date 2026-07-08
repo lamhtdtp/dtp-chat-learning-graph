@@ -1,0 +1,16 @@
+# Chỉ Qdrant chạy qua Docker cho local dev. Postgres và Redis dùng bản NATIVE
+# đã có sẵn trên máy (Homebrew) — máy dev này vốn đã chạy 2 service đó cho các
+# project khác ở đúng cổng mặc định (5432/6379); dựng thêm container riêng chỉ
+# gây trùng cổng/nhầm lẫn không cần thiết. Xem README.md mục Setup dev.
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333" # REST
+      - "6334:6334" # gRPC
+    volumes:
+      - qdrantdata:/qdrant/storage
+    restart: unless-stopped
+
+volumes:
+  qdrantdata:

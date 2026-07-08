@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "sgk_toan"
 
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/chat_learning"
-    redis_url: str = "redis://localhost:6379/0"
+    database_url: str = "postgresql+asyncpg://lamthanh@localhost:5432/chat_learning"
+    redis_url: str = "redis://localhost:6379/1"
 
     jwt_secret: str = ""
 
