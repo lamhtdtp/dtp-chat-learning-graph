@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     # Tên model PHẢI có tiền tố provider ("gemini/...") theo quy ước LiteLLM mà
     # VNGCloud dùng nội bộ — thiếu tiền tố này gây lỗi 404 "model not found"
     # (đã gặp thật, dễ nhầm vì lỗi không nói rõ nguyên nhân là thiếu tiền tố).
-    gemini_model_cheap: str = "gemini/gemini-2.5-flash"
-    gemini_model_strong: str = "gemini/gemini-2.5-pro"
+    gemini_model_cheap: str = "gemini/gemini-3.1-flash-lite"
+    gemini_model_strong: str = "gemini/gemini-3.1-pro-preview"
     embedding_model: str = "gemini/gemini-embedding-001"
 
     qdrant_url: str = "http://localhost:6333"

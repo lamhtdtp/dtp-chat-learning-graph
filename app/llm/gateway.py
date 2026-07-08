@@ -36,16 +36,27 @@ TASK_TIER: dict[str, Tier] = {
     "route_intent": "cheap",
     "qa": "cheap",
     "review_suggestion": "cheap",
+    # OCR CỐ Ý ở tầng rẻ (khác dự tính ban đầu "strong"): so sánh thật trên
+    # trang SGK dày công thức (data/books/maths/6/1/30.png) cho thấy tầng rẻ
+    # flash-lite OCR nhanh gấp ~8x, rẻ hơn ~5x, và TRUNG THỰC hơn — giữ đúng
+    # ký hiệu gốc (vd "23.8", "2^2.25") thay vì tự diễn giải dấu "." thành "×"
+    # như model đốt-reasoning làm. OCR không cần suy luận, chỉ cần trích xuất
+    # đúng. Nếu eval OCR sau này cho thấy flash-lite kém trên trang hình học,
+    # đổi task này sang "strong" — chỉ 1 dòng.
+    "ocr_page": "cheap",
     "solve": "strong",
-    "ocr_page": "strong",
     "exam_gen": "strong",
 }
 
 # Đã verify từng model một qua API thật — xem docstring trên. Thêm model mới
 # vào đây CHỈ SAU KHI đã tự gọi thử và biết chắc giao thức nào hoạt động.
+# Lưu ý: giao thức KHÔNG suy được từ tên — gemini-2.5-pro dùng Anthropic
+# messages, nhưng gemini-3.1-pro-preview lại dùng OpenAI chat; cùng "pro".
 _PROTOCOL_BY_MODEL: dict[str, Protocol] = {
     "gemini/gemini-2.5-pro": "anthropic_messages",
     "gemini/gemini-2.5-flash": "openai_chat",
+    "gemini/gemini-3.1-flash-lite": "openai_chat",
+    "gemini/gemini-3.1-pro-preview": "openai_chat",
 }
 
 
@@ -116,16 +127,18 @@ async def _complete_openai(model: str, messages: list[dict], max_tokens: int) ->
     return response.choices[0].message.content or ""
 
 
-async def complete(task: str, messages: list[dict], max_tokens: int = 2048) -> str:
+async def complete(task: str, messages: list[dict], max_tokens: int = 4096) -> str:
     """`messages` LUÔN viết theo format Anthropic (kể cả khi model đích dùng
     giao thức OpenAI — gateway tự chuyển đổi, xem `_to_openai_content`):
     [{"role": "user"|"assistant", "content": str | list[content_block]}].
     Content block ảnh (dùng cho task="ocr_page"): {"type": "image", "source":
     {"type": "base64", "media_type": "image/png", "data": <base64 str>}}.
 
-    gemini-2.5-pro qua gateway này tốn token "suy nghĩ" ẩn không hiện trong
-    output — max_tokens quá thấp (vd 100) có thể trả về text rỗng dù
-    stop_reason="end_turn" (đã gặp thật khi verify API), nên mặc định 2048.
+    Các model đốt reasoning token (tầng mạnh gemini-3.1-pro-preview đốt
+    ~2400 token "suy nghĩ" ẩn TÍNH VÀO max_tokens nhưng không hiện trong
+    output) — max_tokens quá thấp trả về text rỗng/bị cắt dù không báo lỗi
+    (đã gặp thật khi verify API), nên mặc định để cao 4096. Tầng rẻ
+    flash-lite gần như không đốt reasoning nên không tốn thừa.
     """
     model = _model_for_task(task)
     protocol = _protocol_for_model(model)
