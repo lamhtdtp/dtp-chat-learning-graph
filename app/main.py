@@ -1,10 +1,23 @@
+from contextlib import AsyncExitStack, asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth
+from app.api import auth, chat
 from app.config import settings
+from app.graph.build import build_graph_with_redis
 
-app = FastAPI(title="Chat Learning Toán")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Dựng graph + Redis checkpointer 1 lần lúc startup, giữ mở suốt vòng đời
+    # app (không dựng lại mỗi request). AsyncExitStack để đóng checkpointer gọn.
+    async with AsyncExitStack() as stack:
+        app.state.graph = await stack.enter_async_context(build_graph_with_redis())
+        yield
+
+
+app = FastAPI(title="Chat Learning Toán", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,6 +27,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(chat.router)
 
 
 @app.get("/health")
