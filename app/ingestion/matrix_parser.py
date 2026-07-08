@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Literal
 
 from docx import Document
+from docx.oxml.ns import qn
 from pydantic import BaseModel
 
 MucDo = Literal["de", "trung_binh", "kho"]
@@ -24,6 +25,7 @@ _COLUMNS = (
     "dang_thuc",
     "ti_le",
 )
+_TI_LE_INDEX = _COLUMNS.index("ti_le")
 
 
 class MatrixRow(BaseModel):
@@ -35,6 +37,11 @@ class MatrixRow(BaseModel):
     don_vi_kien_thuc: str
     dang_thuc: str
     ti_le: float
+    # Số thứ tự nhóm tỉ lệ (tăng dần theo dòng): nhiều "yêu cầu cần đạt" có thể
+    # CÙNG chia sẻ một mức tỉ lệ chung (ô gộp dọc cho cả cụm) — dùng field này
+    # để cộng tỉ lệ đúng 1 lần/nhóm (xem `tong_ti_le_theo_muc_do`), tránh cộng
+    # trùng nếu cộng thẳng `ti_le` của từng dòng riêng lẻ.
+    nhom_ti_le: int
 
 
 def normalize_muc_do(raw: str) -> MucDo:
@@ -63,8 +70,20 @@ def parse_matrix_rows(rows: list[list[str]]) -> list[MatrixRow]:
     ncols = len(_COLUMNS)
     last_values: list[str | None] = [None] * ncols
     records: list[MatrixRow] = []
+    nhom_ti_le = 0
 
     for row_idx, row in enumerate(rows):
+        # Ô Tỉ lệ % không rỗng => dòng này mở một nhóm tỉ lệ mới (VD nhiều "yêu
+        # cầu cần đạt" cùng dùng chung 1 mức tỉ lệ, chỉ dòng đầu nhóm có giá trị
+        # thô, các dòng sau rỗng do gộp dọc). Phải xác định TRƯỚC khi forward-fill
+        # ở dưới ghi đè ô rỗng này.
+        if row[_TI_LE_INDEX].strip() != "":
+            nhom_ti_le += 1
+        elif nhom_ti_le == 0:
+            raise ValueError(
+                f"Dòng {row_idx}: cột 'ti_le' rỗng nhưng chưa có nhóm nào trước đó."
+            )
+
         filled: list[str] = []
         for col_idx, raw_cell in enumerate(row):
             value = raw_cell.strip()
@@ -99,10 +118,43 @@ def parse_matrix_rows(rows: list[list[str]]) -> list[MatrixRow]:
                 don_vi_kien_thuc=don_vi,
                 dang_thuc=dang_thuc,
                 ti_le=float(ti_le_raw.replace(",", ".")),
+                nhom_ti_le=nhom_ti_le,
             )
         )
 
     return records
+
+
+def tong_ti_le_theo_muc_do(records: list[MatrixRow]) -> dict[str, float]:
+    """Cộng tỉ lệ % theo mức độ, mỗi NHÓM (`nhom_ti_le`) chỉ tính một lần.
+
+    Không được cộng thẳng `ti_le` của từng MatrixRow — nhiều "yêu cầu cần đạt"
+    dùng chung một mức tỉ lệ sẽ bị nhân bản nhiều lần và ra tổng sai (đã kiểm
+    chứng trên dữ liệu thật: cộng thẳng cho ra 85%/140% thay vì đúng 100%).
+    """
+    seen: set[int] = set()
+    totals: dict[str, float] = {}
+    for r in records:
+        if r.nhom_ti_le in seen:
+            continue
+        seen.add(r.nhom_ti_le)
+        totals[r.muc_do] = totals.get(r.muc_do, 0.0) + r.ti_le
+    return totals
+
+
+def _raw_row_texts(row) -> list[str]:
+    """Text nguyên bản của từng ô trong 1 dòng, KHÔNG qua cơ chế tự resolve ô
+    gộp dọc của python-docx.
+
+    `row.cells[i].text` (API cấp cao) trả về giá trị đã "điền lại" cho ô gộp
+    dọc dạng continue — kể cả `cell._tc` cũng đã bị trỏ sang `<w:tc>` gốc của
+    nhóm merge, không phải `<w:tc>` cục bộ. Phải đọc thẳng `row._tr.tc_lst`
+    (danh sách `<w:tc>` thật trong XML của dòng) để thấy đúng ô nào rỗng.
+    """
+    return [
+        "".join(node.text or "" for node in tc.iter(qn("w:t"))).strip()
+        for tc in row._tr.tc_lst
+    ]
 
 
 def parse_matrix_docx(path: str | Path) -> list[MatrixRow]:
@@ -121,7 +173,5 @@ def parse_matrix_docx(path: str | Path) -> list[MatrixRow]:
     )
     data_start = header_idx + 2  # bỏ qua dòng header + dòng đánh số cột (1..10)
 
-    raw_rows = [
-        [cell.text.strip() for cell in row.cells][1:9] for row in table.rows[data_start:]
-    ]
+    raw_rows = [_raw_row_texts(row)[1:9] for row in table.rows[data_start:]]
     return parse_matrix_rows(raw_rows)

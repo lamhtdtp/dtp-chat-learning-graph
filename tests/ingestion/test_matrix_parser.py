@@ -7,6 +7,7 @@ from app.ingestion.matrix_parser import (
     normalize_muc_do,
     parse_matrix_docx,
     parse_matrix_rows,
+    tong_ti_le_theo_muc_do,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -37,6 +38,21 @@ def test_forward_fill_o_gop_doc():
     # cột KHÔNG merge (yêu cầu cần đạt, đơn vị kiến thức) phải giữ giá trị riêng, không bị ghi đè
     assert recs[1].yeu_cau_can_dat == "Nhận biết thứ tự phép tính"
     assert recs[1].don_vi_kien_thuc == "Đơn vị 2"
+    # dòng 2 kế thừa tỉ lệ từ dòng 1 (ô Tỉ lệ % rỗng) => cùng 1 nhóm, không phải nhóm mới
+    assert recs[1].nhom_ti_le == recs[0].nhom_ti_le
+
+
+def test_tong_ti_le_khong_cong_trung_khi_gop_nhom():
+    raw = [
+        ["Dễ (Biết)", "NL", "BH", "YCCD 1", "Số tự nhiên", "DVKT 1", "TN", "15"],
+        ["", "", "", "YCCD 2", "", "DVKT 2", "", ""],
+        ["", "", "", "YCCD 3", "", "DVKT 3", "", ""],
+        ["Trung bình (Hiểu)", "NL", "BH", "YCCD 4", "Số nguyên", "DVKT 4", "TN", "20"],
+    ]
+    recs = parse_matrix_rows(raw)
+
+    # 3 dòng đầu CÙNG 1 nhóm 15% (không phải 15+15+15=45)
+    assert tong_ti_le_theo_muc_do(recs) == {"de": 15.0, "trung_binh": 20.0}
 
 
 def test_forward_fill_bao_loi_khi_thieu_gia_tri_dau():
@@ -77,6 +93,12 @@ def test_parse_real_hk1():
     assert first.yeu_cau_can_dat == "Nhận biết được tập hợp các số tự nhiên"
     assert first.ti_le == 15.0
 
+    # Bất biến quan trọng nhất: tổng tỉ lệ toàn ma trận PHẢI đúng 100%, tính
+    # theo nhóm (không cộng trùng dòng nào dùng chung 1 mức tỉ lệ).
+    tong = tong_ti_le_theo_muc_do(records)
+    assert tong == {"de": 40.0, "trung_binh": 30.0, "kho": 30.0}
+    assert sum(tong.values()) == 100.0
+
 
 @pytest.mark.skipif(not HK2_PATH.exists(), reason="Cần file ma trận thật data/matrix/TOAN_6_HK2.docx")
 def test_parse_real_hk2():
@@ -85,3 +107,7 @@ def test_parse_real_hk2():
     assert len(records) == 37
     assert all(r.muc_do in {"de", "trung_binh", "kho"} for r in records)
     assert all(r.ti_le > 0 for r in records)
+
+    tong = tong_ti_le_theo_muc_do(records)
+    assert tong == {"de": 40.0, "trung_binh": 30.0, "kho": 30.0}
+    assert sum(tong.values()) == 100.0
