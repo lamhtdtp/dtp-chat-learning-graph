@@ -34,6 +34,14 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Mặc định pytest-asyncio tạo 1 event loop MỚI cho mỗi test (function-scoped).
+# Engine SQLAlchemy async (app/db/session.py) là singleton dùng chung toàn bộ
+# test session — connection pool của nó bị ràng buộc vào loop đã tạo ra nó, tái
+# dùng ở loop khác gây lỗi asyncpg "another operation is in progress" khó hiểu.
+# Dùng chung 1 loop cho cả session để engine singleton hoạt động đúng — phải
+# đặt CẢ hai (fixture lẫn test function), thiếu 1 trong 2 vẫn bị lệch loop.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 
 [build-system]
 requires = ["setuptools>=68"]
