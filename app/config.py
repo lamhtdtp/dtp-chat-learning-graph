@@ -4,15 +4,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # VNGCloud AI Platform (MaaS) — KHÔNG phải Google AI trực tiếp. Chat/vision
-    # gọi qua Anthropic SDK, embedding qua OpenAI SDK, cùng base_url/key (xem
-    # app/llm/gateway.py và .env.example để biết lý do 2 giao thức khác nhau).
+    # VNGCloud AI Platform (MaaS) — KHÔNG phải Google AI trực tiếp. Mỗi model
+    # gọi qua 1 giao thức khác nhau (xem app/llm/gateway._PROTOCOL_BY_MODEL,
+    # đã verify từng model qua API thật) dù dùng chung base_url/key.
     ai_platform_api_key: str = ""
     ai_platform_base_url: str = "https://maas-llm-aiplatform-hcm.api.vngcloud.vn"
     # Tên model PHẢI có tiền tố provider ("gemini/...") theo quy ước LiteLLM mà
     # VNGCloud dùng nội bộ — thiếu tiền tố này gây lỗi 404 "model not found"
     # (đã gặp thật, dễ nhầm vì lỗi không nói rõ nguyên nhân là thiếu tiền tố).
-    gemini_model_cheap: str = "gemini/gemini-2.5-pro"
+    gemini_model_cheap: str = "gemini/gemini-2.5-flash"
     gemini_model_strong: str = "gemini/gemini-2.5-pro"
     embedding_model: str = "gemini/gemini-embedding-001"
 

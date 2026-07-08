@@ -12,29 +12,38 @@ class _FakeTextBlock:
         self.text = text
 
 
-@pytest.mark.parametrize(
-    "task,expected_model_attr",
-    [
-        ("route_intent", "gemini_model_cheap"),
-        ("qa", "gemini_model_cheap"),
-        ("review_suggestion", "gemini_model_cheap"),
-        ("solve", "gemini_model_strong"),
-        ("ocr_page", "gemini_model_strong"),
-        ("exam_gen", "gemini_model_strong"),
-    ],
-)
-async def test_complete_chon_dung_tier_theo_task(mocker, task, expected_model_attr):
-    fake_response = SimpleNamespace(content=[_FakeTextBlock("xin chào")])
-    fake_client = SimpleNamespace(
-        messages=SimpleNamespace(create=mocker.AsyncMock(return_value=fake_response))
+@pytest.mark.parametrize("task", ["route_intent", "qa", "review_suggestion"])
+async def test_complete_tang_re_goi_qua_openai_chat_protocol(mocker, task):
+    fake_response = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="xin chào"))]
     )
-    mocker.patch("app.llm.gateway._chat_client", return_value=fake_client)
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(create=mocker.AsyncMock(return_value=fake_response))
+        )
+    )
+    mocker.patch("app.llm.gateway._openai_client", return_value=fake_client)
 
     result = await gateway.complete(task, [{"role": "user", "content": "hi"}])
 
     assert result == "xin chào"
-    called_model = fake_client.messages.create.call_args.kwargs["model"]
-    assert called_model == getattr(settings, expected_model_attr)
+    kwargs = fake_client.chat.completions.create.call_args.kwargs
+    assert kwargs["model"] == settings.gemini_model_cheap
+
+
+@pytest.mark.parametrize("task", ["solve", "ocr_page", "exam_gen"])
+async def test_complete_tang_manh_goi_qua_anthropic_protocol(mocker, task):
+    fake_response = SimpleNamespace(content=[_FakeTextBlock("xin chào")])
+    fake_client = SimpleNamespace(
+        messages=SimpleNamespace(create=mocker.AsyncMock(return_value=fake_response))
+    )
+    mocker.patch("app.llm.gateway._anthropic_client", return_value=fake_client)
+
+    result = await gateway.complete(task, [{"role": "user", "content": "hi"}])
+
+    assert result == "xin chào"
+    kwargs = fake_client.messages.create.call_args.kwargs
+    assert kwargs["model"] == settings.gemini_model_strong
 
 
 async def test_complete_bo_qua_block_khong_phai_text(mocker):
@@ -44,16 +53,49 @@ async def test_complete_bo_qua_block_khong_phai_text(mocker):
     fake_client = SimpleNamespace(
         messages=SimpleNamespace(create=mocker.AsyncMock(return_value=fake_response))
     )
-    mocker.patch("app.llm.gateway._chat_client", return_value=fake_client)
+    mocker.patch("app.llm.gateway._anthropic_client", return_value=fake_client)
 
-    result = await gateway.complete("qa", [{"role": "user", "content": "hi"}])
+    result = await gateway.complete("solve", [{"role": "user", "content": "hi"}])
 
     assert result == "phần 1. phần 2."
+
+
+async def test_complete_chuyen_doi_block_anh_sang_dinh_dang_openai(mocker):
+    fake_response = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content="đọc được ảnh"))]
+    )
+    fake_create = mocker.AsyncMock(return_value=fake_response)
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create)))
+    mocker.patch("app.llm.gateway._openai_client", return_value=fake_client)
+    mocker.patch.dict(gateway._PROTOCOL_BY_MODEL, {settings.gemini_model_cheap: "openai_chat"})
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "đọc ảnh này"},
+                {
+                    "type": "image",
+                    "source": {"type": "base64", "media_type": "image/png", "data": "AAAA"},
+                },
+            ],
+        }
+    ]
+    await gateway.complete("qa", messages)
+
+    sent = fake_create.call_args.kwargs["messages"][0]["content"]
+    assert sent[0] == {"type": "text", "text": "đọc ảnh này"}
+    assert sent[1] == {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}
 
 
 async def test_complete_task_khong_ton_tai_bao_loi_ro_rang():
     with pytest.raises(ValueError, match="khong_ton_tai"):
         await gateway.complete("khong_ton_tai", [{"role": "user", "content": "hi"}])
+
+
+async def test_complete_model_chua_ro_giao_thuc_bao_loi_ro_rang():
+    with pytest.raises(ValueError, match="giao thức"):
+        gateway._protocol_for_model("gemini/mot-model-chua-tung-test")
 
 
 async def test_embed_tra_ve_vector_dung_thu_tu(mocker):
@@ -63,7 +105,7 @@ async def test_embed_tra_ve_vector_dung_thu_tu(mocker):
     fake_client = SimpleNamespace(
         embeddings=SimpleNamespace(create=mocker.AsyncMock(return_value=fake_response))
     )
-    mocker.patch("app.llm.gateway._embedding_client", return_value=fake_client)
+    mocker.patch("app.llm.gateway._openai_client", return_value=fake_client)
 
     vectors = await gateway.embed(["a", "b"])
 
