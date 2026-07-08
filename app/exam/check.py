@@ -9,6 +9,9 @@ from app.ingestion.matrix_parser import MucDo
 
 class CauHoi(BaseModel):
     muc_do: MucDo
+    noi_dung: str = ""
+    dap_an: str = ""
+    loi_giai: str = ""
 
 
 class DeThi(BaseModel):
