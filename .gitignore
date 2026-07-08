@@ -1,0 +1,31 @@
+# OS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Dữ liệu thô (ảnh SGK scan, ma trận .docx) — theo kiến trúc, nội dung này thuộc
+# Object Storage (S3/MinIO) khi triển khai thật, không commit vào git. Local dev
+# vẫn đọc trực tiếp từ đây, chỉ không version-control.
+data/
+
+# Kết quả trung gian ingestion (markdown OCR từng trang)
+data_processed/
+
+# IDE
+.vscode/
+.idea/
