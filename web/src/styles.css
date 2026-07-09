@@ -46,7 +46,7 @@ h1, h2, .font-display { font-family: "Baloo 2", cursive; }
 }
 .hero-sym { position: absolute; font-family: "Baloo 2", cursive; font-weight: 800; animation: mb-float 8s ease-in-out infinite; user-select: none; }
 .hero-brand { display: flex; align-items: center; gap: 14px; position: relative; z-index: 2; }
-.hero-logo-box { width: 54px; height: 54px; border-radius: 15px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(0,0,0,.18); }
+.hero-logo-box { width: 84px; height: 54px; border-radius: 15px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(0,0,0,.18); }
 .hero-logo-box img { height: 34px; width: auto; }
 .hero-brand .name { font-family: "Baloo 2", cursive; font-weight: 800; font-size: 22px; }
 .hero-brand .sub { font-size: 11px; opacity: .85; margin-top: 3px; }

@@ -23,7 +23,7 @@ def _context_block(retrieved: list[RetrievedChunk]) -> str:
 async def solve_node(state: ChatState) -> dict:
     retrieved = state.get("retrieved", [])
     if not has_grounding(retrieved):
-        return {"answer": f"{KHONG_TIM_THAY}. Bé kiểm tra lại đề bài giúp mình nhé!"}
+        return {"answer": f"{KHONG_TIM_THAY}. Em kiểm tra lại đề bài giúp mình nhé!"}
 
     de_bai = state["messages"][-1]["content"]
     messages = [

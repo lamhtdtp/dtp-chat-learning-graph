@@ -21,7 +21,7 @@ def _context_block(retrieved: list[RetrievedChunk]) -> str:
 async def qa_node(state: ChatState) -> dict:
     retrieved = state.get("retrieved", [])
     if not has_grounding(retrieved):
-        return {"answer": f"{KHONG_TIM_THAY}. Bé thử hỏi lại theo cách khác nhé!"}
+        return {"answer": f"{KHONG_TIM_THAY}. Em thử hỏi lại theo cách khác nhé!"}
 
     question = state["messages"][-1]["content"]
     messages = [
