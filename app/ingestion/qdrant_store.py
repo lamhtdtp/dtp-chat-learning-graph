@@ -5,9 +5,11 @@ Chỉ SGK vào Qdrant — ma trận là dữ liệu cấu trúc, ở Postgres, K
 retriever filter theo mon/khoi/sach/chuong/loai_noi_dung (xem retrieval sau).
 """
 
+import asyncio
 import uuid
 
 from qdrant_client import AsyncQdrantClient
+from qdrant_client.http.exceptions import ResponseHandlingException
 from qdrant_client.models import Distance, PointStruct, VectorParams
 
 from app.config import settings
@@ -46,9 +48,8 @@ async def upsert_chunks(chunks: list[Chunk], client: AsyncQdrantClient | None = 
     if not chunks:
         return 0
 
-    client = client or _client()
-    await ensure_collection(client)
-
+    # Embed TRƯỚC (gọi VNGCloud, không liên quan Qdrant) — chỉ 1 lần, retry
+    # phía dưới không embed lại.
     vectors = await gateway.embed([c.content for c in chunks])
 
     # index tính theo TỪNG (sach, page) để id ổn định dù gọi per-page hay cả
@@ -66,5 +67,30 @@ async def upsert_chunks(chunks: list[Chunk], client: AsyncQdrantClient | None = 
                 payload={"content": chunk.content, **chunk.metadata.model_dump()},
             )
         )
-    await client.upsert(collection_name=settings.qdrant_collection, points=points)
+
+    # Ghi Qdrant có RETRY: local Docker Qdrant hay bị restart chớp nhoáng ->
+    # connection refused; retry (backoff) để không mất công embed lại. Chia
+    # batch nhỏ để mỗi lần ghi nhẹ, upsert idempotent nên retry an toàn.
+    # Nếu caller không truyền client (production), mỗi lần thử tạo client MỚI
+    # (kết nối cũ có thể chết sau restart); nếu truyền (test) thì dùng lại.
+    def _c() -> AsyncQdrantClient:
+        return client or _client()
+
+    await _with_retry(lambda: ensure_collection(_c()))
+    for i in range(0, len(points), 64):
+        batch = points[i : i + 64]
+        await _with_retry(
+            lambda b=batch: _c().upsert(collection_name=settings.qdrant_collection, points=b)
+        )
     return len(points)
+
+
+async def _with_retry(op, attempts: int = 5, base_delay: float = 2.0):
+    """Chạy 1 thao tác Qdrant, retry khi lỗi kết nối (Qdrant restart tạm thời)."""
+    for attempt in range(attempts):
+        try:
+            return await op()
+        except (ResponseHandlingException, ConnectionError, OSError):
+            if attempt == attempts - 1:
+                raise
+            await asyncio.sleep(base_delay * (attempt + 1))
