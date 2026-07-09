@@ -29,3 +29,8 @@ data_processed/
 # IDE
 .vscode/
 .idea/
+
+# Frontend
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
