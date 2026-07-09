@@ -36,6 +36,12 @@ services:
       QDRANT_URL: http://qdrant:6333
       JWT_SECRET: ${JWT_SECRET}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      # Model đọc từ env để đổi không cần rebuild image (default = giá trị trong
+      # app/config.py). Embedding hiện dùng openai/text-embedding-3-large vì
+      # gemini-embedding-001 đang bị rate-limit trên VNGCloud.
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-openai/text-embedding-3-large}
+      GEMINI_MODEL_CHEAP: ${GEMINI_MODEL_CHEAP:-gemini/gemini-3.1-flash-lite}
+      GEMINI_MODEL_STRONG: ${GEMINI_MODEL_STRONG:-gemini/gemini-3.1-pro-preview}
     extra_hosts:
       - "host.docker.internal:host-gateway" # Linux cần dòng này; Docker Desktop đã có sẵn
     depends_on:
@@ -52,9 +58,12 @@ services:
     environment:
       AI_PLATFORM_API_KEY: ${AI_PLATFORM_API_KEY}
       AI_PLATFORM_BASE_URL: ${AI_PLATFORM_BASE_URL}
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+asyncpg://lamthanh@host.docker.internal:5432/chat_learning}
       REDIS_URL: redis://redis:6379/0
       QDRANT_URL: http://qdrant:6333
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-openai/text-embedding-3-large}
+      GEMINI_MODEL_CHEAP: ${GEMINI_MODEL_CHEAP:-gemini/gemini-3.1-flash-lite}
+      GEMINI_MODEL_STRONG: ${GEMINI_MODEL_STRONG:-gemini/gemini-3.1-pro-preview}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

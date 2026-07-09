@@ -14,7 +14,9 @@ from app.config import settings
 from app.ingestion.chunking import Chunk
 from app.llm import gateway
 
-# gemini-embedding-001 trả vector 3072 chiều (đã verify thật, xem gateway).
+# Vector 3072 chiều — trùng cho cả openai/text-embedding-3-large (đang dùng) lẫn
+# gemini/gemini-embedding-001 (đã verify thật). Đổi model embedding KHÁC dim thì
+# phải tạo lại collection.
 _EMBEDDING_DIM = 3072
 # Namespace cố định để sinh point id ổn định theo (sach, page, thứ tự chunk) —
 # ingest lại cùng trang sẽ ghi đè đúng point cũ, không tạo bản trùng.

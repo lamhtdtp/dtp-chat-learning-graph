@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # (đã gặp thật, dễ nhầm vì lỗi không nói rõ nguyên nhân là thiếu tiền tố).
     gemini_model_cheap: str = "gemini/gemini-3.1-flash-lite"
     gemini_model_strong: str = "gemini/gemini-3.1-pro-preview"
-    embedding_model: str = "gemini/gemini-embedding-001"
+    embedding_model: str = "openai/text-embedding-3-large"
 
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "sgk_toan"
