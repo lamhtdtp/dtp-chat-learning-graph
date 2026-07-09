@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, sendChat, tokenStore } from "../api";
-import { APP_NAME, TUTOR_NAME } from "../config";
+import { TUTOR_NAME } from "../config";
 import type { ChatMessage } from "../types";
 import { MessageBubble } from "./MessageBubble";
 
@@ -58,11 +58,11 @@ export function ChatView({ onLogout }: { onLogout: () => void }) {
   return (
     <div className="chat-screen">
       <header className="chat-header">
-        <div className="header-brand">
-          <img className="header-logo" src="/dtp-logo.svg" alt="DTP" />
+        <div className="brand">
+          <div className="avatar"><img src="/dtp-logo.svg" alt="DTP" /></div>
           <div>
-            <strong>{TUTOR_NAME}</strong>
-            <span className="header-sub">{APP_NAME}</span>
+            <div className="name">{TUTOR_NAME}</div>
+            <div className="online"><span className="dot" /> Đang trực tuyến</div>
           </div>
         </div>
         <button className="logout" onClick={onLogout} type="button">Đăng xuất</button>
@@ -71,7 +71,8 @@ export function ChatView({ onLogout }: { onLogout: () => void }) {
       <div className="messages" ref={scrollRef}>
         {messages.length === 0 && (
           <div className="empty">
-            <p className="empty-title">Xin chào! Mình là {TUTOR_NAME} 🎓</p>
+            <div className="badge" aria-hidden>🎓</div>
+            <p className="empty-title">Xin chào! Mình là {TUTOR_NAME}</p>
             <p>Bạn hỏi mình bất cứ điều gì trong sách Toán nhé. Thử một câu:</p>
             <div className="suggestions">
               {SUGGESTIONS.map((s) => (
