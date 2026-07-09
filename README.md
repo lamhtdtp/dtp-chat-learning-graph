@@ -35,7 +35,14 @@ docker compose exec redis redis-cli MODULE LIST | grep -i search   # xác nhận
 Nạp thử dữ liệu SGK vào Qdrant (OCR tốn token, pilot vài trang trước):
 
 ```bash
-python -m app.ingestion.cli --tap 1 --sach cung_kham_pha_tap_1 --pages 5-8
+python -m app.ingestion.cli --tap 1 --sach cung_kham_pha_tap_1 --pages 5-8   # inline
+python -m app.ingestion.cli --tap 1 --sach cung_kham_pha_tap_1 --queue        # qua Celery
+```
+
+Nạp cả sách nên chạy nền qua Celery (không chặn chat) — cần worker:
+
+```bash
+celery -A app.ingestion.celery_app worker --loglevel=info
 ```
 
 ### Eval (chất lượng, chạy riêng — không chặn merge)
