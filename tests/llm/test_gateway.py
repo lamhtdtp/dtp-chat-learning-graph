@@ -123,3 +123,42 @@ async def test_embed_tra_ve_vector_dung_thu_tu(mocker):
     vectors = await gateway.embed(["a", "b"])
 
     assert vectors == [[0.1, 0.2], [0.3, 0.4]]
+
+
+# ----- semantic cache tích hợp trong complete() -----
+
+def _cctx():
+    return {"question": "Tập hợp là gì?", "mon": "toan", "khoi": "lop_6", "chuong": 1, "role": "hoc_sinh"}
+
+
+async def test_complete_cache_hit_khong_goi_llm(mocker):
+    mocker.patch("app.llm.cache.get", mocker.AsyncMock(return_value="ĐÃ CACHE"))
+    cset = mocker.patch("app.llm.cache.set", mocker.AsyncMock())
+    llm = mocker.patch("app.llm.gateway._openai_client")
+
+    out = await gateway.complete("qa", [{"role": "user", "content": "hi"}], cache_ctx=_cctx())
+
+    assert out == "ĐÃ CACHE"
+    llm.assert_not_called()   # cache hit -> không gọi LLM
+    cset.assert_not_awaited()
+
+
+async def test_complete_cache_miss_goi_llm_va_luu(mocker):
+    mocker.patch("app.llm.cache.get", mocker.AsyncMock(return_value=None))
+    cset = mocker.patch("app.llm.cache.set", mocker.AsyncMock())
+    _fake_openai(mocker, content="câu trả lời mới")
+
+    out = await gateway.complete("qa", [{"role": "user", "content": "hi"}], cache_ctx=_cctx())
+
+    assert out == "câu trả lời mới"
+    cset.assert_awaited_once()  # miss -> lưu cache
+
+
+async def test_complete_task_solve_khong_cache_du_co_ctx(mocker):
+    cget = mocker.patch("app.llm.cache.get", mocker.AsyncMock())
+    _fake_openai(mocker, content="giải bài")
+
+    out = await gateway.complete("solve", [{"role": "user", "content": "hi"}], cache_ctx=_cctx())
+
+    assert out == "giải bài"
+    cget.assert_not_awaited()  # solve KHÔNG cacheable -> không đụng cache

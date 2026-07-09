@@ -33,5 +33,14 @@ async def qa_node(state: ChatState) -> dict:
             ),
         }
     ]
-    answer = await gateway.complete(task="qa", messages=messages)
+    # cache_ctx bật semantic cache: chương lấy từ chunk liên quan nhất (điểm cao
+    # nhất, đứng đầu retrieved) để câu cùng chương/khối/vai trò dùng chung cache.
+    cache_ctx = {
+        "question": question,
+        "mon": "toan",
+        "khoi": "lop_6",
+        "chuong": retrieved[0].chuong_so,
+        "role": state.get("role", "hoc_sinh"),
+    }
+    answer = await gateway.complete(task="qa", messages=messages, cache_ctx=cache_ctx)
     return {"answer": answer}

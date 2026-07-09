@@ -28,6 +28,7 @@ import anthropic
 from openai import AsyncOpenAI
 
 from app.config import settings
+from app.llm import cache
 
 Tier = Literal["cheap", "strong"]
 Protocol = Literal["anthropic_messages", "openai_chat"]
@@ -127,12 +128,22 @@ async def _complete_openai(model: str, messages: list[dict], max_tokens: int) ->
     return response.choices[0].message.content or ""
 
 
-async def complete(task: str, messages: list[dict], max_tokens: int = 4096) -> str:
+async def complete(
+    task: str,
+    messages: list[dict],
+    max_tokens: int = 4096,
+    cache_ctx: dict | None = None,
+) -> str:
     """`messages` LUÔN viết theo format Anthropic (kể cả khi model đích dùng
     giao thức OpenAI — gateway tự chuyển đổi, xem `_to_openai_content`):
     [{"role": "user"|"assistant", "content": str | list[content_block]}].
     Content block ảnh (dùng cho task="ocr_page"): {"type": "image", "source":
     {"type": "base64", "media_type": "image/png", "data": <base64 str>}}.
+
+    `cache_ctx` (tuỳ chọn): dict {question, mon, khoi, chuong, role} để bật
+    semantic cache cho task tầng rẻ cacheable (qa, review_suggestion). Node
+    truyền vào; task khác/None thì bỏ qua cache. Cache dùng Redis (xem
+    app.llm.cache).
 
     Các model đốt reasoning token (tầng mạnh gemini-3.1-pro-preview đốt
     ~2400 token "suy nghĩ" ẩn TÍNH VÀO max_tokens nhưng không hiện trong
@@ -140,11 +151,26 @@ async def complete(task: str, messages: list[dict], max_tokens: int = 4096) -> s
     (đã gặp thật khi verify API), nên mặc định để cao 4096. Tầng rẻ
     flash-lite gần như không đốt reasoning nên không tốn thừa.
     """
+    use_cache = cache_ctx is not None and cache.is_cacheable(task)
+    key: str | None = None
+    if use_cache:
+        key = cache.build_cache_key(task, cache_ctx["question"], mon=cache_ctx["mon"],
+                                    khoi=cache_ctx["khoi"], chuong=cache_ctx.get("chuong"),
+                                    role=cache_ctx["role"])
+        hit = await cache.get(key)
+        if hit is not None:
+            return hit
+
     model = _model_for_task(task)
     protocol = _protocol_for_model(model)
     if protocol == "anthropic_messages":
-        return await _complete_anthropic(model, messages, max_tokens)
-    return await _complete_openai(model, messages, max_tokens)
+        answer = await _complete_anthropic(model, messages, max_tokens)
+    else:
+        answer = await _complete_openai(model, messages, max_tokens)
+
+    if use_cache and key is not None and answer.strip():
+        await cache.set(key, answer)
+    return answer
 
 
 async def embed(texts: list[str]) -> list[list[float]]:
