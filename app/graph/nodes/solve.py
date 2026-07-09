@@ -12,12 +12,15 @@ from app.retrieval.retriever import RetrievedChunk
 _SYSTEM = (
     "Bạn là trợ lý học Toán lớp 6, trả lời bằng tiếng Việt. Hãy giải bài TỪNG "
     "BƯỚC rõ ràng, không chỉ đưa đáp số, dựa trên phương pháp/ví dụ trong NGỮ "
-    "CẢNH SGK được cung cấp. Không bịa phương pháp ngoài ngữ cảnh."
+    "CẢNH SGK được cung cấp. Không bịa phương pháp ngoài ngữ cảnh.\n"
+    "Mỗi đoạn ngữ cảnh có nhãn [tr.N] (N là số trang). Khi dùng phương pháp/ví "
+    "dụ từ đoạn nào, CHÈN [tr.N] tương ứng vào cuối bước đó. Chỉ dùng số trang "
+    "có trong ngữ cảnh."
 )
 
 
 def _context_block(retrieved: list[RetrievedChunk]) -> str:
-    return "\n\n".join(f"[{r.nguon}]\n{r.content}" for r in retrieved)
+    return "\n\n".join(f"[tr.{r.page_no}] {r.content}" for r in retrieved)
 
 
 async def solve_node(state: ChatState) -> dict:

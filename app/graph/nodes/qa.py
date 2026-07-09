@@ -10,12 +10,16 @@ from app.retrieval.retriever import RetrievedChunk
 _SYSTEM = (
     "Bạn là trợ lý học Toán lớp 6, trả lời bằng tiếng Việt, thân thiện với học "
     "sinh. CHỈ trả lời dựa trên NGỮ CẢNH SGK được cung cấp; không bịa kiến thức "
-    "ngoài ngữ cảnh. Nếu ngữ cảnh không đủ, nói rõ là chưa có trong SGK."
+    "ngoài ngữ cảnh. Nếu ngữ cảnh không đủ, nói rõ là chưa có trong SGK.\n"
+    "Mỗi đoạn ngữ cảnh có nhãn [tr.N] (N là số trang). Khi trình bày một ý lấy "
+    "từ đoạn nào, CHÈN ngay [tr.N] tương ứng vào cuối câu/ý đó (ví dụ: "
+    "'...số nguyên tố chỉ có hai ước [tr.45].'). Chỉ dùng số trang có trong "
+    "ngữ cảnh, không bịa số trang."
 )
 
 
 def _context_block(retrieved: list[RetrievedChunk]) -> str:
-    return "\n\n".join(f"[{r.nguon}]\n{r.content}" for r in retrieved)
+    return "\n\n".join(f"[tr.{r.page_no}] {r.content}" for r in retrieved)
 
 
 async def qa_node(state: ChatState) -> dict:
