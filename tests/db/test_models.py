@@ -69,6 +69,7 @@ async def test_curriculum_topic_la_cau_noi_sgk_va_ma_tran(db_session):
         topic_id=topic.id,
         dang_thuc="Trắc nghiệm khách quan",
         ti_le=15.0,
+        nhom_ti_le=1,
     )
     db_session.add(cell)
     await db_session.flush()

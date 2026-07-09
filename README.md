@@ -38,6 +38,16 @@ Nạp thử dữ liệu SGK vào Qdrant (OCR tốn token, pilot vài trang trư�
 python -m app.ingestion.cli --tap 1 --sach cung_kham_pha_tap_1 --pages 5-8
 ```
 
+### Eval (chất lượng, chạy riêng — không chặn merge)
+
+```bash
+python -m evals.run_retrieval_eval   # recall@5 trên dataset câu hỏi (ngưỡng 0.85)
+python -m evals.run_matrix_eval      # khớp ma trận: đếm deterministic, ngưỡng 100%
+```
+
+Eval cũng chạy được qua pytest ở `tests/evals/` (skip nếu thiếu API key / Qdrant rỗng).
+Khi đổi model embedding/prompt, chạy eval so baseline TRƯỚC khi merge.
+
 k8s manifest cho môi trường production (autoscale, HPA riêng ingestion/API — xem
 `full-system-spec.md` mục 10) **chưa triển khai**, để sau khi docker-compose ổn định.
 

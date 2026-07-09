@@ -82,6 +82,11 @@ class BlueprintCell(Base):
     topic_id: Mapped[int] = mapped_column(ForeignKey("curriculum_topics.id"))
     dang_thuc: Mapped[str]
     ti_le: Mapped[float]
+    # Số nhóm tỉ lệ (từ MatrixRow.nhom_ti_le): nhiều cell cùng chia sẻ 1 mức
+    # tỉ lệ chung. BẮT BUỘC lưu để cộng tổng tỉ lệ đúng 1 lần/nhóm — thiếu nó
+    # thì không phân biệt được cell nào cùng nhóm và tổng bị nhân lên (eval
+    # khớp ma trận đã bắt lỗi này: cộng ra 200% thay vì 100%).
+    nhom_ti_le: Mapped[int]
     so_cau: Mapped[int | None] = mapped_column(default=None)
 
 

@@ -84,6 +84,7 @@ async def load_matrix(
             topic_id=topic.id,
             dang_thuc=rec.dang_thuc,
             ti_le=rec.ti_le,
+            nhom_ti_le=rec.nhom_ti_le,
         ))
 
     await session.flush()
