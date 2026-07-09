@@ -128,7 +128,7 @@ export function ChatView({ onLogout }: { onLogout: () => void }) {
             <button className="hamburger" onClick={() => setDrawerOpen((v) => !v)} type="button" aria-label="Menu">
               <span /><span /><span />
             </button>
-            <div className="avatar"><img src="/dtp-logo.svg" alt="DTP" /></div>
+            <div className="avatar"><img src="/dtp-logo.png" alt="DTP" /></div>
             <div>
               <div className="name">{TUTOR_NAME}</div>
               <div className="online"><span className="dot" /> Đang trực tuyến</div>

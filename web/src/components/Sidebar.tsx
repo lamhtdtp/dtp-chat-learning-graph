@@ -14,7 +14,7 @@ export function Sidebar({ sessions, activeId, onSelect, onDelete, onNewChat, onL
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <div className="avatar"><img src="/dtp-logo.svg" alt="DTP" /></div>
+        <div className="avatar"><img src="/dtp-logo.png" alt="DTP" /></div>
         <span className="font-display">{TUTOR_NAME}</span>
       </div>
 

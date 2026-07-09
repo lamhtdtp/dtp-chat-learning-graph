@@ -45,7 +45,7 @@ export function LoginView({ onAuthed }: { onAuthed: () => void }) {
 
         <div className="hero-brand">
           <div className="hero-logo-box">
-            <img src="/dtp-logo.svg" alt="DTP" />
+            <img src="/dtp-logo.png" alt="DTP" />
           </div>
           <div>
             <div className="name">DTP</div>
@@ -72,7 +72,7 @@ export function LoginView({ onAuthed }: { onAuthed: () => void }) {
       <div className="auth-panel">
         <div className="auth-col">
           <div className="mobile-brand">
-            <div className="box"><img src="/dtp-logo.svg" alt="DTP" /></div>
+            <div className="box"><img src="/dtp-logo.png" alt="DTP" /></div>
             <div className="t">DTP · {APP_NAME}</div>
           </div>
 
