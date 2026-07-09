@@ -62,6 +62,9 @@ TASK_TIER: dict[str, Tier] = {
     # đúng. Nếu eval OCR sau này cho thấy flash-lite kém trên trang hình học,
     # đổi task này sang "strong" — chỉ 1 dòng.
     "ocr_page": "cheap",
+    # Kịch bản video bám câu trả lời ĐÃ grounding sẵn (chỉ diễn đạt lại, không
+    # cần suy luận mới) -> tầng rẻ đủ dùng, rẻ cho tính năng đính kèm.
+    "video_script": "cheap",
     "solve": "strong",
     "exam_gen": "strong",
 }

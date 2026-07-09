@@ -6,6 +6,7 @@ import type {
   MessageRow,
   Role,
   SessionRow,
+  VideoInfo,
 } from "./types";
 
 const TOKEN_KEY = "chat_learning_token";
@@ -92,6 +93,10 @@ export function getSessionMessages(id: number): Promise<MessageRow[]> {
 
 export function deleteSession(id: number): Promise<void> {
   return req<void>(`/sessions/${id}`, { method: "DELETE", auth: true });
+}
+
+export function getVideoStatus(jobId: number): Promise<VideoInfo> {
+  return req<VideoInfo>(`/video/jobs/${jobId}`);
 }
 
 export { ApiError };

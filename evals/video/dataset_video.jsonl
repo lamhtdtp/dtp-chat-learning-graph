@@ -1,0 +1,5 @@
+{"concept":"so_nguyen_to","answer":"Số nguyên tố là số tự nhiên lớn hơn 1, chỉ có hai ước là 1 và chính nó.","script_formulas":[],"expect_ok":true}
+{"concept":"phep_nhan","answer":"Tính chất giao hoán của phép nhân: $a.b = b.a$. Tính chất kết hợp: $(a.b).c = a.(b.c)$.","script_formulas":["a.b=b.a"],"expect_ok":true}
+{"concept":"phep_nhan_bia","answer":"Tính chất giao hoán của phép nhân: $a.b = b.a$.","script_formulas":["a+b=b+a"],"expect_ok":false}
+{"concept":"luy_thua","answer":"Lũy thừa: $2^3 = 8$. Nhân hai lũy thừa cùng cơ số: cộng số mũ.","script_formulas":["2^3=8"],"expect_ok":true}
+{"concept":"luy_thua_bia","answer":"Lũy thừa: $2^3 = 8$.","script_formulas":["2^3=9"],"expect_ok":false}

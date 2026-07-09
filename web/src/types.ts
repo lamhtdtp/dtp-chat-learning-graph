@@ -8,11 +8,18 @@ export interface Citation {
   tap: number | null;
 }
 
+export interface VideoInfo {
+  job_id: number;
+  status: "QUEUED" | "RENDERING" | "DONE" | "FAILED";
+  video_url: string | null;
+}
+
 export interface ChatResponse {
   reply: string;
   intent: string | null;
   citations: Citation[];
   session_id: number;
+  video: VideoInfo | null;
 }
 
 export interface SessionRow {
@@ -33,6 +40,7 @@ export interface ChatMessage {
   citations?: Citation[];
   pending?: boolean;
   error?: boolean;
+  video?: VideoInfo;
 }
 
 export interface AuthResult {

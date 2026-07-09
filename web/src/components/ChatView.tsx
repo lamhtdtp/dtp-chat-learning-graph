@@ -60,7 +60,10 @@ export function ChatView({ onLogout }: { onLogout: () => void }) {
     try {
       const res = await sendChat(q, activeId);
       setActiveId(res.session_id);
-      setMessages((m) => [...m.slice(0, -1), { who: "bot", text: res.reply, citations: res.citations }]);
+      setMessages((m) => [
+        ...m.slice(0, -1),
+        { who: "bot", text: res.reply, citations: res.citations, video: res.video ?? undefined },
+      ]);
       refreshSessions();
     } catch (err) {
       if (handle401(err)) return;
