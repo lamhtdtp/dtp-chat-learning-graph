@@ -1,0 +1,13 @@
+# Giảm build context: KHÔNG gửi dữ liệu nặng / rác vào Docker build.
+.git
+.venv
+data/
+data_processed/
+web/node_modules
+web/dist
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.env
+*.md
+!README.md

@@ -1,0 +1,85 @@
+# Compose PRODUCTION-shaped: chạy cả app (API + worker Celery + web) cùng hạ
+# tầng (qdrant + redis-stack + postgres) bằng image tự build. Khác
+# docker-compose.yml (chỉ hạ tầng cho dev, app chạy ngoài bằng venv).
+#
+#   docker compose -f docker-compose.app.yml up -d --build
+#
+# API và worker DÙNG CHUNG image backend, khác lệnh chạy -> scale độc lập
+# (API nhiều request nhỏ; worker batch nặng — nguyên tắc infra-observability).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: chat_learning
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis/redis-stack-server:latest # có RediSearch (checkpointer LangGraph cần)
+    volumes:
+      - redisdata:/data
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    volumes:
+      - qdrantdata:/qdrant/storage
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/backend.Dockerfile
+    environment:
+      AI_PLATFORM_API_KEY: ${AI_PLATFORM_API_KEY}
+      AI_PLATFORM_BASE_URL: ${AI_PLATFORM_BASE_URL}
+      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/chat_learning
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+      qdrant: { condition: service_started }
+    ports:
+      - "8000:8000"
+
+  worker:
+    build:
+      context: .
+      dockerfile: infra/backend.Dockerfile
+    command: celery -A app.ingestion.celery_app worker --loglevel=info
+    environment:
+      AI_PLATFORM_API_KEY: ${AI_PLATFORM_API_KEY}
+      AI_PLATFORM_BASE_URL: ${AI_PLATFORM_BASE_URL}
+      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/chat_learning
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+    volumes:
+      # ảnh SGK để OCR (offline) — read-only, không nằm trong image
+      - ./data:/app/data:ro
+    depends_on:
+      redis: { condition: service_started }
+      qdrant: { condition: service_started }
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/frontend.Dockerfile
+      args:
+        VITE_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  pgdata:
+  redisdata:
+  qdrantdata:

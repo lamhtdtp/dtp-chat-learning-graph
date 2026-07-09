@@ -26,6 +26,7 @@ dependencies = [
     "pyjwt>=2.9",
     "langfuse>=2.50",
     "python-multipart>=0.0.9",
+    "email-validator>=2.2",  # cho pydantic EmailStr (auth) — thiếu thì import lỗi
 ]
 
 [project.optional-dependencies]

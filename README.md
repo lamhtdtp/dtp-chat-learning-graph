@@ -55,6 +55,19 @@ python -m evals.run_matrix_eval      # khớp ma trận: đếm deterministic, n
 Eval cũng chạy được qua pytest ở `tests/evals/` (skip nếu thiếu API key / Qdrant rỗng).
 Khi đổi model embedding/prompt, chạy eval so baseline TRƯỚC khi merge.
 
+### Đóng gói & chạy bằng Docker (production-shaped)
+
+```bash
+# build + chạy cả app (api + worker + web) và hạ tầng
+cp .env.example .env   # điền AI_PLATFORM_API_KEY, JWT_SECRET...
+docker compose -f docker-compose.app.yml up -d --build
+# web: http://localhost:8080  ·  api: http://localhost:8000
+```
+
+Image: `infra/backend.Dockerfile` (API + worker dùng chung, khác lệnh chạy),
+`infra/frontend.Dockerfile` (build tĩnh + nginx). `.dockerignore` loại data/ và
+node_modules khỏi build context.
+
 k8s manifest cho môi trường production (autoscale, HPA riêng ingestion/API — xem
 `full-system-spec.md` mục 10) **chưa triển khai**, để sau khi docker-compose ổn định.
 
