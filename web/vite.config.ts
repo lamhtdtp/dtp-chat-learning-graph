@@ -12,6 +12,7 @@ export default defineConfig({
       "/chat": "http://localhost:8000",
       "/sessions": "http://localhost:8000",
       "/books": "http://localhost:8000",
+      "/exam": "http://localhost:8000",
       "/health": "http://localhost:8000",
     },
   },

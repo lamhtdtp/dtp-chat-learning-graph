@@ -10,7 +10,7 @@ const SYMBOLS = [
   { s: "π", style: { top: "24%", left: "14%", fontSize: 70, opacity: 0.1 }, r: "-5deg", dur: "6.4s" },
 ];
 
-export function LoginView({ onAuthed }: { onAuthed: () => void }) {
+export function LoginView({ onAuthed }: { onAuthed: (role: Role) => void }) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,9 +24,10 @@ export function LoginView({ onAuthed }: { onAuthed: () => void }) {
     setError(null);
     setBusy(true);
     try {
-      if (mode === "login") await login(email, password);
-      else await register(email, password, name, role);
-      onAuthed();
+      const res = mode === "login"
+        ? await login(email, password)
+        : await register(email, password, name, role);
+      onAuthed(res.role);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Không kết nối được máy chủ");
     } finally {
