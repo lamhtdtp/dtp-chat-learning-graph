@@ -3,7 +3,7 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, books, chat, sessions
+from app.api import auth, books, chat, exam, sessions
 from app.config import settings
 from app.graph.build import build_graph_with_redis
 
@@ -30,6 +30,7 @@ app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(sessions.router)
 app.include_router(books.router)
+app.include_router(exam.router)
 
 
 @app.get("/health")

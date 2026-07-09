@@ -1,5 +1,12 @@
 import { API_BASE } from "./config";
-import type { ChatResponse, MessageRow, Role, SessionRow } from "./types";
+import type {
+  AuthResult,
+  ChatResponse,
+  ExamResult,
+  MessageRow,
+  Role,
+  SessionRow,
+} from "./types";
 
 const TOKEN_KEY = "chat_learning_token";
 
@@ -51,21 +58,24 @@ export async function register(
   password: string,
   name: string,
   role: Role,
-): Promise<string> {
-  const { token } = await post<{ token: string }>("/auth/register", {
-    email,
-    password,
-    name,
-    role,
-  });
-  tokenStore.set(token);
-  return token;
+): Promise<AuthResult> {
+  const res = await post<AuthResult>("/auth/register", { email, password, name, role });
+  tokenStore.set(res.token);
+  return res;
 }
 
-export async function login(email: string, password: string): Promise<string> {
-  const { token } = await post<{ token: string }>("/auth/login", { email, password });
-  tokenStore.set(token);
-  return token;
+export async function login(email: string, password: string): Promise<AuthResult> {
+  const res = await post<AuthResult>("/auth/login", { email, password });
+  tokenStore.set(res.token);
+  return res;
+}
+
+export function getMe(): Promise<{ id: number; email: string; name: string; role: Role }> {
+  return req("/auth/me", { auth: true });
+}
+
+export function generateExam(hoc_ky: string, tong_so_cau: number): Promise<ExamResult> {
+  return post<ExamResult>("/exam/generate", { hoc_ky, tong_so_cau }, true);
 }
 
 export function sendChat(message: string, sessionId: number | null): Promise<ChatResponse> {

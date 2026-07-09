@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import security
+from app.api.deps import get_current_user
 from app.db.models import User
 from app.db.session import get_session
 
@@ -29,6 +30,15 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     token: str
+    role: str
+    name: str
+
+
+class MeResponse(BaseModel):
+    id: int
+    email: str
+    name: str
+    role: str
 
 
 @router.post("/register", response_model=TokenResponse)
@@ -46,7 +56,7 @@ async def register(body: RegisterRequest, session: AsyncSession = Depends(get_se
     session.add(user)
     await session.commit()
     await session.refresh(user)
-    return TokenResponse(token=security.create_token(user.id))
+    return TokenResponse(token=security.create_token(user.id), role=user.role, name=user.name)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -54,4 +64,9 @@ async def login(body: LoginRequest, session: AsyncSession = Depends(get_session)
     user = await session.scalar(select(User).where(User.email == body.email))
     if user is None or not security.verify_password(body.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Email hoặc mật khẩu không đúng")
-    return TokenResponse(token=security.create_token(user.id))
+    return TokenResponse(token=security.create_token(user.id), role=user.role, name=user.name)
+
+
+@router.get("/me", response_model=MeResponse)
+async def me(user: User = Depends(get_current_user)) -> MeResponse:
+    return MeResponse(id=user.id, email=user.email, name=user.name, role=user.role)

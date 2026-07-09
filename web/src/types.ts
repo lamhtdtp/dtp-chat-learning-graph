@@ -34,3 +34,26 @@ export interface ChatMessage {
   pending?: boolean;
   error?: boolean;
 }
+
+export interface AuthResult {
+  token: string;
+  role: Role;
+  name: string;
+}
+
+export interface ExamQuestion {
+  muc_do: "de" | "trung_binh" | "kho";
+  noi_dung: string;
+  dap_an: string;
+  loi_giai: string;
+}
+
+export interface ExamResult {
+  hoc_ky: string;
+  tong_so_cau: number;
+  chi_tieu: Record<string, number>;
+  ti_le_muc_do: Record<string, number>;
+  mach_noi_dung: string[];
+  cau_hoi: ExamQuestion[];
+  canh_bao: string | null;
+}
