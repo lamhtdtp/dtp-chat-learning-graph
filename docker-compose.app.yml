@@ -1,26 +1,16 @@
 # Compose PRODUCTION-shaped: chạy cả app (API + worker Celery + web) cùng hạ
-# tầng (qdrant + redis-stack + postgres) bằng image tự build. Khác
+# tầng vector/redis (qdrant + redis-stack) bằng image tự build. Khác
 # docker-compose.yml (chỉ hạ tầng cho dev, app chạy ngoài bằng venv).
 #
 #   docker compose -f docker-compose.app.yml up -d --build
 #
+# Postgres KHÔNG chạy trong compose — dùng Postgres NATIVE có sẵn trên host
+# (giống môi trường của người vận hành). Container nối tới host qua
+# host.docker.internal; đặt DATABASE_URL trong .env cho khớp user/DB host.
+#
 # API và worker DÙNG CHUNG image backend, khác lệnh chạy -> scale độc lập
 # (API nhiều request nhỏ; worker batch nặng — nguyên tắc infra-observability).
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: chat_learning
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-
   redis:
     image: redis/redis-stack-server:latest # có RediSearch (checkpointer LangGraph cần)
     volumes:
@@ -38,13 +28,16 @@ services:
     environment:
       AI_PLATFORM_API_KEY: ${AI_PLATFORM_API_KEY}
       AI_PLATFORM_BASE_URL: ${AI_PLATFORM_BASE_URL}
-      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/chat_learning
+      # Postgres native trên host — đặt DATABASE_URL trong .env dùng
+      # host.docker.internal (không phải localhost) để container thấy host.
+      DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: redis://redis:6379/0
       QDRANT_URL: http://qdrant:6333
       JWT_SECRET: ${JWT_SECRET}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # Linux cần dòng này; Docker Desktop đã có sẵn
     depends_on:
-      postgres: { condition: service_healthy }
       redis: { condition: service_started }
       qdrant: { condition: service_started }
     ports:
@@ -58,9 +51,11 @@ services:
     environment:
       AI_PLATFORM_API_KEY: ${AI_PLATFORM_API_KEY}
       AI_PLATFORM_BASE_URL: ${AI_PLATFORM_BASE_URL}
-      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/chat_learning
+      DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: redis://redis:6379/0
       QDRANT_URL: http://qdrant:6333
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       # ảnh SGK để OCR (offline) — read-only, không nằm trong image
       - ./data:/app/data:ro
@@ -80,6 +75,5 @@ services:
       - "8080:80"
 
 volumes:
-  pgdata:
   redisdata:
   qdrantdata:

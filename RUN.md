@@ -115,10 +115,17 @@ Luồng thử: mở web → **Đăng ký** (email/mật khẩu, chọn Học sin
 
 ## 7. Cách B — chạy bằng Docker (giống production)
 
-Đóng gói cả app + hạ tầng, không cần venv/node:
+Đóng gói app + Qdrant + Redis Stack. **Postgres KHÔNG chạy trong Docker** — dùng
+Postgres native trên host (giống môi trường vận hành).
+
+Trước khi chạy, trong `.env` đổi `DATABASE_URL` sang **`host.docker.internal`**
+(không phải `localhost`) để container thấy Postgres host, ví dụ:
+`postgresql+asyncpg://<user>@host.docker.internal:5432/chat_learning`. Đảm bảo
+Postgres host nhận kết nối từ Docker (Homebrew: `listen_addresses = '*'` trong
+`postgresql.conf` + dòng cho phép trong `pg_hba.conf`, rồi restart).
 
 ```bash
-cp .env.example .env    # điền AI_PLATFORM_API_KEY, JWT_SECRET
+cp .env.example .env    # điền AI_PLATFORM_API_KEY, JWT_SECRET, sửa DATABASE_URL (host.docker.internal)
 docker compose -f docker-compose.app.yml up -d --build
 # web:  http://localhost:8080
 # api:  http://localhost:8000
