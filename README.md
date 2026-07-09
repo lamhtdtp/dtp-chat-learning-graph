@@ -6,6 +6,8 @@ Kiến trúc: FastAPI + LangGraph + Qdrant + Postgres + Redis + Gemini (chat, OC
 Spec đầy đủ: xem repo `dtp-chat-learning-tdd/specs/full-system-spec.md` (kiến trúc, quyết định
 công nghệ, backlog) và `dtp-chat-learning-tdd/CLAUDE.md` + `.claude/skills/*` (nguyên tắc/quy ước).
 
+> Hướng dẫn chạy local đầy đủ (từng bước, cả venv lẫn Docker): xem **[RUN.md](RUN.md)**.
+
 ## Setup dev
 
 ```bash
