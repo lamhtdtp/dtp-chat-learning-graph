@@ -7,9 +7,12 @@ from app.graph.state import ChatState
 from app.retrieval import retriever
 
 # Ngưỡng điểm tối thiểu để coi là "có ngữ cảnh" — dưới ngưỡng bị loại ở retriever,
-# rỗng thì guard chống bịa ở qa/solve node sẽ short-circuit. Đặt bảo thủ; chỉnh
-# theo eval retrieval sau (chưa có baseline nên để giá trị an toàn).
-_SCORE_THRESHOLD = 0.5
+# rỗng thì guard chống bịa ở qa/solve node sẽ short-circuit.
+# 0.40 hiệu chỉnh cho embedding openai/text-embedding-3-large (đo thật trên SGK
+# Toán 6): câu ĐÚNG đề khớp ~0.43–0.74, câu LẠC đề ~0.28–0.34 -> 0.40 tách sạch
+# (0.5 trước đó là của gemini-embedding, quá cao -> lọc nhầm khớp thật thành
+# "không tìm thấy"). Đổi model embedding thì phải đo lại ngưỡng.
+_SCORE_THRESHOLD = 0.4
 _TOP_K = 5
 
 
