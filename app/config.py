@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
 
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "http://localhost:5173,http://localhost:8080,http://127.0.0.1:5173,http://127.0.0.1:8080"
 
 
 settings = Settings()

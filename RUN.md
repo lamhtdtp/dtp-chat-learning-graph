@@ -118,14 +118,17 @@ Luồng thử: mở web → **Đăng ký** (email/mật khẩu, chọn Học sin
 Đóng gói app + Qdrant + Redis Stack. **Postgres KHÔNG chạy trong Docker** — dùng
 Postgres native trên host (giống môi trường vận hành).
 
-Trước khi chạy, trong `.env` đổi `DATABASE_URL` sang **`host.docker.internal`**
-(không phải `localhost`) để container thấy Postgres host, ví dụ:
-`postgresql+asyncpg://<user>@host.docker.internal:5432/chat_learning`. Đảm bảo
-Postgres host nhận kết nối từ Docker (Homebrew: `listen_addresses = '*'` trong
-`postgresql.conf` + dòng cho phép trong `pg_hba.conf`, rồi restart).
+Trong container, `localhost` là chính container — muốn thấy Postgres trên host
+phải dùng **`host.docker.internal`**. Compose đã đặt sẵn default
+`DATABASE_URL_DOCKER=postgresql+asyncpg://lamthanh@host.docker.internal:5432/chat_learning`
+(không đụng `DATABASE_URL=localhost` mà venv dùng). Chỉ đặt `DATABASE_URL_DOCKER`
+trong `.env` nếu user/DB khác mặc định. Trên Docker Desktop (Mac/Win),
+`host.docker.internal` tự tới host — thường KHÔNG cần chỉnh `listen_addresses`.
+(Nếu container báo Postgres "connection refused": mở `listen_addresses`/`pg_hba`
+cho phép kết nối từ Docker rồi restart Postgres.)
 
 ```bash
-cp .env.example .env    # điền AI_PLATFORM_API_KEY, JWT_SECRET, sửa DATABASE_URL (host.docker.internal)
+cp .env.example .env    # điền AI_PLATFORM_API_KEY, JWT_SECRET (DATABASE_URL_DOCKER có default)
 docker compose -f docker-compose.app.yml up -d --build
 # web:  http://localhost:8080
 # api:  http://localhost:8000
