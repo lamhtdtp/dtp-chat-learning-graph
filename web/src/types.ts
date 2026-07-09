@@ -11,7 +11,19 @@ export interface ChatResponse {
   reply: string;
   intent: string | null;
   citations: Citation[];
-  session_id: string;
+  session_id: number;
+}
+
+export interface SessionRow {
+  id: number;
+  title: string;
+  last_active: string;
+}
+
+export interface MessageRow {
+  role: "user" | "assistant";
+  content: string;
+  citations: Citation[] | null;
 }
 
 export interface ChatMessage {

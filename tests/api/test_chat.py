@@ -1,10 +1,24 @@
+import uuid
 from types import SimpleNamespace
 
-import pytest
-
-from app.api.deps import get_current_user
 from app.main import app
-from app.retrieval.retriever import RetrievedChunk
+
+
+async def _auth(client) -> dict:
+    email = f"chat-{uuid.uuid4().hex[:8]}@vd.vn"
+    r = await client.post("/auth/register", json={
+        "email": email, "password": "matkhau123", "name": "An", "role": "hoc_sinh"})
+    return {"Authorization": f"Bearer {r.json()['token']}"}
+
+
+def _fake_graph(mocker, answer="Tập hợp là...", intent="hoi_dap", retrieved=None):
+    from app.retrieval.retriever import RetrievedChunk
+    if retrieved is None:
+        retrieved = [RetrievedChunk(content="Tập hợp gồm phần tử.", score=0.8, chuong_so=1,
+                                    bai_so=1, page_no=6, loai_noi_dung="ly_thuyet", nguon="tr.6")]
+    app.state.graph = SimpleNamespace(ainvoke=mocker.AsyncMock(
+        return_value={"answer": answer, "intent": intent, "retrieved": retrieved}))
+    return app.state.graph
 
 
 async def test_chat_thieu_token_bi_401(client):
@@ -12,54 +26,57 @@ async def test_chat_thieu_token_bi_401(client):
     assert r.status_code == 401
 
 
-@pytest.fixture
-def as_student():
-    """Bỏ qua xác thực thật, coi như đã đăng nhập là học sinh."""
-    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=7, role="hoc_sinh")
-    yield
-    app.dependency_overrides.pop(get_current_user, None)
+async def test_chat_tao_phien_moi_tra_session_id_va_citations(client, mocker):
+    h = await _auth(client)
+    fake = _fake_graph(mocker)
 
-
-async def test_chat_tra_reply_va_citations(client, as_student, mocker):
-    chunk = RetrievedChunk(content="Tập hợp gồm các phần tử.", score=0.8, chuong_so=1,
-                           bai_so=1, page_no=6, loai_noi_dung="ly_thuyet", nguon="Toán 6, tr.6")
-    fake_graph = SimpleNamespace(ainvoke=mocker.AsyncMock(return_value={
-        "answer": "Tập hợp là một nhóm các phần tử.",
-        "intent": "hoi_dap",
-        "retrieved": [chunk],
-    }))
-    app.state.graph = fake_graph
-
-    r = await client.post("/chat", json={"message": "Tập hợp là gì?", "session_id": "s1"})
+    r = await client.post("/chat", json={"message": "Tập hợp là gì?"}, headers=h)
 
     assert r.status_code == 200
     body = r.json()
-    assert body["reply"] == "Tập hợp là một nhóm các phần tử."
+    assert body["reply"] == "Tập hợp là..."
     assert body["intent"] == "hoi_dap"
     assert body["citations"][0]["page_no"] == 6
-    assert body["session_id"] == "s1"
-    # thread_id gồm user_id + session_id để tách phiên theo user
-    assert fake_graph.ainvoke.await_args.kwargs["config"]["configurable"]["thread_id"] == "7:s1"
+    assert isinstance(body["session_id"], int)  # phiên mới -> id int
+    # thread_id gồm user_id:session_id
+    tid = fake.ainvoke.await_args.kwargs["config"]["configurable"]["thread_id"]
+    assert tid.endswith(f":{body['session_id']}")
 
 
-async def test_chat_truyen_role_vao_graph(client, as_student, mocker):
-    fake_graph = SimpleNamespace(ainvoke=mocker.AsyncMock(return_value={
-        "answer": "x", "intent": "hoi_dap", "retrieved": []}))
-    app.state.graph = fake_graph
+async def test_chat_tiep_tuc_phien_cu_giu_session_id(client, mocker):
+    h = await _auth(client)
+    _fake_graph(mocker)
+    first = (await client.post("/chat", json={"message": "câu 1"}, headers=h)).json()
+    sid = first["session_id"]
 
-    await client.post("/chat", json={"message": "hi"})
+    second = (await client.post("/chat", json={"message": "câu 2", "session_id": sid}, headers=h)).json()
+    assert second["session_id"] == sid  # cùng phiên
 
-    assert fake_graph.ainvoke.await_args.args[0]["role"] == "hoc_sinh"
+
+async def test_chat_luu_lich_su_va_liet_ke_duoc(client, mocker):
+    h = await _auth(client)
+    _fake_graph(mocker, answer="Trả lời A")
+    sid = (await client.post("/chat", json={"message": "Câu hỏi X"}, headers=h)).json()["session_id"]
+
+    # GET /sessions liệt kê phiên
+    sessions = (await client.get("/sessions", headers=h)).json()
+    assert any(s["id"] == sid for s in sessions)
+
+    # GET /sessions/{id} trả đủ user + assistant message
+    msgs = (await client.get(f"/sessions/{sid}", headers=h)).json()
+    assert [m["role"] for m in msgs] == ["user", "assistant"]
+    assert msgs[0]["content"] == "Câu hỏi X"
+    assert msgs[1]["content"] == "Trả lời A"
 
 
-async def test_chat_rate_limit_tra_503_khong_phai_500(client, as_student, mocker):
+async def test_chat_rate_limit_tra_503(client, mocker):
     from app.llm.gateway import LLMUnavailable
+    h = await _auth(client)
 
     async def boom(*a, **k):
-        raise LLMUnavailable("429 rate limit")
+        raise LLMUnavailable("429")
     app.state.graph = SimpleNamespace(ainvoke=boom)
 
-    r = await client.post("/chat", json={"message": "Tập hợp là gì?"})
-
-    assert r.status_code == 503  # không phải 500 trần
+    r = await client.post("/chat", json={"message": "Tập hợp là gì?"}, headers=h)
+    assert r.status_code == 503
     assert "thử lại sau" in r.json()["detail"]

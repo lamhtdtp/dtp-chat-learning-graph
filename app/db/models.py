@@ -4,7 +4,7 @@ Qdrant, xem app/ingestion/matrix_parser.py và specs/full-system-spec.md mục 4
 
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, UniqueConstraint
+from sqlalchemy import ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -98,4 +98,29 @@ class User(Base):
     password_hash: Mapped[str]
     name: Mapped[str]
     role: Mapped[str]  # "hoc_sinh" | "giao_vien"
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class ChatSession(Base):
+    """1 phiên hội thoại của 1 user. Lịch sử tin nhắn (bảng messages) lưu ở
+    Postgres để dựng sidebar/xem lại — TÁCH khỏi checkpointer Redis của
+    LangGraph (Redis giữ state để resume graph, không tiện query theo user)."""
+
+    __tablename__ = "chat_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    title: Mapped[str] = mapped_column(default="Cuộc trò chuyện")
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    last_active: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("chat_sessions.id"), index=True)
+    role: Mapped[str]  # "user" | "assistant"
+    content: Mapped[str] = mapped_column(Text)
+    citations_json: Mapped[str | None] = mapped_column(Text, default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
