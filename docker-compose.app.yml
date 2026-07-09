@@ -15,11 +15,18 @@ services:
     image: redis/redis-stack-server:latest # có RediSearch (checkpointer LangGraph cần)
     volumes:
       - redisdata:/data
+    # Publish ra host để worker VIDEO (Epic-09) chạy trên host truy cập được
+    # broker/Qdrant — TTS `say`/KaTeX/ffmpeg là công cụ host, không chạy trong
+    # container Linux nên video worker bắt buộc chạy ngoài.
+    ports:
+      - "6380:6379"
 
   qdrant:
     image: qdrant/qdrant:latest
     volumes:
       - qdrantdata:/qdrant/storage
+    ports:
+      - "6333:6333"
 
   api:
     build:

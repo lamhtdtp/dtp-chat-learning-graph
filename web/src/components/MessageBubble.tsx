@@ -1,5 +1,6 @@
 import { renderRich } from "../markdown";
 import type { ChatMessage, Citation } from "../types";
+import { VideoBlock } from "./VideoBlock";
 
 // "không tìm thấy trong SGK" là trạng thái CỐ Ý (guard chống bịa), phải khác
 // biệt trực quan với câu trả lời thường.
@@ -64,6 +65,7 @@ export function MessageBubble({ msg, onOpenCitation }: { msg: ChatMessage; onOpe
             })}
           </div>
         )}
+        {msg.video && <VideoBlock info={msg.video} />}
       </div>
     </div>
   );

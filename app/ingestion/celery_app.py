@@ -23,6 +23,10 @@ celery_app.conf.update(
     result_serializer="json",
     accept_content=["json"],
     task_track_started=True,
+    # Video (Epic-09) đi queue riêng "video": worker Docker (Linux) KHÔNG có
+    # công cụ media host (`say`/node/ffmpeg) nên KHÔNG được nhận task này. Chạy
+    # 1 worker trên HOST: celery -A app.ingestion.celery_app worker -Q video
+    task_routes={"render_video": {"queue": "video"}},
 )
 
 
@@ -43,3 +47,16 @@ def ingest_book_task(
     return asyncio.run(
         ingest_book(mon=mon, khoi=khoi, tap=tap, sach=sach, pages=pages, force_ocr=force_ocr)
     )
+
+
+@celery_app.task(name="render_video")
+def render_video_task(*, job_id: int) -> str | None:
+    """Sinh video AI cho 1 job (Epic-09). Chạy nền, KHÔNG chặn đường chat.
+
+    LƯU Ý VẬN HÀNH: worker này cần công cụ media của HOST (TTS `say`, node+KaTeX,
+    ffmpeg) — chạy trên host, không phải trong container Linux:
+        celery -A app.ingestion.celery_app worker -Q video --loglevel=info
+    """
+    from app.video.tasks import render_video
+
+    return asyncio.run(render_video(job_id=job_id))

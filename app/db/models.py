@@ -124,3 +124,26 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text)
     citations_json: Mapped[str | None] = mapped_column(Text, default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class VideoJob(Base):
+    """Job sinh video AI ngắn cho 1 khái niệm (Epic-09). Vòng đời
+    QUEUED→RENDERING→DONE|FAILED lưu ở Postgres để API/WebSocket truy vấn.
+
+    Cache theo khái niệm: 1 concept_key + sgk_version -> DÙNG LẠI 1 video cho mọi
+    học sinh. `concept_key` unique cùng `sgk_version` để không render trùng và
+    đổi sách thì làm mới (xem 04-Video-Generation-Flow §4, §5)."""
+
+    __tablename__ = "video_jobs"
+    __table_args__ = (UniqueConstraint("concept_key", "sgk_version"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    concept_key: Mapped[str] = mapped_column(index=True)
+    sgk_version: Mapped[str]
+    status: Mapped[str] = mapped_column(default="QUEUED")  # QUEUED|RENDERING|DONE|FAILED
+    video_url: Mapped[str | None] = mapped_column(default=None)
+    error: Mapped[str | None] = mapped_column(Text, default=None)
+    title: Mapped[str | None] = mapped_column(default=None)
+    duration_sec: Mapped[float | None] = mapped_column(default=None)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
