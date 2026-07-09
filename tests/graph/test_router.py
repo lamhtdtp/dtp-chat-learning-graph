@@ -23,6 +23,16 @@ def test_rule_based_nhan_dien_giai_bai(text):
     assert router.route_rule_based(text) == "giai_bai"
 
 
+@pytest.mark.parametrize("text", [
+    "Ôn tập chương số tự nhiên giúp em",
+    "Em muốn ôn lại phần phân số",
+    "Củng cố kiến thức về số nguyên",
+    "Giúp em tổng ôn hình học",
+])
+def test_rule_based_nhan_dien_on_tap(text):
+    assert router.route_rule_based(text) == "on_tap"
+
+
 def test_rule_based_khong_chac_tra_none():
     assert router.route_rule_based("Chào bạn") is None
 

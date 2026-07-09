@@ -2,7 +2,7 @@
 export const SUGGESTIONS = [
   "Số nguyên tố là gì ạ?",
   "Cho em 3 bài tập chia hết",
-  "Cách viết một tập hợp?",
+  "Ôn tập chương Số tự nhiên",
 ];
 
 export interface TopicGroup {
