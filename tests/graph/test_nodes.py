@@ -1,4 +1,5 @@
 from app.graph.grounding import KHONG_TIM_THAY, has_grounding
+from app.graph.nodes.on_tap import on_tap_node
 from app.graph.nodes.qa import qa_node
 from app.graph.nodes.solve import solve_node
 from app.retrieval.retriever import RetrievedChunk
@@ -65,3 +66,28 @@ async def test_solve_node_dung_task_solve(mocker):
 
     assert result["answer"] == "Bước 1... Bước 2..."
     assert llm.await_args.kwargs["task"] == "solve"
+
+
+async def test_on_tap_node_short_circuit_khi_khong_co_ngu_canh(mocker):
+    llm = mocker.patch("app.graph.nodes.on_tap.gateway.complete", mocker.AsyncMock())
+    state = {"messages": [{"role": "user", "content": "Ôn tập số tự nhiên"}], "retrieved": []}
+
+    result = await on_tap_node(state)
+
+    assert KHONG_TIM_THAY in result["answer"]
+    llm.assert_not_awaited()
+
+
+async def test_on_tap_node_goi_llm_khi_co_ngu_canh(mocker):
+    llm = mocker.patch("app.graph.nodes.on_tap.gateway.complete",
+                       mocker.AsyncMock(return_value="Trọng tâm cần nhớ: ..."))
+    state = {"messages": [{"role": "user", "content": "Ôn tập số tự nhiên"}],
+             "retrieved": [_chunk()]}
+
+    result = await on_tap_node(state)
+
+    assert result["answer"] == "Trọng tâm cần nhớ: ..."
+    # dùng tầng rẻ (task="qa") + có nhãn [tr.N] trong ngữ cảnh gửi LLM
+    assert llm.await_args.kwargs["task"] == "qa"
+    sent = llm.await_args.args[1] if llm.await_args.args else llm.await_args.kwargs["messages"]
+    assert any("[tr.6]" in str(m.get("content", "")) for m in sent)

@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from langgraph.graph import END, START, StateGraph
 
 from app.config import settings
+from app.graph.nodes.on_tap import on_tap_node
 from app.graph.nodes.qa import qa_node
 from app.graph.nodes.retrieve import retrieve_node
 from app.graph.nodes.solve import solve_node
@@ -19,7 +20,12 @@ from app.graph.state import ChatState
 
 
 def _route_by_intent(state: ChatState) -> str:
-    return "solve" if state.get("intent") == "giai_bai" else "qa"
+    intent = state.get("intent")
+    if intent == "giai_bai":
+        return "solve"
+    if intent == "on_tap":
+        return "on_tap"
+    return "qa"
 
 
 def build_graph(checkpointer=None):
@@ -30,12 +36,16 @@ def build_graph(checkpointer=None):
     graph.add_node("retrieve", retrieve_node)
     graph.add_node("qa", qa_node)
     graph.add_node("solve", solve_node)
+    graph.add_node("on_tap", on_tap_node)
 
     graph.add_edge(START, "router")
     graph.add_edge("router", "retrieve")
-    graph.add_conditional_edges("retrieve", _route_by_intent, {"qa": "qa", "solve": "solve"})
+    graph.add_conditional_edges(
+        "retrieve", _route_by_intent, {"qa": "qa", "solve": "solve", "on_tap": "on_tap"}
+    )
     graph.add_edge("qa", END)
     graph.add_edge("solve", END)
+    graph.add_edge("on_tap", END)
 
     return graph.compile(checkpointer=checkpointer)
 
