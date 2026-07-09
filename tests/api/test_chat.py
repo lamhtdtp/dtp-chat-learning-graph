@@ -50,3 +50,16 @@ async def test_chat_truyen_role_vao_graph(client, as_student, mocker):
     await client.post("/chat", json={"message": "hi"})
 
     assert fake_graph.ainvoke.await_args.args[0]["role"] == "hoc_sinh"
+
+
+async def test_chat_rate_limit_tra_503_khong_phai_500(client, as_student, mocker):
+    from app.llm.gateway import LLMUnavailable
+
+    async def boom(*a, **k):
+        raise LLMUnavailable("429 rate limit")
+    app.state.graph = SimpleNamespace(ainvoke=boom)
+
+    r = await client.post("/chat", json={"message": "Tập hợp là gì?"})
+
+    assert r.status_code == 503  # không phải 500 trần
+    assert "thử lại sau" in r.json()["detail"]

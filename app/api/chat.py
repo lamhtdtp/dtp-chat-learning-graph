@@ -5,11 +5,12 @@ user tách biệt; state hội thoại sống trong Redis (stateless app). Graph
 dựng 1 lần lúc startup (lifespan) và tái dùng — không dựng lại mỗi request.
 """
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from app.api.deps import get_current_user
 from app.db.models import User
+from app.llm.gateway import LLMUnavailable
 
 router = APIRouter(tags=["chat"])
 
@@ -42,10 +43,18 @@ async def chat(
     graph = request.app.state.graph
     thread_id = f"{user.id}:{body.session_id}"
 
-    result = await graph.ainvoke(
-        {"messages": [{"role": "user", "content": body.message}], "role": user.role},
-        config={"configurable": {"thread_id": thread_id}},
-    )
+    try:
+        result = await graph.ainvoke(
+            {"messages": [{"role": "user", "content": body.message}], "role": user.role},
+            config={"configurable": {"thread_id": thread_id}},
+        )
+    except LLMUnavailable:
+        # Provider hết quota (429)/mất kết nối -> 503 + thông báo thân thiện,
+        # KHÔNG để 500 trần (VNGCloud giới hạn 50 req/ngày rất hay chạm).
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Hệ thống đang bận (quá giới hạn gọi AI), bạn thử lại sau ít phút nhé.",
+        )
 
     retrieved = result.get("retrieved") or []
     citations = [

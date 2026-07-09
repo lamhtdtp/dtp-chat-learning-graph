@@ -25,6 +25,7 @@ lúc viết module này. Xem specs/full-system-spec.md mục 8.
 from typing import Literal
 
 import anthropic
+import openai
 from openai import AsyncOpenAI
 
 from app.config import settings
@@ -32,6 +33,22 @@ from app.llm import cache
 
 Tier = Literal["cheap", "strong"]
 Protocol = Literal["anthropic_messages", "openai_chat"]
+
+
+class LLMUnavailable(Exception):
+    """LLM provider tạm không phục vụ được (hết quota/429, mất kết nối). Tách
+    khỏi lỗi lập trình để tầng API map sang 503 + thông báo thân thiện, thay vì
+    500 trần (VNGCloud giới hạn 50 req/ngày -> 429 rất hay gặp)."""
+
+
+# Lỗi provider coi là "tạm thời, thử lại sau" (429/quota + mất kết nối), gộp cả
+# 2 SDK vì gateway dùng cả Anthropic lẫn OpenAI.
+_TRANSIENT_ERRORS = (
+    openai.RateLimitError,
+    openai.APIConnectionError,
+    anthropic.RateLimitError,
+    anthropic.APIConnectionError,
+)
 
 TASK_TIER: dict[str, Tier] = {
     "route_intent": "cheap",
@@ -163,10 +180,13 @@ async def complete(
 
     model = _model_for_task(task)
     protocol = _protocol_for_model(model)
-    if protocol == "anthropic_messages":
-        answer = await _complete_anthropic(model, messages, max_tokens)
-    else:
-        answer = await _complete_openai(model, messages, max_tokens)
+    try:
+        if protocol == "anthropic_messages":
+            answer = await _complete_anthropic(model, messages, max_tokens)
+        else:
+            answer = await _complete_openai(model, messages, max_tokens)
+    except _TRANSIENT_ERRORS as e:
+        raise LLMUnavailable(str(e)) from e
 
     if use_cache and key is not None and answer.strip():
         await cache.set(key, answer)
@@ -175,9 +195,12 @@ async def complete(
 
 async def embed(texts: list[str]) -> list[list[float]]:
     client = _openai_client()
-    response = await client.embeddings.create(
-        model=settings.embedding_model,
-        input=texts,
-        encoding_format="float",
-    )
+    try:
+        response = await client.embeddings.create(
+            model=settings.embedding_model,
+            input=texts,
+            encoding_format="float",
+        )
+    except _TRANSIENT_ERRORS as e:
+        raise LLMUnavailable(str(e)) from e
     return [item.embedding for item in response.data]

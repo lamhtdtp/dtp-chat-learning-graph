@@ -43,10 +43,13 @@ export function ChatView({ onLogout }: { onLogout: () => void }) {
         onLogout();
         return;
       }
-      setMessages((m) => [
-        ...m.slice(0, -1),
-        { who: "bot", text: "Mình gặp trục trặc khi trả lời, bé thử lại nhé.", error: true },
-      ]);
+      // Hiện thông báo từ server nếu có (vd 503 "Hệ thống đang bận…"), nếu
+      // không thì câu chung.
+      const msg =
+        err instanceof ApiError && err.message
+          ? err.message
+          : "Mình gặp trục trặc khi trả lời, bạn thử lại nhé.";
+      setMessages((m) => [...m.slice(0, -1), { who: "bot", text: msg, error: true }]);
     } finally {
       setBusy(false);
     }
