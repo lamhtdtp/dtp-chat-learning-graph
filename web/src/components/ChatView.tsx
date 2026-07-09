@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, sendChat, tokenStore } from "../api";
-import { TUTOR_NAME } from "../config";
+import { APP_NAME, TUTOR_NAME } from "../config";
 import type { ChatMessage } from "../types";
 import { MessageBubble } from "./MessageBubble";
 
@@ -56,10 +56,10 @@ export function ChatView({ onLogout }: { onLogout: () => void }) {
     <div className="chat-screen">
       <header className="chat-header">
         <div className="header-brand">
-          <span aria-hidden>🐿️</span>
+          <img className="header-logo" src="/dtp-logo.svg" alt="DTP" />
           <div>
             <strong>{TUTOR_NAME}</strong>
-            <span className="header-sub">Trợ lý học Toán 6</span>
+            <span className="header-sub">{APP_NAME}</span>
           </div>
         </div>
         <button className="logout" onClick={onLogout} type="button">Đăng xuất</button>
@@ -68,8 +68,8 @@ export function ChatView({ onLogout }: { onLogout: () => void }) {
       <div className="messages" ref={scrollRef}>
         {messages.length === 0 && (
           <div className="empty">
-            <p className="empty-title">Chào bé! Mình là {TUTOR_NAME} 🐿️</p>
-            <p>Bé hỏi mình bất cứ điều gì trong sách Toán 6 nhé. Thử một câu:</p>
+            <p className="empty-title">Xin chào! Mình là {TUTOR_NAME} 🎓</p>
+            <p>Bạn hỏi mình bất cứ điều gì trong sách Toán nhé. Thử một câu:</p>
             <div className="suggestions">
               {SUGGESTIONS.map((s) => (
                 <button key={s} onClick={() => ask(s)} type="button">{s}</button>

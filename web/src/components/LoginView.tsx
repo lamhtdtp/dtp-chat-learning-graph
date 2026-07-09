@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ApiError, login, register } from "../api";
-import { TUTOR_NAME } from "../config";
+import { APP_NAME, TUTOR_NAME } from "../config";
 import type { Role } from "../types";
 
 export function LoginView({ onAuthed }: { onAuthed: () => void }) {
@@ -31,8 +31,8 @@ export function LoginView({ onAuthed }: { onAuthed: () => void }) {
     <div className="auth-screen">
       <div className="auth-card">
         <div className="brand">
-          <span className="brand-emoji" aria-hidden>🐿️</span>
-          <h1>Trợ lý học Toán 6</h1>
+          <img className="brand-logo" src="/dtp-logo.svg" alt="DTP" />
+          <h1>{APP_NAME}</h1>
           <p className="brand-sub">Học cùng {TUTOR_NAME} — hỏi bài, giải bài bám sát SGK</p>
         </div>
 
