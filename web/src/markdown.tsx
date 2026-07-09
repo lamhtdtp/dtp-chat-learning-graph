@@ -31,13 +31,18 @@ function renderInline(text: string, keyBase: string, cites: CiteMap, onCite: OnC
       const page = Number(citeMatch[1]);
       const c = cites.get(page);
       if (c) {
+        const bai = c.bai_so != null ? ` · Bài ${c.bai_so}` : "";
         nodes.push(
           <button key={key} className="cite-inline" onClick={() => onCite(c)} type="button" title={`Xem trang ${page}`}>
-            tr.{page}
+            <span className="cite-ico">📖</span>Trang {page}{bai}
           </button>,
         );
       } else {
-        nodes.push(<span key={key} className="cite-inline muted">tr.{page}</span>);
+        nodes.push(
+          <span key={key} className="cite-inline muted">
+            <span className="cite-ico">📖</span>Trang {page}
+          </span>,
+        );
       }
       return;
     }
