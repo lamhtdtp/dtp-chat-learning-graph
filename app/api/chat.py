@@ -32,6 +32,7 @@ class Citation(BaseModel):
     page_no: int
     chuong_so: int | None
     bai_so: int | None
+    tap: int | None = None  # để mở ảnh trang gốc
 
 
 class ChatResponse(BaseModel):
@@ -87,7 +88,7 @@ async def chat(
 
     retrieved = result.get("retrieved") or []
     citations = [
-        Citation(nguon=r.nguon, page_no=r.page_no, chuong_so=r.chuong_so, bai_so=r.bai_so)
+        Citation(nguon=r.nguon, page_no=r.page_no, chuong_so=r.chuong_so, bai_so=r.bai_so, tap=r.tap)
         for r in retrieved
     ]
     answer = result.get("answer") or ""

@@ -20,6 +20,7 @@ class RetrievedChunk(BaseModel):
     chuong_so: int | None
     bai_so: int | None
     page_no: int
+    tap: int | None  # để mở ảnh trang gốc (data/books/.../{tap}/{page}.png)
     loai_noi_dung: str
     nguon: str
 
@@ -85,6 +86,7 @@ async def retrieve(
                 chuong_so=p.get("chuong_so"),
                 bai_so=p.get("bai_so"),
                 page_no=p["page_no"],
+                tap=p.get("tap"),
                 loai_noi_dung=p["loai_noi_dung"],
                 nguon=p["nguon"],
             )

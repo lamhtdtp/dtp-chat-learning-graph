@@ -140,7 +140,17 @@ input:focus, select:focus { border-color: var(--blue-2); background: #fff; }
 .notfound-tag { display: inline-block; font-size: 12px; font-weight: 700; color: var(--notfound); background: #fbe9b8; padding: 2px 9px; border-radius: 999px; margin-bottom: 7px; }
 
 .citations { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
-.cite-chip { font-size: 12px; background: #eef3fd; color: #2f4a86; padding: 4px 10px; border-radius: 999px; font-weight: 500; }
+.cite-chip { font-size: 12px; background: #eef3fd; color: #2f4a86; padding: 4px 10px; border-radius: 999px; font-weight: 500; border: 0; }
+.cite-chip.clickable { cursor: pointer; transition: background .14s; }
+.cite-chip.clickable:hover { background: #dbe7fb; }
+
+/* ===================== BookPageModal ===================== */
+.modal-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(20,38,80,.5); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 24px; animation: mb-fade .18s ease both; }
+.modal-card { background: #fff; border-radius: 18px; max-width: 640px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 70px rgba(13,40,100,.4); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--line); font-family: "Baloo 2", cursive; font-weight: 700; color: var(--ink); }
+.modal-close { border: 0; background: #eef3fd; width: 32px; height: 32px; border-radius: 8px; cursor: pointer; color: #4a5568; font-size: 14px; }
+.modal-body { overflow: auto; padding: 14px; background: #f4f8ff; }
+.modal-body img { width: 100%; height: auto; display: block; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.12); }
 
 .pending { display: flex; gap: 5px; align-items: center; }
 .pending .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue-2); animation: mb-blink 1.3s infinite both; }

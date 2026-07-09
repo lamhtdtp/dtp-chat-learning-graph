@@ -8,7 +8,8 @@ import {
   tokenStore,
 } from "../api";
 import { TUTOR_NAME } from "../config";
-import type { ChatMessage, SessionRow } from "../types";
+import type { ChatMessage, Citation, SessionRow } from "../types";
+import { BookPageModal } from "./BookPageModal";
 import { ChatInput } from "./ChatInput";
 import { MessageBubble } from "./MessageBubble";
 import { Sidebar } from "./Sidebar";
@@ -21,6 +22,7 @@ export function ChatView({ onLogout }: { onLogout: () => void }) {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [pageModal, setPageModal] = useState<Citation | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const refreshSessions = async () => {
@@ -143,7 +145,7 @@ export function ChatView({ onLogout }: { onLogout: () => void }) {
             </div>
           )}
           {messages.map((m, i) => (
-            <MessageBubble key={i} msg={m} />
+            <MessageBubble key={i} msg={m} onOpenCitation={setPageModal} />
           ))}
         </div>
 
@@ -158,6 +160,8 @@ export function ChatView({ onLogout }: { onLogout: () => void }) {
       </div>
 
       <TopicPanel onPick={ask} />
+
+      {pageModal && <BookPageModal cite={pageModal} onClose={() => setPageModal(null)} />}
     </div>
   );
 }

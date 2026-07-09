@@ -37,10 +37,15 @@ async def test_retrieval_recall_at_5_dat_nguong():
     from evals.run_retrieval_eval import NGUONG, danh_gia
 
     client = AsyncQdrantClient(url=settings.qdrant_url)
-    if not await client.collection_exists(settings.qdrant_collection):
+    try:
+        has_data = (
+            await client.collection_exists(settings.qdrant_collection)
+            and (await client.count(settings.qdrant_collection)).count > 0
+        )
+    except Exception:
+        pytest.skip("Qdrant chưa chạy/không kết nối được")
+    if not has_data:
         pytest.skip("Qdrant chưa có dữ liệu — chạy ingestion trước")
-    if (await client.count(settings.qdrant_collection)).count == 0:
-        pytest.skip("Qdrant rỗng")
 
     kq = await danh_gia()
     assert kq["recall_at_k"] >= NGUONG, f"recall@5={kq['recall_at_k']:.3f} dưới ngưỡng {NGUONG}"

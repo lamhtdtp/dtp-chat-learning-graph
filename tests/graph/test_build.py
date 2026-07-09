@@ -6,7 +6,7 @@ from app.retrieval.retriever import RetrievedChunk
 
 def _chunk(content="Tập hợp gồm các phần tử."):
     return RetrievedChunk(content=content, score=0.8, chuong_so=1, bai_so=1,
-                          page_no=6, loai_noi_dung="ly_thuyet", nguon="tr.6")
+                          page_no=6, tap=1, loai_noi_dung="ly_thuyet", nguon="tr.6")
 
 
 def _patch_gateway_by_task(mocker, answers):

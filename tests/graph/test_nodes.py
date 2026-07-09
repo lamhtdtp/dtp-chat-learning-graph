@@ -6,7 +6,7 @@ from app.retrieval.retriever import RetrievedChunk
 
 def _chunk(content="Tập hợp là một nhóm các phần tử.", score=0.8, loai="ly_thuyet"):
     return RetrievedChunk(
-        content=content, score=score, chuong_so=1, bai_so=1, page_no=6,
+        content=content, score=score, chuong_so=1, bai_so=1, page_no=6, tap=1,
         loai_noi_dung=loai, nguon="Toán 6, tr.6",
     )
 

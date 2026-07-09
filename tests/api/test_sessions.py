@@ -16,7 +16,7 @@ def _fake_graph(mocker):
     app.state.graph = SimpleNamespace(ainvoke=mocker.AsyncMock(return_value={
         "answer": "x", "intent": "hoi_dap",
         "retrieved": [RetrievedChunk(content="c", score=0.8, chuong_so=1, bai_so=1,
-                                     page_no=6, loai_noi_dung="ly_thuyet", nguon="tr.6")]}))
+                                     page_no=6, tap=1, loai_noi_dung="ly_thuyet", nguon="tr.6")]}))
 
 
 async def test_sessions_thieu_token_401(client):

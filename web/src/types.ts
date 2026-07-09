@@ -5,6 +5,7 @@ export interface Citation {
   page_no: number;
   chuong_so: number | null;
   bai_so: number | null;
+  tap: number | null;
 }
 
 export interface ChatResponse {

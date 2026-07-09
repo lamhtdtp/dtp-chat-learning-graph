@@ -1,5 +1,5 @@
 import { renderMath } from "../math";
-import type { ChatMessage } from "../types";
+import type { ChatMessage, Citation } from "../types";
 
 // "không tìm thấy trong SGK" là trạng thái CỐ Ý (guard chống bịa), phải khác
 // biệt trực quan với câu trả lời thường — không để học sinh tưởng bot trả lời
@@ -8,7 +8,7 @@ function isNotFound(text: string): boolean {
   return text.toLowerCase().includes("không tìm thấy");
 }
 
-export function MessageBubble({ msg }: { msg: ChatMessage }) {
+export function MessageBubble({ msg, onOpenCitation }: { msg: ChatMessage; onOpenCitation: (c: Citation) => void }) {
   if (msg.who === "user") {
     return (
       <div className="row user">
@@ -39,12 +39,17 @@ export function MessageBubble({ msg }: { msg: ChatMessage }) {
         <div className="bubble-text">{renderMath(msg.text)}</div>
         {msg.citations && msg.citations.length > 0 && (
           <div className="citations">
-            {dedupePages(msg.citations).map((c) => (
-              <span className="cite-chip" key={`${c.page_no}`}>
-                📖 Trang {c.page_no}
-                {c.bai_so != null ? ` · Bài ${c.bai_so}` : ""}
-              </span>
-            ))}
+            {dedupePages(msg.citations).map((c) => {
+              const label = `📖 Trang ${c.page_no}${c.bai_so != null ? ` · Bài ${c.bai_so}` : ""}`;
+              // Bấm mở ảnh trang gốc — chỉ khi có `tap` (tin nhắn cũ có thể thiếu).
+              return c.tap != null ? (
+                <button className="cite-chip clickable" key={c.page_no} onClick={() => onOpenCitation(c)} type="button">
+                  {label}
+                </button>
+              ) : (
+                <span className="cite-chip" key={c.page_no}>{label}</span>
+              );
+            })}
           </div>
         )}
       </div>
