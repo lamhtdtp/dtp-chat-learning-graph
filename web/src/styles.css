@@ -89,21 +89,22 @@ input:focus, select:focus { border-color: var(--blue-2); background: #fff; }
 .sidebar-wrap { width: 288px; flex: none; height: 100%; }
 .drawer-scrim { display: none; }
 
-.sidebar { height: 100%; background: #0f2557; color: #dbe6ff; display: flex; flex-direction: column; padding: 16px 14px; gap: 12px; }
-.sidebar-brand { display: flex; align-items: center; gap: 10px; font-family: "Baloo 2", cursive; font-weight: 700; font-size: 17px; color: #fff; padding: 4px 4px 6px; }
-.sidebar-brand .avatar { width: 34px; height: 34px; box-shadow: none; background: #fff; }
+/* Sidebar TRẮNG như dtp-chat-learning cũ. */
+.sidebar { height: 100%; background: #fff; border-right: 1px solid var(--line); color: var(--ink); display: flex; flex-direction: column; padding: 16px 14px; gap: 12px; }
+.sidebar-brand { display: flex; align-items: center; gap: 10px; font-family: "Baloo 2", cursive; font-weight: 700; font-size: 17px; color: var(--blue); padding: 4px 4px 6px; }
+.sidebar-brand .avatar { width: 34px; height: 34px; box-shadow: none; background: #eaf1fe; }
 .sidebar-brand .avatar img { height: 20px; }
-.new-chat { border: 0; cursor: pointer; background: var(--grad); color: #fff; font-weight: 700; font-family: "Baloo 2", cursive; padding: 12px; border-radius: 12px; box-shadow: 0 8px 18px rgba(43,111,246,.32); }
+.new-chat { border: 0; cursor: pointer; background: var(--grad); color: #fff; font-weight: 700; font-family: "Baloo 2", cursive; padding: 12px; border-radius: 12px; box-shadow: 0 8px 18px rgba(43,111,246,.28); }
 .session-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
-.session-empty { color: #8fa3d4; font-size: 13px; padding: 10px 6px; }
-.session-item { display: flex; align-items: center; gap: 6px; padding: 10px 11px; border-radius: 10px; cursor: pointer; color: #c7d5f5; font-size: 14px; }
-.session-item:hover { background: rgba(255,255,255,.07); }
-.session-item.active { background: rgba(255,255,255,.14); color: #fff; }
+.session-empty { color: #9aa6be; font-size: 13px; padding: 10px 6px; }
+.session-item { display: flex; align-items: center; gap: 6px; padding: 10px 11px; border-radius: 10px; cursor: pointer; color: #3a4a6b; font-size: 14px; }
+.session-item:hover { background: #f0f4fb; }
+.session-item.active { background: #eaf1fe; color: var(--blue); font-weight: 600; }
 .session-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.session-del { border: 0; background: transparent; color: #8fa3d4; cursor: pointer; font-size: 12px; opacity: 0; padding: 2px 4px; }
+.session-del { border: 0; background: transparent; color: #9aa6be; cursor: pointer; font-size: 12px; opacity: 0; padding: 2px 4px; }
 .session-item:hover .session-del { opacity: 1; }
-.session-del:hover { color: #ff9a9a; }
-.sidebar-logout { border: 1px solid rgba(255,255,255,.18); background: transparent; color: #dbe6ff; border-radius: 10px; padding: 10px; cursor: pointer; font-weight: 600; font-size: 13.5px; }
+.session-del:hover { color: var(--danger); }
+.sidebar-logout { border: 1px solid var(--line); background: #f6f9ff; color: #3a4a6b; border-radius: 10px; padding: 10px; cursor: pointer; font-weight: 600; font-size: 13.5px; }
 
 .hamburger { display: none; border: 0; background: #eef3fd; width: 38px; height: 38px; border-radius: 10px; cursor: pointer; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
 .hamburger span { width: 16px; height: 2px; background: #2459c9; border-radius: 2px; }
@@ -146,12 +147,38 @@ input:focus, select:focus { border-color: var(--blue-2); background: #fff; }
 .pending .dot:nth-child(2) { animation-delay: .18s; }
 .pending .dot:nth-child(3) { animation-delay: .36s; }
 
-.composer { display: flex; gap: 10px; padding: 14px 18px; background: rgba(255,255,255,.9); backdrop-filter: blur(8px); border-top: 1px solid var(--line); }
-.composer input { flex: 1; }
-.send { padding: 0 22px; background: var(--grad); color: #fff; border: 0; border-radius: 13px; font-family: "Baloo 2", cursive; font-weight: 700; cursor: pointer; box-shadow: 0 8px 18px rgba(43,111,246,.28); }
-.send:disabled { opacity: .5; cursor: default; box-shadow: none; }
+/* ===================== ChatInput (pill + mic + nút gửi) ===================== */
+.chat-input-wrap { padding: 6px 18px 16px; background: linear-gradient(0deg, var(--bg) 70%, rgba(244,248,255,0)); }
+.chat-input-inner { max-width: 820px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+.input-suggests { display: flex; flex-wrap: wrap; gap: 8px; animation: mb-fade .25s ease both; }
+.input-suggests .label { font-size: 12.5px; color: #9aa6be; font-weight: 500; align-self: center; }
+.input-suggests button { cursor: pointer; background: #fff; border: 1px solid #dce5f4; color: #3a4a6b; font-size: 13px; font-weight: 500; padding: 8px 13px; border-radius: 99px; transition: all .15s; }
+.input-suggests button:hover { border-color: var(--blue-2); color: var(--blue); background: #f6f9ff; }
+.input-box { display: flex; align-items: flex-end; gap: 8px; background: #fff; border: 1.5px solid #dce5f4; border-radius: 20px; padding: 8px 8px 8px 18px; box-shadow: 0 8px 26px rgba(27,79,191,.08); transition: border .15s; }
+.input-box:focus-within { border-color: var(--blue-2); }
+.input-box textarea { flex: 1; border: 0; outline: none; resize: none; font-family: inherit; font-size: 15.5px; color: var(--ink); background: transparent; line-height: 1.5; padding: 10px 0; max-height: 120px; }
+.mic-btn { width: 40px; height: 40px; flex: none; border: 0; cursor: pointer; border-radius: 10px; background: transparent; color: #4a5568; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+.mic-btn:hover { background: #eef3fd; }
+.mic-btn.listening { background: #e0463c; color: #fff; box-shadow: 0 0 0 4px rgba(224,70,60,.18); }
+.send-btn { width: 46px; height: 46px; flex: none; border: 0; cursor: pointer; border-radius: 14px; background: var(--grad); color: #fff; font-size: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 18px rgba(43,111,246,.32); transition: transform .12s; }
+.send-btn:hover:not(:disabled) { transform: translateY(-1px) scale(1.03); }
+.send-btn:disabled { opacity: .45; cursor: default; box-shadow: none; }
+.input-note { text-align: center; font-size: 11.5px; color: #aeb8cc; }
+
+/* ===================== TopicPanel (phải) ===================== */
+.topic-panel { width: 290px; flex: 0 0 290px; height: 100%; overflow-y: auto; background: #fff; border-left: 1px solid var(--line); padding: 20px 16px 28px; }
+.tp-title { font-family: "Baloo 2", cursive; font-weight: 700; font-size: 16.5px; color: var(--ink); }
+.tp-sub { font-size: 12.5px; color: #9aa6be; margin: 4px 0 16px; }
+.tp-group { margin-bottom: 18px; }
+.tp-group-title { display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 700; color: #6b7a99; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 9px; }
+.tp-items { display: flex; flex-wrap: wrap; gap: 7px; }
+.tp-items button { cursor: pointer; background: #f1f6ff; border: 1px solid #dce7fa; color: #26426e; font-size: 12.5px; font-weight: 500; padding: 7px 12px; border-radius: 99px; transition: background .14s, border-color .14s; }
+.tp-items button:hover { background: #e0ebff; border-color: #b9d0fb; }
 
 /* ===================== Responsive ===================== */
+@media (max-width: 1080px) {
+  .topic-panel { display: none; }
+}
 @media (max-width: 860px) {
   .auth-hero { display: none; }
   .mobile-brand { display: flex; }

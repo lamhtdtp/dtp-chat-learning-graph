@@ -9,14 +9,10 @@ import {
 } from "../api";
 import { TUTOR_NAME } from "../config";
 import type { ChatMessage, SessionRow } from "../types";
+import { ChatInput } from "./ChatInput";
 import { MessageBubble } from "./MessageBubble";
 import { Sidebar } from "./Sidebar";
-
-const SUGGESTIONS = [
-  "Tập hợp là gì?",
-  "Cách viết một tập hợp?",
-  "Ký hiệu ∈ và ∉ nghĩa là gì?",
-];
+import { TopicPanel } from "./TopicPanel";
 
 export function ChatView({ onLogout }: { onLogout: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -143,12 +139,7 @@ export function ChatView({ onLogout }: { onLogout: () => void }) {
             <div className="empty">
               <div className="badge" aria-hidden>🎓</div>
               <p className="empty-title">Xin chào! Mình là {TUTOR_NAME}</p>
-              <p>Bạn hỏi mình bất cứ điều gì trong sách Toán nhé. Thử một câu:</p>
-              <div className="suggestions">
-                {SUGGESTIONS.map((s) => (
-                  <button key={s} onClick={() => ask(s)} type="button">{s}</button>
-                ))}
-              </div>
+              <p>Bạn hỏi mình bất cứ điều gì trong sách Toán nhé.</p>
             </div>
           )}
           {messages.map((m, i) => (
@@ -156,22 +147,17 @@ export function ChatView({ onLogout }: { onLogout: () => void }) {
           ))}
         </div>
 
-        <form
-          className="composer"
-          onSubmit={(e) => {
-            e.preventDefault();
-            ask(input);
-          }}
-        >
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Hỏi bài hoặc dán đề cần giải…"
-            disabled={busy}
-          />
-          <button className="send" type="submit" disabled={busy || !input.trim()}>Gửi</button>
-        </form>
+        <ChatInput
+          value={input}
+          onChange={setInput}
+          onSend={() => ask(input)}
+          onSendText={ask}
+          busy={busy}
+          hasMessages={messages.length > 0}
+        />
       </div>
+
+      <TopicPanel onPick={ask} />
     </div>
   );
 }
