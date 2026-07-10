@@ -76,3 +76,13 @@ def concept_key(text: str, sgk_version: str) -> str | None:
     """`{slug}::{sgk_version}` nếu nhận diện được khái niệm, ngược lại None."""
     slug = detect_concept(text)
     return f"{slug}::{sgk_version}" if slug else None
+
+
+_KNOWN_SLUGS = {slug for slug, _ in _CONCEPTS}
+
+
+def is_known_concept_key(concept_key: str, sgk_version: str) -> bool:
+    """Kiểm concept_key client gửi lên có hợp lệ không (đúng định dạng, slug
+    thuộc danh sách khái niệm, đúng phiên bản SGK) — chống tạo job tuỳ tiện."""
+    slug, sep, ver = concept_key.partition("::")
+    return sep == "::" and ver == sgk_version and slug in _KNOWN_SLUGS

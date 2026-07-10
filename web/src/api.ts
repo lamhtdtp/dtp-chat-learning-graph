@@ -99,4 +99,8 @@ export function getVideoStatus(jobId: number): Promise<VideoInfo> {
   return req<VideoInfo>(`/video/jobs/${jobId}`);
 }
 
+export function generateVideo(conceptKey: string): Promise<VideoInfo> {
+  return post<VideoInfo>("/video/generate", { concept_key: conceptKey }, true);
+}
+
 export { ApiError };

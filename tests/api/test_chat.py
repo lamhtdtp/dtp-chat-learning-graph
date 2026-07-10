@@ -82,33 +82,32 @@ async def test_chat_rate_limit_tra_503(client, mocker):
     assert "thử lại sau" in r.json()["detail"]
 
 
-async def test_chat_dinh_video_cho_cau_khai_niem(client, mocker):
-    # Câu hỏi khái niệm + có grounding + chưa có cache -> tạo job & enqueue Celery.
+async def test_chat_offer_video_khong_tu_sinh(client, mocker):
+    # On-demand: câu khái niệm đủ điều kiện -> OFFERED (hiện nút), KHÔNG tự tạo job.
     h = await _auth(client)
     _fake_graph(mocker, answer="Số nguyên tố là số tự nhiên lớn hơn 1...", intent="hoi_dap")
     mocker.patch("app.api.chat.video_cache.get_done_video", mocker.AsyncMock(return_value=None))
-    mocker.patch("app.api.chat.video_cache.get_or_create_job", mocker.AsyncMock(
-        return_value=(SimpleNamespace(id=7, status="QUEUED", video_url=None), True)))
-    delay = mocker.patch("app.ingestion.celery_app.render_video_task.delay")
+    create = mocker.patch("app.api.chat.video_cache.get_or_create_job")
 
     r = await client.post("/chat", json={"message": "Số nguyên tố là gì?"}, headers=h)
 
-    assert r.json()["video"] == {"job_id": 7, "status": "QUEUED", "video_url": None}
-    delay.assert_called_once_with(job_id=7)
+    v = r.json()["video"]
+    assert v["status"] == "OFFERED"
+    assert v["concept_key"] == "so_nguyen_to::cung_kham_pha_2024"
+    create.assert_not_called()  # chưa bấm -> chưa tạo job
 
 
-async def test_chat_cache_hit_khong_tao_job_moi(client, mocker):
-    # Đã có video cho khái niệm -> trả URL từ cache, KHÔNG enqueue job mới (US-19).
+async def test_chat_cache_hit_hien_video_ngay(client, mocker):
+    # Đã có video cho khái niệm -> trả DONE + URL ngay, không cần bấm (US-19).
     h = await _auth(client)
     _fake_graph(mocker, answer="Số nguyên tố là số tự nhiên lớn hơn 1...", intent="hoi_dap")
     mocker.patch("app.api.chat.video_cache.get_done_video", mocker.AsyncMock(
         return_value=SimpleNamespace(id=9, status="DONE", video_url="/video/files/x.mp4")))
-    delay = mocker.patch("app.ingestion.celery_app.render_video_task.delay")
 
     r = await client.post("/chat", json={"message": "Số nguyên tố là gì?"}, headers=h)
 
-    assert r.json()["video"] == {"job_id": 9, "status": "DONE", "video_url": "/video/files/x.mp4"}
-    delay.assert_not_called()
+    v = r.json()["video"]
+    assert v["status"] == "DONE" and v["video_url"] == "/video/files/x.mp4"
 
 
 async def test_chat_khong_dinh_video_khi_giai_bai(client, mocker):

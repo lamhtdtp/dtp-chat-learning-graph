@@ -9,8 +9,9 @@ export interface Citation {
 }
 
 export interface VideoInfo {
-  job_id: number;
-  status: "QUEUED" | "RENDERING" | "DONE" | "FAILED";
+  status: "OFFERED" | "QUEUED" | "RENDERING" | "DONE" | "FAILED";
+  concept_key?: string | null;
+  job_id?: number | null;
   video_url: string | null;
 }
 

@@ -23,10 +23,26 @@ class GuardResult:
     reason: str | None = None
 
 
+# Hợp nhất ký hiệu LaTeX <-> ký hiệu thường để công thức grounded khớp được dù
+# trình bày khác nhau ('a \\cdot b' == 'a.b', '\\{x \\mid ...' == '{x|...').
+_LATEX_UNIFY = [
+    (r"\left", ""), (r"\right", ""), (r"\,", ""), (r"\!", ""), (r"\;", ""),
+    (r"\cdot", "."), (r"\times", "."), (r"\div", "/"),
+    (r"\{", "{"), (r"\}", "}"), (r"\mid", "|"), (r"\vert", "|"),
+    (r"\in", "∈"), (r"\notin", "∉"), (r"\neq", "≠"), (r"\ne", "≠"),
+    (r"\leq", "≤"), (r"\le", "≤"), (r"\geq", "≥"), (r"\ge", "≥"),
+    (r"\mathbb{n}", "n"), (r"\mathbb{z}", "z"),
+]
+
+
 def _chuan_hoa(s: str) -> str:
-    """Bỏ '$', mọi khoảng trắng, hạ chữ thường — để so khớp công thức bất kể
-    cách trình bày ('a . b = b . a' == 'a.b=b.a')."""
-    return re.sub(r"[\s$]+", "", s).lower()
+    """Chuẩn hoá công thức để so khớp bất kể cách trình bày: hợp nhất ký hiệu
+    LaTeX/thường, bỏ '$', mọi khoảng trắng, backslash còn sót, hạ chữ thường."""
+    out = s.lower()
+    for latex, plain in _LATEX_UNIFY:
+        out = out.replace(latex, plain)
+    out = out.replace("\\", "")            # bỏ backslash LaTeX còn lại
+    return re.sub(r"[\s$]+", "", out)
 
 
 def check_formulas(storyboard: Storyboard, answer: str) -> list[str]:

@@ -282,3 +282,6 @@ input:focus, select:focus { border-color: var(--blue-2); background: #fff; }
 .video-block.pending, .video-block.muted { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); background: #f2f6ff; border: 1px solid #e2ebfb; border-radius: 999px; padding: 6px 12px; }
 .video-spin { width: 13px; height: 13px; border: 2px solid #c7d7f5; border-top-color: var(--blue-2); border-radius: 50%; display: inline-block; animation: video-spin 0.8s linear infinite; }
 @keyframes video-spin { to { transform: rotate(360deg); } }
+.video-btn { border: 1px solid #d6e2ff; background: #eef3ff; color: var(--blue); font-weight: 600; font-size: 13px; padding: 8px 14px; border-radius: 10px; cursor: pointer; transition: background .12s; }
+.video-btn:hover { background: #dde8ff; }
+.video-err { margin-left: 10px; font-size: 12px; color: #b23b3b; }

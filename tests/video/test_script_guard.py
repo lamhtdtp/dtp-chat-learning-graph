@@ -28,6 +28,14 @@ async def test_generate_script_boc_json_trong_code_fence(mocker):
     assert sb.slides[0].loi_thoai == "a"
 
 
+async def test_generate_script_dung_nap_latex_backslash_tran(mocker):
+    # LLM trả LaTeX có backslash trần (\{ \in) -> JSON vỡ; _parse phải cứu được.
+    fake = '{"tieu_de":"Tập hợp","slides":[{"cong_thuc":["A=\\{x \\in N\\}"],"loi_thoai":"a"}]}'
+    mocker.patch("app.video.script.gateway.complete", mocker.AsyncMock(return_value=fake))
+    sb = await generate_script("...")
+    assert sb.slides[0].cong_thuc == ["A=\\{x \\in N\\}"]
+
+
 # ----- US-17 Scenario 4: guard chặn công thức lệch -----
 
 def test_guard_dat_khi_cong_thuc_bam_cau_tra_loi():

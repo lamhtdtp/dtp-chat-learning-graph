@@ -10,9 +10,13 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import VideoJob
+from app.api.deps import get_current_user
+from app.config import settings
+from app.db.models import User, VideoJob
 from app.db.session import async_session_factory, get_session
+from app.video import cache as video_cache
 from app.video import storage
+from app.video.concept import is_known_concept_key
 
 router = APIRouter(prefix="/video", tags=["video"])
 
@@ -27,11 +31,41 @@ class VideoStatus(BaseModel):
     duration_sec: float | None = None
 
 
+class GenerateRequest(BaseModel):
+    concept_key: str
+
+
 def _to_status(job: VideoJob) -> VideoStatus:
     return VideoStatus(
         job_id=job.id, status=job.status, video_url=job.video_url,
         title=job.title, duration_sec=job.duration_sec,
     )
+
+
+@router.post("/generate", response_model=VideoStatus)
+async def generate_video(
+    body: GenerateRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> VideoStatus:
+    """Học sinh bấm "Tạo video" -> tạo job + đẩy hàng đợi (on-demand). Idempotent:
+    khái niệm đã có job thì tái dùng, không render trùng."""
+    if not is_known_concept_key(body.concept_key, settings.sgk_version):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "concept_key không hợp lệ")
+
+    job, created = await video_cache.get_or_create_job(
+        session, body.concept_key, settings.sgk_version
+    )
+    await session.commit()
+
+    if created:  # job mới (hoặc FAILED được reset) -> enqueue render
+        try:
+            from app.ingestion.celery_app import render_video_task
+
+            render_video_task.delay(job_id=job.id)
+        except Exception:  # noqa: BLE001 - broker down không được làm vỡ request
+            pass
+    return _to_status(job)
 
 
 @router.get("/jobs/{job_id}", response_model=VideoStatus)

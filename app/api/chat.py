@@ -44,8 +44,11 @@ class Citation(BaseModel):
 
 
 class VideoInfo(BaseModel):
-    job_id: int
-    status: str  # QUEUED | RENDERING | DONE | FAILED
+    # OFFERED = đủ điều kiện tạo video nhưng CHƯA sinh (chờ học sinh bấm "Tạo
+    # video"); còn lại là vòng đời job sau khi bấm.
+    status: str  # OFFERED | QUEUED | RENDERING | DONE | FAILED
+    concept_key: str | None = None
+    job_id: int | None = None
     video_url: str | None = None
 
 
@@ -54,34 +57,31 @@ class ChatResponse(BaseModel):
     intent: str | None
     citations: list[Citation]
     session_id: int
-    video: VideoInfo | None = None  # None nếu câu này không đính video
+    video: VideoInfo | None = None  # None nếu câu này không thể đính video
 
 
 async def _maybe_video(
     session: AsyncSession, *, message: str, intent: str | None,
     answer: str, has_citations: bool,
-) -> tuple[VideoInfo | None, int | None]:
-    """Quyết định có đính video không (gating), trả (VideoInfo, job_id_cần_enqueue).
-    job_id_cần_enqueue chỉ khác None khi vừa tạo job mới -> caller enqueue Celery
-    SAU commit. Không bao giờ raise ra ngoài: video là bổ sung, lỗi ở đây không
-    được làm hỏng câu trả lời text (US-16 Scenario 1)."""
+) -> VideoInfo | None:
+    """Quyết định câu này CÓ THỂ đính video không (gating). KHÔNG tự sinh: chỉ
+    trả DONE nếu đã có sẵn (cache hit), hoặc OFFERED để UI hiện nút "Tạo video"
+    (sinh on-demand khi học sinh bấm). Không raise: video là bổ sung, lỗi ở đây
+    không được làm hỏng câu trả lời text (US-16 Scenario 1)."""
     if not settings.video_enabled or intent not in _VIDEO_INTENTS or not has_citations:
-        return None, None
+        return None
     if answer.startswith(KHONG_TIM_THAY):
-        return None, None
+        return None
     ck = concept_key(message, settings.sgk_version)
     if ck is None:
-        return None, None
+        return None
     try:
         done = await video_cache.get_done_video(session, ck, settings.sgk_version)
-        if done is not None:  # cache hit -> dùng lại, không tạo job mới
-            return VideoInfo(job_id=done.id, status="DONE", video_url=done.video_url), None
-        job, created = await video_cache.get_or_create_job(session, ck, settings.sgk_version)
-        return VideoInfo(job_id=job.id, status=job.status, video_url=job.video_url), (
-            job.id if created else None
-        )
+        if done is not None:  # đã có -> hiện player ngay, không cần bấm
+            return VideoInfo(status="DONE", concept_key=ck, job_id=done.id, video_url=done.video_url)
+        return VideoInfo(status="OFFERED", concept_key=ck)
     except Exception:  # noqa: BLE001
-        return None, None
+        return None
 
 
 def _title_from(text: str) -> str:
@@ -136,7 +136,7 @@ async def chat(
     answer = result.get("answer") or ""
 
     intent = result.get("intent")
-    video, enqueue_job_id = await _maybe_video(
+    video = await _maybe_video(
         session, message=body.message, intent=intent, answer=answer,
         has_citations=bool(citations),
     )
@@ -150,16 +150,6 @@ async def chat(
         update(ChatSession).where(ChatSession.id == session_pk).values(last_active=func.now())
     )
     await session.commit()
-
-    # Enqueue SAU commit: job row đã tồn tại khi worker đọc. Lỗi enqueue (broker
-    # down) không làm hỏng câu trả lời — chỉ là video không tới.
-    if enqueue_job_id is not None:
-        try:
-            from app.ingestion.celery_app import render_video_task
-
-            render_video_task.delay(job_id=enqueue_job_id)
-        except Exception:  # noqa: BLE001
-            pass
 
     return ChatResponse(
         reply=answer,
