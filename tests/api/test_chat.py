@@ -130,34 +130,59 @@ async def test_chat_khong_dinh_video_khi_khong_grounding(client, mocker):
     assert r.json()["video"] is None
 
 
-async def test_chat_hoc_sinh_co_goi_y_itest(client, mocker):
-    """Học sinh + intent hỏi đáp -> câu trả lời kèm gợi ý bài tập/đề Itest."""
+async def test_chat_hoc_sinh_duoc_moi_luyen_tap_itest(client, mocker):
+    """Học sinh + intent hỏi đáp + có cấu hình i-Test -> mời luyện tập (offer topic)."""
     import app.api.chat as chat_api
-    from app.exam.itest_suggest import GoiYItest, UngVien
 
     h = await _auth(client)  # role hoc_sinh
     _fake_graph(mocker, answer="Số nguyên tố là...", intent="hoi_dap")
-    mocker.patch.object(chat_api, "suggest_cho_hoc_sinh", mocker.AsyncMock(return_value=GoiYItest(
-        bai_tap=[UngVien(itest_id="q1", noi_dung="7 là số nguyên tố?", tag_goc="Đề Số nguyên tố")],
-        de=["Đề Số nguyên tố"],
-    )))
+    mocker.patch.object(chat_api.settings, "itest_database_url", "mysql+pymysql://x")
 
     body = (await client.post("/chat", json={"message": "Số nguyên tố là gì?"}, headers=h)).json()
 
-    assert body["itest"] is not None
-    assert body["itest"]["de"] == ["Đề Số nguyên tố"]
-    assert body["itest"]["bai_tap"][0]["itest_id"] == "q1"
+    assert body["itest"] == {"topic": "Số nguyên tố là gì?"}  # offer mang chủ đề
 
 
-async def test_chat_intent_ngoai_pham_vi_khong_goi_y_itest(client, mocker):
-    """intent 'sinh_de' không thuộc _ITEST_INTENTS -> không gọi suggest, itest=None."""
+async def test_chat_intent_ngoai_pham_vi_khong_moi_itest(client, mocker):
+    """intent 'sinh_de' không thuộc _ITEST_INTENTS -> không mời (itest=None)."""
     import app.api.chat as chat_api
 
     h = await _auth(client)
     _fake_graph(mocker, answer="đề...", intent="sinh_de")
-    spy = mocker.patch.object(chat_api, "suggest_cho_hoc_sinh", mocker.AsyncMock())
+    mocker.patch.object(chat_api.settings, "itest_database_url", "mysql+pymysql://x")
 
     body = (await client.post("/chat", json={"message": "tạo đề"}, headers=h)).json()
-
     assert body["itest"] is None
-    spy.assert_not_called()  # gating chặn trước khi gọi
+
+
+async def test_chat_chua_cau_hinh_itest_thi_khong_moi(client, mocker):
+    """Chưa cấu hình ITEST_DATABASE_URL -> không mời luyện tập."""
+    import app.api.chat as chat_api
+
+    h = await _auth(client)
+    _fake_graph(mocker, answer="Số nguyên tố là...", intent="hoi_dap")
+    mocker.patch.object(chat_api.settings, "itest_database_url", "")
+
+    body = (await client.post("/chat", json={"message": "Số nguyên tố?"}, headers=h)).json()
+    assert body["itest"] is None
+
+
+async def test_chat_tra_ve_chip_goi_y(client, mocker):
+    """Câu trả lời kèm ĐÚNG 1 chip 'tạo đề ngắn luyện tập'."""
+    h = await _auth(client)
+    _fake_graph(mocker, answer="Tập hợp là...", intent="hoi_dap")
+    body = (await client.post("/chat", json={"message": "Số nguyên âm là gì?"}, headers=h)).json()
+    assert len(body["suggestions"]) == 1
+    assert body["suggestions"][0]["label"] == "Tạo một đề ngắn luyện tập"
+    # query NHÚNG chủ đề vừa hỏi -> bài tập bám sát nội dung
+    assert "Số nguyên âm là gì?" in body["suggestions"][0]["query"]
+    assert "ôn tập" in body["suggestions"][0]["query"].lower()  # -> nhánh on_tap
+
+
+async def test_chat_giai_bai_khong_video_khong_chip(client, mocker):
+    """Giải bài tập (giai_bai) -> KHÔNG video minh hoạ và KHÔNG chip 'tạo đề ngắn'."""
+    h = await _auth(client)
+    _fake_graph(mocker, answer="Bước 1: ...", intent="giai_bai")
+    body = (await client.post("/chat", json={"message": "Tính 2 + 3 x 5"}, headers=h)).json()
+    assert body["video"] is None
+    assert body["suggestions"] == []

@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.config import settings
 from app.db.models import CurriculumTopic, ItestTopicMap, User
 from app.db.session import get_session
 from app.exam import service
@@ -28,6 +29,33 @@ from app.exam.itest_suggest import (
 )
 
 router = APIRouter(prefix="/itest", tags=["itest"])
+
+
+@router.get("/quiz")
+async def quiz(
+    topic: str | None = None,
+    n: int = 0,  # 0 = lấy TẤT CẢ câu của đề
+    user: User = Depends(get_current_user),
+):
+    """Lấy ĐỀ THẬT Toán lớp 6 (khớp chủ đề, đã publish) từ DB i-Test làm bài trắc
+    nghiệm tương tác cho học sinh. Query i-Test trực tiếp (read-only), như repo
+    dtp-chat-learning."""
+    import asyncio
+
+    from app.integrations.itest import quiz as quiz_mod
+
+    if not settings.itest_database_url:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            "Chưa cấu hình kho đề i-Test trên server")
+    try:
+        return await asyncio.to_thread(
+            quiz_mod.generate_quiz, topic, int(n) if int(n) > 0 else None
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
+    except Exception:  # noqa: BLE001 - lỗi kết nối i-Test -> 503 thân thiện
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            "Hiện chưa lấy được bài trắc nghiệm, em thử lại sau nhé!")
 
 
 class SuggestRequest(BaseModel):

@@ -26,6 +26,36 @@ async def test_suggest_thieu_token_401(client):
     assert r.status_code == 401
 
 
+async def test_quiz_thieu_token_401(client):
+    r = await client.get("/itest/quiz?topic=phân số")
+    assert r.status_code == 401
+
+
+async def test_quiz_tra_ve_de(client, mocker):
+    from app.integrations.itest import quiz as quiz_mod
+    from app.integrations.itest.quiz import QuizData, QuizQuestionOut
+
+    h = await _auth(client, "hoc_sinh")
+    mocker.patch.object(itest_api.settings, "itest_database_url", "mysql+pymysql://x")
+    mocker.patch.object(quiz_mod, "generate_quiz", return_value=QuizData(
+        id=42, title="Đề Phân số",
+        questions=[QuizQuestionOut(type="single", q="1/2 = ?", options=["a", "b"], answer=1)],
+    ))
+
+    r = await client.get("/itest/quiz?topic=phân số", headers=h)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["id"] == 42
+    assert body["questions"][0]["answer"] == 1
+
+
+async def test_quiz_chua_cau_hinh_503(client, mocker):
+    h = await _auth(client, "hoc_sinh")
+    mocker.patch.object(itest_api.settings, "itest_database_url", "")
+    r = await client.get("/itest/quiz?topic=x", headers=h)
+    assert r.status_code == 503
+
+
 async def test_hoc_sinh_khong_duoc_sync(client):
     h = await _auth(client, "hoc_sinh")
     r = await client.post("/itest/sync", headers=h)

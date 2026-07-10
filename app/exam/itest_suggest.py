@@ -9,8 +9,6 @@ Câu chưa duyệt (cho_duyet/chua_map) KHÔNG xuất hiện để không lệch
 from __future__ import annotations
 
 import json
-import re
-import unicodedata
 
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -29,6 +27,8 @@ class UngVien(BaseModel):
     itest_id: str
     noi_dung: str
     options: list[str] = []
+    dap_an: str = ""      # đáp án đúng (để học sinh tự kiểm sau khi làm)
+    loi_giai: str = ""    # lời giải nếu Itest có
     tag_goc: str
 
 
@@ -56,9 +56,18 @@ def _rank_dedupe(rows: list[ItestQuestion]) -> list[ItestQuestion]:
     return out
 
 
+def _fmt_dap_an(raw: str | None) -> str:
+    """Chuẩn hoá đáp án để hiển thị: Itest ngăn nhiều đáp án đúng bằng '#' -> đổi
+    thành ', ' cho dễ đọc."""
+    return ", ".join(p.strip() for p in (raw or "").split("#") if p.strip())
+
+
 def _to_ung_vien(q: ItestQuestion) -> UngVien:
     options = json.loads(q.options_json) if q.options_json else []
-    return UngVien(itest_id=q.itest_id, noi_dung=q.noi_dung, options=options, tag_goc=q.tag_goc)
+    return UngVien(
+        itest_id=q.itest_id, noi_dung=q.noi_dung, options=options,
+        dap_an=_fmt_dap_an(q.dap_an), loi_giai=q.loi_giai or "", tag_goc=q.tag_goc,
+    )
 
 
 async def suggest_for_cells(
@@ -103,73 +112,10 @@ def phan_bo(weights: dict, tong: int) -> dict:
     return nguyen
 
 
-# ── Gợi ý bài tập/đề Itest trong CHAT cho học sinh ────────────────────────────
-# Khác suggest-theo-blueprint (US-23, cần đã-duyệt để khớp ma trận): đây là gợi
-# ý luyện tập nhẹ trong câu trả lời — match theo TỪ KHOÁ chủ đề với tên đề Itest
-# (giống generate_quiz repo dtp-chat-learning), chạy trên MIRROR cục bộ nên nhanh
-# và không phụ thuộc taxonomy đã duyệt.
-
-# Từ bỏ qua khi so khớp (đã bỏ dấu): chức năng + từ chung của tên đề/câu hỏi.
-_KW_STOP = set(
-    "em muon hoc ve gi cho cua va cac mot duoc co voi khi tu nay nhung theo nhu thi minh "
-    "bai tap lop toan kiem tra de thi mon thuong xuyen giua cuoi giai thich la nao sau day "
-    "hay tinh tim hoi luyen".split()
-)
-
-
-def _ascii(s: object) -> str:
-    return "".join(
-        c for c in unicodedata.normalize("NFD", str(s or "").lower())
-        if unicodedata.category(c) != "Mn"
-    )
-
-
-def _keywords(text: str | None) -> list[str]:
-    return [w for w in re.findall(r"[a-z0-9]+", _ascii(text)) if len(w) >= 3 and w not in _KW_STOP]
-
-
-class GoiYItest(BaseModel):
-    bai_tap: list[UngVien]  # vài câu luyện tập cụ thể
-    de: list[str]           # tên các đề Itest liên quan (tag_goc)
-
-
-async def suggest_cho_hoc_sinh(
-    session: AsyncSession, query: str, *, limit_bai: int = 3, limit_de: int = 3
-) -> GoiYItest | None:
-    """Gợi ý bài tập + đề Itest liên quan tới câu học sinh hỏi, dựa trên độ khớp
-    từ khoá với TÊN ĐỀ (tag_goc) trên mirror. Không khớp -> None (không gợi ý
-    lung tung). Tất định: xếp theo số từ khoá trùng, tie-break tên đề rồi itest_id."""
-    kws = _keywords(query)
-    if not kws:
-        return None
-
-    tags = list(await session.scalars(select(ItestQuestion.tag_goc).distinct()))
-    scored = [(sum(1 for k in kws if k in _ascii(t)), t) for t in tags]
-    khop = sorted([(s, t) for s, t in scored if s > 0], key=lambda x: (-x[0], x[1]))
-    if not khop:
-        return None
-
-    top_tags = [t for _s, t in khop[:limit_de]]
-    # Lấy bài tập theo thứ tự ĐỀ KHỚP TỐT NHẤT trước (không trộn theo recency, để
-    # câu gợi ý đúng chủ đề học sinh hỏi), dedupe theo content_hash.
-    bai_tap: list[UngVien] = []
-    seen_hash: set[str] = set()
-    for tag in top_tags:
-        if len(bai_tap) >= limit_bai:
-            break
-        rows = list(await session.scalars(
-            select(ItestQuestion)
-            .where(ItestQuestion.tag_goc == tag)
-            .order_by(ItestQuestion.itest_id)
-        ))
-        for q in rows:
-            if len(bai_tap) >= limit_bai:
-                break
-            if q.content_hash in seen_hash:
-                continue
-            seen_hash.add(q.content_hash)
-            bai_tap.append(_to_ung_vien(q))
-    return GoiYItest(bai_tap=bai_tap, de=top_tags)
+# Gợi ý câu Itest cho HỌC SINH trong chat KHÔNG dùng mirror/taxonomy nữa mà query
+# i-Test trực tiếp thành bài trắc nghiệm tương tác — xem app/integrations/itest/
+# quiz.py (port từ repo dtp-chat-learning). Module này chỉ còn suggest-theo-
+# blueprint cho GIÁO VIÊN (US-23) + assemble (US-24).
 
 
 async def build_suggest_cells(

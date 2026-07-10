@@ -6,6 +6,7 @@ thành dàn bài ôn tập + gợi ý luyện tập (xem full-system-spec mục 
 bản tối giản, chưa cần learner_state cá nhân hoá).
 """
 
+from app.graph.format import MATH_FORMAT as _MATH_FORMAT
 from app.graph.grounding import KHONG_TIM_THAY, has_grounding
 from app.graph.state import ChatState
 from app.llm import gateway
@@ -19,7 +20,8 @@ _SYSTEM = (
     "cảnh; nếu ngữ cảnh không đủ, nói rõ là chưa có trong SGK.\n"
     "Mỗi đoạn ngữ cảnh có nhãn [tr.N] (N là số trang). Khi nêu một ý lấy từ đoạn "
     "nào, CHÈN ngay [tr.N] tương ứng vào cuối ý đó. Chỉ dùng số trang có trong "
-    "ngữ cảnh, không bịa số trang."
+    "ngữ cảnh, không bịa số trang.\n"
+    + _MATH_FORMAT
 )
 
 

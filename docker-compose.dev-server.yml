@@ -1,0 +1,23 @@
+# Override cho SERVER DEV (Ubuntu + Docker): Postgres dùng RDS (ngoài),
+# Redis + Qdrant chạy bằng Docker trên chính server này.
+#
+# Dùng KÈM base (đè lên docker-compose.app.yml):
+#   docker compose -f docker-compose.app.yml -f docker-compose.dev-server.yml up -d --build
+#
+# Khác base: base mặc định trỏ Postgres về host (host.docker.internal) cho môi
+# trường dev máy cá nhân. Override này lấy thẳng DATABASE_URL từ .env (endpoint
+# RDS) và cho phép REDIS_URL trỏ Redis ngoài (nếu Redis đó CÓ RediSearch).
+services:
+  api:
+    environment:
+      # RDS: postgresql+asyncpg://USER:PASS@<rds-endpoint>:5432/<db>  (SSL: thêm ?ssl=require)
+      DATABASE_URL: ${DATABASE_URL}
+      # Trống -> dùng redis-stack bundled (khuyến nghị). Trỏ Redis ngoài CHỈ khi
+      # Redis đó có module RediSearch (Redis Stack / Redis Cloud), KHÔNG phải
+      # ElastiCache Redis thường.
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+
+  worker:
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}

@@ -2,6 +2,7 @@
 gateway + retrieved dựng sẵn trong state (xem tests/graph/test_nodes.py).
 """
 
+from app.graph.format import MATH_FORMAT as _MATH_FORMAT
 from app.graph.grounding import KHONG_TIM_THAY, has_grounding
 from app.graph.state import ChatState
 from app.llm import gateway
@@ -14,7 +15,8 @@ _SYSTEM = (
     "Mỗi đoạn ngữ cảnh có nhãn [tr.N] (N là số trang). Khi trình bày một ý lấy "
     "từ đoạn nào, CHÈN ngay [tr.N] tương ứng vào cuối câu/ý đó (ví dụ: "
     "'...số nguyên tố chỉ có hai ước [tr.45].'). Chỉ dùng số trang có trong "
-    "ngữ cảnh, không bịa số trang."
+    "ngữ cảnh, không bịa số trang.\n"
+    + _MATH_FORMAT
 )
 
 

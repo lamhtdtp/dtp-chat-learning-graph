@@ -4,6 +4,7 @@ import type {
   ChatResponse,
   ExamResult,
   MessageRow,
+  QuizData,
   Role,
   SessionRow,
   VideoInfo,
@@ -101,6 +102,10 @@ export function getVideoStatus(jobId: number): Promise<VideoInfo> {
 
 export function generateVideo(conceptKey: string): Promise<VideoInfo> {
   return post<VideoInfo>("/video/generate", { concept_key: conceptKey }, true);
+}
+
+export function getItestQuiz(topic: string): Promise<QuizData> {
+  return req<QuizData>(`/itest/quiz?topic=${encodeURIComponent(topic)}`, { auth: true });
 }
 
 export { ApiError };

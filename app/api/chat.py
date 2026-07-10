@@ -18,7 +18,6 @@ from app.api.deps import get_current_user
 from app.config import settings
 from app.db.models import ChatSession, Message, User
 from app.db.session import get_session
-from app.exam.itest_suggest import GoiYItest, suggest_cho_hoc_sinh
 from app.graph.grounding import KHONG_TIM_THAY
 from app.llm.gateway import LLMUnavailable
 from app.video import cache as video_cache
@@ -57,13 +56,27 @@ class VideoInfo(BaseModel):
     video_url: str | None = None
 
 
+class ItestOffer(BaseModel):
+    # Đề nghị làm bài trắc nghiệm i-Test cho chủ đề học sinh vừa hỏi. Frontend
+    # bấm nút -> gọi GET /itest/quiz?topic=... lấy đề THẬT (query i-Test trực
+    # tiếp) rồi mở QuizModal tương tác. Chat KHÔNG query i-Test (giữ nhẹ/nhanh).
+    topic: str
+
+
+class Suggestion(BaseModel):
+    # Chip gợi ý hành động dưới câu trả lời (bấm -> gửi `query` như tin nhắn mới).
+    label: str
+    query: str
+
+
 class ChatResponse(BaseModel):
     reply: str
     intent: str | None
     citations: list[Citation]
     session_id: int
     video: VideoInfo | None = None  # None nếu câu này không thể đính video
-    itest: GoiYItest | None = None  # gợi ý bài tập/đề Itest liên quan (None nếu không có)
+    itest: ItestOffer | None = None  # đề nghị luyện tập i-Test (None nếu không phù hợp)
+    suggestions: list[Suggestion] = []  # chip gợi ý bước tiếp theo
 
 
 async def _maybe_video(
@@ -90,20 +103,39 @@ async def _maybe_video(
         return None
 
 
-async def _maybe_itest(
-    session: AsyncSession, *, message: str, intent: str | None,
-    role: str, answer: str,
-) -> GoiYItest | None:
-    """Gợi ý bài tập/đề Itest liên quan cho HỌC SINH (chạy trên mirror cục bộ).
-    Không raise: gợi ý là bổ sung, lỗi ở đây không được làm hỏng câu trả lời."""
+def _maybe_itest(*, message: str, intent: str | None, role: str, answer: str) -> ItestOffer | None:
+    """Có nên mời HỌC SINH luyện tập bằng bài trắc nghiệm i-Test cho chủ đề này
+    không (gating). Chỉ trả topic — KHÔNG query i-Test ở đây; frontend bấm nút
+    mới gọi /itest/quiz (query trực tiếp) rồi mở QuizModal."""
     if role != "hoc_sinh" or intent not in _ITEST_INTENTS:
         return None
     if not answer or answer.startswith(KHONG_TIM_THAY):
         return None
-    try:
-        return await suggest_cho_hoc_sinh(session, message)
-    except Exception:  # noqa: BLE001 - Itest là bổ sung, lỗi không phá câu trả lời
+    if not settings.itest_database_url:  # chưa cấu hình kho đề i-Test
         return None
+    return ItestOffer(topic=message)
+
+
+# Chỉ mời "tạo đề ngắn luyện tập" khi học khái niệm/ôn tập — KHÔNG mời khi đang
+# giải một bài tập cụ thể (giai_bai): lúc đó gợi ý luyện thêm không hợp ngữ cảnh.
+_SUGGEST_INTENTS = {"hoi_dap", "on_tap"}
+
+
+def _suggestions(intent: str | None, topic: str) -> list[Suggestion]:
+    """Chip 'tạo đề ngắn luyện tập' dưới câu trả lời. Query NHÚNG chủ đề vừa hỏi
+    + từ khoá 'ôn tập' -> router vào nhánh on_tap và retrieve bám ĐÚNG nội dung
+    vừa học (không sinh đề toàn ma trận, không lạc chủ đề). Câu giải bài tập
+    (giai_bai) -> KHÔNG mời."""
+    if intent not in _SUGGEST_INTENTS:
+        return []
+    topic = " ".join(topic.split())
+    if "về:" in topic:  # bấm chip liên tiếp -> lấy đúng chủ đề, không lồng nhau
+        topic = topic.split("về:")[-1].strip()
+    topic = topic[:200].strip() or "phần vừa học"
+    return [Suggestion(
+        label="Tạo một đề ngắn luyện tập",
+        query=f"Ôn tập nhanh và ra cho em vài bài tập ngắn để luyện về: {topic}",
+    )]
 
 
 def _title_from(text: str) -> str:
@@ -162,8 +194,8 @@ async def chat(
         session, message=body.message, intent=intent, answer=answer,
         has_citations=bool(citations),
     )
-    itest = await _maybe_itest(
-        session, message=body.message, intent=intent, role=user.role, answer=answer,
+    itest = _maybe_itest(
+        message=body.message, intent=intent, role=user.role, answer=answer,
     )
 
     session.add(Message(session_id=session_pk, role="user", content=body.message))
@@ -183,4 +215,5 @@ async def chat(
         session_id=session_pk,
         video=video,
         itest=itest,
+        suggestions=_suggestions(intent, body.message),
     )

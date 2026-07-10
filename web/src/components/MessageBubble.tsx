@@ -1,6 +1,13 @@
 import { renderRich } from "../markdown";
-import type { ChatMessage, Citation } from "../types";
+import type { ChatMessage, Citation, Suggestion } from "../types";
 import { VideoBlock } from "./VideoBlock";
+import { ItestBlock } from "./ItestBlock";
+import { SuggestionChips } from "./SuggestionChips";
+
+// Chip mặc định cho câu trả lời cuối khi thiếu (vd mở lại phiên cũ chưa lưu chip).
+const DEFAULT_CHIPS: Suggestion[] = [
+  { label: "Tạo một đề ngắn luyện tập", query: "Ôn tập nhanh và ra cho em vài bài tập ngắn phần vừa học" },
+];
 
 // "không tìm thấy trong SGK" là trạng thái CỐ Ý (guard chống bịa), phải khác
 // biệt trực quan với câu trả lời thường.
@@ -14,7 +21,14 @@ function citeMap(cites?: Citation[]): Map<number, Citation> {
   return m;
 }
 
-export function MessageBubble({ msg, onOpenCitation }: { msg: ChatMessage; onOpenCitation: (c: Citation) => void }) {
+export function MessageBubble({
+  msg, onOpenCitation, showChips = false, onSendChip,
+}: {
+  msg: ChatMessage;
+  onOpenCitation: (c: Citation) => void;
+  showChips?: boolean;
+  onSendChip?: (q: string) => void;
+}) {
   if (msg.who === "user") {
     return (
       <div className="row user">
@@ -46,26 +60,35 @@ export function MessageBubble({ msg, onOpenCitation }: { msg: ChatMessage; onOpe
 
   return (
     <div className="row bot">
-      <div className={cls}>
-        {notFound && <div className="notfound-tag">Chưa có trong SGK</div>}
-        <div className="bubble-text">
-          {msg.error ? msg.text : renderRich(msg.text, cites, onOpenCitation)}
-        </div>
-        {showBottom && (
-          <div className="citations">
-            {[...cites.values()].map((c) => {
-              const label = `📖 Trang ${c.page_no}${c.bai_so != null ? ` · Bài ${c.bai_so}` : ""}`;
-              return c.tap != null ? (
-                <button className="cite-chip clickable" key={c.page_no} onClick={() => onOpenCitation(c)} type="button">
-                  {label}
-                </button>
-              ) : (
-                <span className="cite-chip" key={c.page_no}>{label}</span>
-              );
-            })}
+      <div className="bot-stack">
+        <div className={cls}>
+          {notFound && <div className="notfound-tag">Chưa có trong SGK</div>}
+          <div className="bubble-text">
+            {msg.error ? msg.text : renderRich(msg.text, cites, onOpenCitation)}
           </div>
-        )}
-        {msg.video && <VideoBlock info={msg.video} />}
+          {showBottom && (
+            <div className="citations">
+              {[...cites.values()].map((c) => {
+                const label = `📖 Trang ${c.page_no}${c.bai_so != null ? ` · Bài ${c.bai_so}` : ""}`;
+                return c.tap != null ? (
+                  <button className="cite-chip clickable" key={c.page_no} onClick={() => onOpenCitation(c)} type="button">
+                    {label}
+                  </button>
+                ) : (
+                  <span className="cite-chip" key={c.page_no}>{label}</span>
+                );
+              })}
+            </div>
+          )}
+          {msg.video && <VideoBlock info={msg.video} />}
+          {msg.itest && <ItestBlock offer={msg.itest} />}
+        </div>
+        {showChips && !msg.error && !notFound && onSendChip &&
+          // chips === undefined (phiên cũ) -> dùng mặc định; chips === [] (server
+          // bảo KHÔNG mời, vd giải bài tập) -> giữ rỗng, không hiện chip.
+          (msg.chips ?? DEFAULT_CHIPS).length > 0 && (
+            <SuggestionChips chips={msg.chips ?? DEFAULT_CHIPS} onSend={onSendChip} />
+          )}
       </div>
     </div>
   );

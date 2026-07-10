@@ -15,12 +15,42 @@ export interface VideoInfo {
   video_url: string | null;
 }
 
+// Chip gợi ý bước tiếp theo dưới câu trả lời (bấm -> gửi `query`).
+export interface Suggestion {
+  label: string;
+  query: string;
+}
+
+// Đề nghị luyện tập i-Test kèm câu trả lời — chỉ mang chủ đề; bấm nút mới tải đề.
+export interface ItestOffer {
+  topic: string;
+}
+
+// Bài trắc nghiệm i-Test (query trực tiếp DB i-Test, như repo dtp-chat-learning).
+export interface QuizQuestion {
+  type: "single" | "multi" | "fill" | "match";
+  q: string;
+  options?: string[];
+  answer?: number | null; // single: -1 = chưa xác định (hiện, không chấm)
+  answers?: number[];     // multi
+  blanks?: string[];      // fill
+  image?: string | null;
+}
+
+export interface QuizData {
+  id: number;
+  title: string;
+  questions: QuizQuestion[];
+}
+
 export interface ChatResponse {
   reply: string;
   intent: string | null;
   citations: Citation[];
   session_id: number;
   video: VideoInfo | null;
+  itest: ItestOffer | null;
+  suggestions: Suggestion[];
 }
 
 export interface SessionRow {
@@ -42,6 +72,8 @@ export interface ChatMessage {
   pending?: boolean;
   error?: boolean;
   video?: VideoInfo;
+  itest?: ItestOffer;
+  chips?: Suggestion[];
 }
 
 export interface AuthResult {

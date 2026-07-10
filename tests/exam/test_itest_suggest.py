@@ -5,12 +5,7 @@ import pytest
 from sqlalchemy import select
 
 from app.db.models import CurriculumTopic, Grade, ItestQuestion, ItestTopicMap, Subject
-from app.exam.itest_suggest import (
-    SuggestCell,
-    phan_bo,
-    suggest_cho_hoc_sinh,
-    suggest_for_cells,
-)
+from app.exam.itest_suggest import SuggestCell, phan_bo, suggest_for_cells
 
 
 def test_phan_bo_tong_luon_khop():
@@ -90,31 +85,3 @@ async def test_suggest_bao_thieu_khi_ngan_hang_khong_du(db_session):
         SuggestCell(topic_id=topic.id, muc_do="kho", so_cau_can=5)
     ])
     assert out[0].con_thieu == 4       # báo rõ thiếu, KHÔNG bịa câu cho đủ
-
-
-# ── Gợi ý bài tập/đề Itest cho học sinh (chat) ──
-# Dùng từ khoá độc nhất "zzkam" để không đụng dữ liệu Itest thật có thể đã sync.
-
-async def test_suggest_hoc_sinh_match_theo_tu_khoa(db_session):
-    db_session.add_all([
-        ItestQuestion(itest_id="z1", tag_goc="Luyện tập - Chủ đề Zzkam đặc biệt",
-                      question_type="MC", noi_dung="Câu Zzkam 1", content_hash="zh1",
-                      options_json='["a","b"]'),
-        ItestQuestion(itest_id="z2", tag_goc="Luyện tập - Chủ đề Zzkam đặc biệt",
-                      question_type="MC", noi_dung="Câu Zzkam 2", content_hash="zh2"),
-    ])
-    await db_session.flush()
-
-    g = await suggest_cho_hoc_sinh(db_session, "em muốn ôn tập về Zzkam")
-    assert g is not None
-    assert "Luyện tập - Chủ đề Zzkam đặc biệt" in g.de
-    assert {b.itest_id for b in g.bai_tap} == {"z1", "z2"}
-
-
-async def test_suggest_hoc_sinh_khong_co_tu_khoa_thi_none(db_session):
-    # Toàn từ dừng/ngắn -> không trích được từ khoá -> không gợi ý lung tung.
-    assert await suggest_cho_hoc_sinh(db_session, "em có") is None
-
-
-async def test_suggest_hoc_sinh_khong_khop_thi_none(db_session):
-    assert await suggest_cho_hoc_sinh(db_session, "Zzkhongtontai9999 xyz") is None

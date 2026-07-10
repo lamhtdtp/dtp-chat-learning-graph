@@ -5,25 +5,38 @@ import type { Citation } from "./types";
 type CiteMap = Map<number, Citation>;
 type OnCite = (c: Citation) => void;
 
-// Render inline: $công thức$, **đậm**, và [tr.N] -> chip trích dẫn bấm được.
+// Render 1 công thức LaTeX qua KaTeX. display=true cho $$...$$ (căn giữa).
+function renderMath(latex: string, key: string, display: boolean): ReactNode {
+  try {
+    const html = katex.renderToString(latex, { throwOnError: false, displayMode: display });
+    return <span key={key} dangerouslySetInnerHTML={{ __html: html }} />;
+  } catch {
+    return <span key={key}>{latex}</span>; // cú pháp lỗi -> text thô, không vỡ UI
+  }
+}
+
+// Render inline: $$công thức$$, $công thức$, **đậm** (đệ quy: đậm VẪN render công
+// thức/trích dẫn bên trong), và [tr.N] -> chip trích dẫn bấm được.
 function renderInline(text: string, keyBase: string, cites: CiteMap, onCite: OnCite): ReactNode[] {
-  const parts = text.split(/(\$[^$]+\$|\*\*[^*]+\*\*|\[tr\.\d+\])/g);
+  // $$...$$ đặt TRƯỚC $...$ để khớp công thức căn giữa; **...** khớp trước để đệ quy.
+  const parts = text.split(/(\$\$[^$]+\$\$|\$[^$]+\$|\*\*[^*]+\*\*|\[tr\.\d+\])/g);
   const nodes: ReactNode[] = [];
   parts.forEach((part, i) => {
     const key = `${keyBase}-${i}`;
     if (!part) return;
 
+    if (part.startsWith("$$") && part.endsWith("$$") && part.length > 4) {
+      nodes.push(renderMath(part.slice(2, -2), key, true));
+      return;
+    }
     if (part.startsWith("$") && part.endsWith("$") && part.length > 2) {
-      try {
-        const html = katex.renderToString(part.slice(1, -1), { throwOnError: false });
-        nodes.push(<span key={key} dangerouslySetInnerHTML={{ __html: html }} />);
-        return;
-      } catch {
-        /* rơi xuống text thường */
-      }
+      nodes.push(renderMath(part.slice(1, -1), key, false));
+      return;
     }
     if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
-      nodes.push(<strong key={key}>{part.slice(2, -2)}</strong>);
+      // Đệ quy: công thức/trích dẫn trong nhãn đậm cũng được render (trước đây
+      // hiện literal "$\mathbb{Z}$" vì lấy text thô).
+      nodes.push(<strong key={key}>{renderInline(part.slice(2, -2), key, cites, onCite)}</strong>);
       return;
     }
     const citeMatch = part.match(/^\[tr\.(\d+)\]$/);

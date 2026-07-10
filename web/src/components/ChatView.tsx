@@ -62,7 +62,7 @@ export function ChatView({ onLogout }: { onLogout: () => void }) {
       setActiveId(res.session_id);
       setMessages((m) => [
         ...m.slice(0, -1),
-        { who: "bot", text: res.reply, citations: res.citations, video: res.video ?? undefined },
+        { who: "bot", text: res.reply, citations: res.citations, video: res.video ?? undefined, itest: res.itest ?? undefined, chips: res.suggestions },
       ]);
       refreshSessions();
     } catch (err) {
@@ -148,7 +148,13 @@ export function ChatView({ onLogout }: { onLogout: () => void }) {
             </div>
           )}
           {messages.map((m, i) => (
-            <MessageBubble key={i} msg={m} onOpenCitation={setPageModal} />
+            <MessageBubble
+              key={i}
+              msg={m}
+              onOpenCitation={setPageModal}
+              showChips={!busy && i === messages.length - 1}
+              onSendChip={ask}
+            />
           ))}
         </div>
 

@@ -4,6 +4,7 @@ Khác qa_node: yêu cầu LLM trình bày TỪNG BƯỚC (không chỉ đáp s�
 "solve" (tầng mạnh — cần lý luận nhiều bước). Vẫn bám ngữ cảnh SGK, không bịa.
 """
 
+from app.graph.format import MATH_FORMAT as _MATH_FORMAT
 from app.graph.grounding import KHONG_TIM_THAY, has_grounding
 from app.graph.state import ChatState
 from app.llm import gateway
@@ -15,7 +16,8 @@ _SYSTEM = (
     "CẢNH SGK được cung cấp. Không bịa phương pháp ngoài ngữ cảnh.\n"
     "Mỗi đoạn ngữ cảnh có nhãn [tr.N] (N là số trang). Khi dùng phương pháp/ví "
     "dụ từ đoạn nào, CHÈN [tr.N] tương ứng vào cuối bước đó. Chỉ dùng số trang "
-    "có trong ngữ cảnh."
+    "có trong ngữ cảnh.\n"
+    + _MATH_FORMAT
 )
 
 
