@@ -184,16 +184,18 @@ def _slide_frame(slide, local_frame, total_frames, index, total,
         if a > 0:
             _subtitle(d, slide.loi_thoai, a)
 
-    # Logo DTP góc trên-trái (trên nền chip trắng bo tròn cho dễ đọc trên mọi cảnh)
+    # Logo DTP góc trên-PHẢI (trên nền chip trắng bo tròn cho dễ đọc trên mọi cảnh)
+    lx = ly = 0
     if _LOGO is not None:
         lw, lh = _LOGO.size
         pad = 12
-        d.rounded_rectangle([20, 18, 20 + lw + 2 * pad, 18 + lh + 2 * pad], radius=14,
+        lx, ly = _W - 20 - lw - 2 * pad, 18
+        d.rounded_rectangle([lx, ly, lx + lw + 2 * pad, ly + lh + 2 * pad], radius=14,
                             fill=(255, 255, 255, 235))
 
     final = Image.alpha_composite(img, layer)
     if _LOGO is not None:
-        final.alpha_composite(_LOGO, (32, 30))
+        final.alpha_composite(_LOGO, (lx + 12, ly + 12))
     return final.convert("RGB")
 
 
@@ -244,8 +246,28 @@ def _build_audio(segs: list[Path | None], durations: list[float], tmp: Path) -> 
         parts.append(pad)
     listing = tmp / "audio_list.txt"
     listing.write_text("\n".join(f"file '{p.resolve()}'" for p in parts), encoding="utf-8")
+    voice = tmp / "voice.m4a"
+    _ff(["-f", "concat", "-safe", "0", "-i", str(listing), "-c:a", "aac", str(voice)])
+
+    from app.config import settings
+    if not settings.video_music:
+        return voice
+
+    # Nhạc nền nhẹ: hợp âm sine êm (Đô trưởng) + rung biên độ chậm + vang, âm
+    # lượng RẤT nhỏ để không át giọng đọc; trộn dưới giọng (amix, ưu tiên giọng).
+    total = float(sum(durations))
+    music = tmp / "music.m4a"
+    _ff(["-f", "lavfi", "-i", f"sine=frequency=262:duration={total:.3f}",
+         "-f", "lavfi", "-i", f"sine=frequency=330:duration={total:.3f}",
+         "-f", "lavfi", "-i", f"sine=frequency=392:duration={total:.3f}",
+         "-filter_complex",
+         "[0][1][2]amix=inputs=3,tremolo=f=0.15:d=0.6,aecho=0.8:0.9:900:0.3,"
+         "lowpass=f=1100,volume=0.05[m]",
+         "-map", "[m]", "-c:a", "aac", str(music)])
     out = tmp / "audio.m4a"
-    _ff(["-f", "concat", "-safe", "0", "-i", str(listing), "-c:a", "aac", str(out)])
+    _ff(["-i", str(voice), "-i", str(music), "-filter_complex",
+         "[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=0,volume=1.4[a]",
+         "-map", "[a]", "-c:a", "aac", str(out)])
     return out
 
 

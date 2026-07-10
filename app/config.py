@@ -44,7 +44,14 @@ class Settings(BaseSettings):
     sgk_version: str = "cung_kham_pha_2024"
     video_enabled: bool = True
     video_storage_dir: str = "data/videos"  # object storage nội bộ (dev); prod swap S3/MinIO
-    video_tts_voice: str = "Linh"  # giọng vi_VN của macOS `say` (dev). Prod: TTS cloud.
+    # TTS chính: Gemini TTS qua VNGCloud (endpoint /v1/speech/tts, định dạng
+    # Gemini native — KHÁC /v1/audio/speech kiểu OpenAI). Giọng tự nhiên, đa ngữ.
+    gemini_tts_model: str = "gemini/gemini-2.5-flash-preview-tts"
+    video_tts_voice_cloud: str = "Kore"  # giọng prebuilt Gemini (Kore/Aoede/Zephyr/Puck...)
+    video_tts_style: str = "Đọc bằng giọng ấm áp, thân thiện, rõ ràng, vừa phải cho học sinh lớp 6"
+    video_tts_voice: str = "Linh"  # dự phòng: giọng vi_VN của macOS `say`
+    video_tts_rate: int = 165  # từ/phút cho `say` dự phòng
+    video_music: bool = False  # nhạc nền nhẹ (mặc định tắt vì giọng cloud đã tự nhiên)
     video_min_seconds: float = 8.0   # nới cho dev; spec đích 30-90s
     video_max_seconds: float = 90.0
 
