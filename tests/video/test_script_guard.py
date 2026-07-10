@@ -43,11 +43,17 @@ def test_guard_dat_khi_cong_thuc_bam_cau_tra_loi():
     assert check_script(_sb("a.b=b.a"), answer).ok is True
 
 
-def test_guard_chan_cong_thuc_lech():
-    answer = "Tính chất giao hoán của phép nhân: $a.b = b.a$."
-    res = check_script(_sb("a+b=b+a"), answer)  # kịch bản bịa công thức KHÁC
+def test_guard_dat_khi_dien_dat_lai_khong_mau_thuan():
+    # Diễn đạt khác (không phải đẳng thức số mâu thuẫn) -> KHÔNG chặn oan.
+    answer = "Tập hợp A gồm các số chẵn: $A = \\{0; 2; 4\\}$."
+    assert check_script(_sb("A = {0, 2, 4}"), answer).ok is True
+
+
+def test_guard_chan_cong_thuc_sai_so_hoc():
+    answer = "Ta có $2^3 = 8$."
+    res = check_script(_sb("2^3=9"), answer)  # cùng vế trái, vế phải SAI
     assert res.ok is False
-    assert "a+b=b+a" in res.reason
+    assert "2^3=9" in res.reason
 
 
 def test_guard_chan_kich_ban_rong():

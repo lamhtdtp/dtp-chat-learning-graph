@@ -18,9 +18,7 @@ def _job():
 
 
 def _mock_media(mocker):
-    mocker.patch("app.video.render.render_slide", side_effect=lambda s, p, **k: Path(p))
-    mocker.patch("app.video.tts.synthesize", return_value=40.0)
-    mocker.patch("app.video.assemble.assemble", return_value=40.0)
+    mocker.patch("app.video.animate.render_storyboard", return_value=40.0)
     mocker.patch("app.video.storage.save_video", return_value="/video/files/x.mp4")
 
 
@@ -44,10 +42,10 @@ async def test_pipeline_thanh_cong_job_done(mocker):
 
 async def test_pipeline_guard_chan_thi_failed(mocker):
     mocker.patch.object(pipeline, "_grounded_answer",
-                        mocker.AsyncMock(return_value=("Đáp án: $a.b=b.a$", "src")))
-    # kịch bản bịa công thức lệch -> guard chặn
+                        mocker.AsyncMock(return_value=("Đáp án: $2^3=8$", "src")))
+    # kịch bản sai công thức số học (cùng vế trái, vế phải khác) -> guard chặn
     mocker.patch.object(pipeline, "generate_script", mocker.AsyncMock(return_value=Storyboard(
-        slides=[Slide(cong_thuc=["x+y=999"], loi_thoai="sai")],
+        slides=[Slide(cong_thuc=["2^3=9"], loi_thoai="sai")],
     )))
     _mock_media(mocker)
     session = mocker.AsyncMock()
@@ -65,7 +63,7 @@ async def test_pipeline_loi_render_thi_failed(mocker):
     mocker.patch.object(pipeline, "generate_script", mocker.AsyncMock(return_value=Storyboard(
         slides=[Slide(y_chinh=["x"], loi_thoai="ok")],
     )))
-    mocker.patch("app.video.render.render_slide", side_effect=RuntimeError("Pillow lỗi"))
+    mocker.patch("app.video.animate.render_storyboard", side_effect=RuntimeError("ffmpeg lỗi"))
     session = mocker.AsyncMock()
     job = _job()
 

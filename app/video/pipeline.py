@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.graph.grounding import has_grounding
 from app.graph.nodes.qa import qa_node
 from app.retrieval import retriever
-from app.video import assemble, render, storage, tts
+from app.video import animate, storage
 from app.video.concept import CONCEPT_QUERY
 from app.video.guard import check_script
 from app.video.script import generate_script
@@ -48,8 +48,8 @@ async def build_video_for_job(session: AsyncSession, job) -> "job":
 
     job.status = RENDERING
     await session.flush()
+    slug = job.concept_key.split("::")[0]
     try:
-        slug = job.concept_key.split("::")[0]
         answer, sources = await _grounded_answer(slug)
 
         storyboard = await generate_script(answer, sources=sources)
@@ -57,20 +57,10 @@ async def build_video_for_job(session: AsyncSession, job) -> "job":
         if not guard.ok:
             raise PipelineError(f"Guard chặn kịch bản: {guard.reason}")
 
-        narration = storyboard.loi_thoai_full()
-        if not narration:
-            raise PipelineError("Kịch bản không có lời thoại")
-
         with tempfile.TemporaryDirectory() as td:
-            tmp = Path(td)
-            slides = [
-                render.render_slide(s, tmp / f"slide_{i}.png", index=i, total=len(storyboard.slides))
-                for i, s in enumerate(storyboard.slides)
-            ]
-            audio = tmp / "audio.m4a"
-            duration = tts.synthesize(narration, audio)
-            out = tmp / "out.mp4"
-            assemble.assemble(slides, audio, out, audio_duration=duration)
+            out = Path(td) / "out.mp4"
+            # Video hoạt hình câm (không TTS): chữ hiện dần + minh hoạ theo khái niệm.
+            duration = animate.render_storyboard(storyboard, out, concept_slug=slug)
             url = storage.save_video(out, _safe_name(job.concept_key))
 
         job.status = DONE
