@@ -27,7 +27,7 @@ _CACHE_DIR = Path(__file__).resolve().parents[2] / "data" / "scenes"
 
 _PROMPT = (
     "Pixar-style 3D animation still, a friendly young Vietnamese female teacher "
-    "wearing a traditional Vietnamese ao dai (elegant long silk dress with pants), "
+    "wearing a traditional Vietnamese ao dai in blue color (elegant long silk dress with pants), "
     "standing on the RIGHT side of the frame, smiling warmly. "
     "A large bright classroom with a big empty whiteboard, wooden desks, a window "
     "with soft warm morning sunlight, plants, cozy cinematic lighting. The LEFT "

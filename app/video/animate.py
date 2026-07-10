@@ -22,6 +22,21 @@ _W, _H, _FPS = 1280, 720, 25
 _SEC_PER_SLIDE = 5.0
 _FONT = "/Library/Fonts/Arial Unicode.ttf"
 
+# Logo DTP đóng dấu góc trên-trái mọi frame (thương hiệu). Tải + resize 1 lần.
+_LOGO_PATH = Path(__file__).resolve().parents[2] / "web" / "public" / "dtp-logo.png"
+
+
+def _load_logo(height: int = 56) -> Image.Image | None:
+    try:
+        logo = Image.open(_LOGO_PATH).convert("RGBA")
+    except OSError:
+        return None
+    w = round(logo.width * height / logo.height)
+    return logo.resize((w, height))
+
+
+_LOGO = _load_logo()
+
 _INK = (34, 45, 70)
 _BLUE = (24, 66, 150)
 _BLUE2 = (43, 111, 246)
@@ -169,7 +184,17 @@ def _slide_frame(slide, local_frame, total_frames, index, total,
         if a > 0:
             _subtitle(d, slide.loi_thoai, a)
 
-    return Image.alpha_composite(img, layer).convert("RGB")
+    # Logo DTP góc trên-trái (trên nền chip trắng bo tròn cho dễ đọc trên mọi cảnh)
+    if _LOGO is not None:
+        lw, lh = _LOGO.size
+        pad = 12
+        d.rounded_rectangle([20, 18, 20 + lw + 2 * pad, 18 + lh + 2 * pad], radius=14,
+                            fill=(255, 255, 255, 235))
+
+    final = Image.alpha_composite(img, layer)
+    if _LOGO is not None:
+        final.alpha_composite(_LOGO, (32, 30))
+    return final.convert("RGB")
 
 
 def _ff(args: list[str]) -> None:
