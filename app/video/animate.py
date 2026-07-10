@@ -1,9 +1,10 @@
-"""Dựng video hoạt hình KHÔNG tiếng (kiểu explainer AI): mỗi slide có tiêu đề,
-ý chính hiện dần, công thức, minh hoạ chuyển động và phụ đề (lời thoại thành
-chữ vì không có audio). Frame do Pillow vẽ, đẩy thẳng (rawvideo) vào ffmpeg qua
-stdin -> mp4 h264 (không cần ghi hàng trăm PNG ra đĩa, không cần TTS/host tool).
+"""Dựng video hoạt hình KHÔNG tiếng kiểu explainer AI: nền là ẢNH CẢNH do AI
+sinh (giáo viên + lớp học), overlay bảng nội dung + công thức + phụ đề sắc nét,
+thêm chuyển động zoom nhẹ (Ken Burns). Frame do Pillow vẽ, đẩy thẳng (rawvideo)
+vào ffmpeg -> mp4 h264.
 
-Tất định: frame là hàm thuần của (nội dung, chỉ số frame) — không dùng random.
+Không có ảnh nền (background=None) -> quay về nền gradient + minh hoạ vector
+(illustrations.py). Tất định: frame là hàm thuần của (nội dung, chỉ số frame).
 """
 
 import math
@@ -20,13 +21,18 @@ _W, _H, _FPS = 1280, 720, 25
 _SEC_PER_SLIDE = 5.0
 _FONT = "/Library/Fonts/Arial Unicode.ttf"
 
-_INK = (28, 39, 66)
-_BLUE = (27, 79, 191)
+_INK = (34, 45, 70)
+_BLUE = (24, 66, 150)
 _BLUE2 = (43, 111, 246)
 _SUB = (107, 120, 150)
 
+# Vùng "viết lên bảng" — nửa trái khung, nơi ảnh nền cố ý chừa bảng trắng trống
+# (xem scene.py). Nội dung vẽ TRỰC TIẾP ở đây như viết tay trên bảng, không còn
+# thẻ trắng đục + thanh tiêu đề như slide.
+_BOARD_X0, _BOARD_Y0, _BOARD_X1, _BOARD_Y1 = 62, 74, 668, 452
 
-def _font(size: int, bold: bool = False):
+
+def _font(size: int):
     try:
         return ImageFont.truetype(_FONT, size)
     except OSError:
@@ -34,25 +40,20 @@ def _font(size: int, bold: bool = False):
 
 
 def _ease(t: float) -> float:
-    """easeOutCubic — chuyển động mượt, chậm dần."""
     t = max(0.0, min(1.0, t))
     return 1 - (1 - t) ** 3
 
 
-def _bg() -> Image.Image:
-    """Nền gradient xanh nhạt dựng 1 lần, tái dùng cho mọi frame."""
+def _gradient_bg() -> Image.Image:
     img = Image.new("RGB", (_W, _H), (244, 248, 255))
     top, bot = (238, 244, 255), (250, 252, 255)
     for y in range(_H):
         f = y / _H
-        img.paste(
-            tuple(int(top[i] + (bot[i] - top[i]) * f) for i in range(3)),
-            (0, y, _W, y + 1),
-        )
+        img.paste(tuple(int(top[i] + (bot[i] - top[i]) * f) for i in range(3)), (0, y, _W, y + 1))
     return img
 
 
-_BG_BASE = _bg()
+_GRADIENT = _gradient_bg()
 
 
 def _wrap(draw, text: str, font, max_w: int) -> list[str]:
@@ -70,77 +71,121 @@ def _wrap(draw, text: str, font, max_w: int) -> list[str]:
     return lines
 
 
-def _slide_frame(slide: Slide, local_frame: int, total_frames: int,
-                 index: int, total: int, concept_slug: str | None) -> Image.Image:
-    img = _BG_BASE.copy()
-    d = ImageDraw.Draw(img)
+def _zoom(bg: Image.Image, prog: float) -> Image.Image:
+    """Ken Burns: phóng nhẹ 1.0 -> 1.06 theo tiến độ toàn video, crop giữa."""
+    scale = 1.0 + 0.06 * max(0.0, min(1.0, prog))
+    w, h = round(_W / scale), round(_H / scale)
+    left, top = (_W - w) // 2, (_H - h) // 2
+    return bg.crop((left, top, left + w, top + h)).resize((_W, _H))
+
+
+def _subtitle(d, text: str, alpha: float) -> None:
+    """Phụ đề canh GIỮA dưới đáy (như ảnh tham chiếu): chữ trắng trên pill tối
+    bo tròn, rộng vừa đủ theo nội dung."""
+    fnt = _font(26)
+    lines = _wrap(d, text, fnt, _W - 360)[:2]
+    widths = [d.textlength(l, font=fnt) for l in lines]
+    box_w = max(widths) + 72
+    bx0 = (_W - box_w) // 2
+    bh = 38 * len(lines) + 26
+    by1, by0 = _H - 44, _H - 44 - (38 * len(lines) + 26)
+    d.rounded_rectangle([bx0, by0, bx0 + box_w, by1], radius=18,
+                        fill=(18, 26, 46, int(206 * alpha)))
+    cy = by0 + 15
+    for line, w in zip(lines, widths):
+        d.text(((_W - w) // 2, cy), line, font=fnt, fill=(255, 255, 255, int(255 * alpha)))
+        cy += 38
+
+
+def _slide_frame(slide, local_frame, total_frames, index, total,
+                 bg: Image.Image, has_scene: bool, global_prog: float) -> Image.Image:
     prog = local_frame / max(1, total_frames)
+    base = _zoom(bg, global_prog) if has_scene else bg.copy()
+    img = base.convert("RGBA")
+    layer = Image.new("RGBA", (_W, _H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
 
-    # Header trượt vào ~0.4s đầu
+    x = _BOARD_X0
+    if has_scene:
+        # Lớp trắng RẤT mờ chỉ để bảo đảm tương phản chữ trên bảng — đọc như mặt
+        # bảng, KHÔNG phải thẻ slide đục. Không có thanh tiêu đề màu.
+        d.rounded_rectangle([_BOARD_X0 - 20, _BOARD_Y0 - 20, _BOARD_X1 + 20, _BOARD_Y1 + 20],
+                            radius=22, fill=(255, 255, 255, 66))
+    else:
+        # Nền gradient (không có ảnh cảnh): nền đục để dễ đọc + minh hoạ vector.
+        d.rounded_rectangle([_BOARD_X0 - 20, _BOARD_Y0 - 20, _BOARD_X1 + 20, _BOARD_Y1 + 20],
+                            radius=22, fill=(255, 255, 255, 255))
+        if prog > 0.15:
+            illustrations.draw(None, d, 990, 380, _ease((prog - 0.15) / 0.3), local_frame)
+
+    # Tiêu đề: chữ xanh đậm + gạch chân kiểu bút dạ (trượt vào nhẹ), KHÔNG thanh nền.
     head_in = _ease(prog / 0.12) if prog < 0.12 else 1.0
-    hx = int(-40 + 40 * head_in)
-    d.rounded_rectangle([40 + hx, 44, _W - 40 + hx, 128], radius=18, fill=_BLUE)
-    d.text((72 + hx, 66), slide.tieu_de or "Bài học", font=_font(38), fill=(255, 255, 255))
-    d.text((_W - 150, 74), f"{index + 1}/{total}", font=_font(26), fill=(206, 224, 255))
+    tal = int(255 * head_in)
+    ty = _BOARD_Y0 + int(-6 + 6 * head_in)
+    title = slide.tieu_de or "Bài học"
+    tf = _font(38)
+    d.text((x, ty), title, font=tf, fill=(*_BLUE, tal))
+    tw = d.textlength(title, font=tf)
+    d.line([x, ty + 52, x + tw, ty + 52], fill=(*_BLUE2, int(220 * head_in)), width=4)
+    d.text((_BOARD_X1 - 52, ty + 8), f"{index + 1}/{total}", font=_font(20),
+           fill=(*_SUB, tal))
 
-    # Cột trái: tối đa 3 ý chính, hiện dần từng dòng (giữ chỗ cho phụ đề dưới).
-    left_w = 690
-    y = 200
-    _Y_MAX = _H - 150  # không cho nội dung tràn vào vùng phụ đề
-    reveal_span = 0.62
+    # Ý chính hiện dần (chấm xanh + chữ mực)
+    y = ty + 86
+    text_w = _BOARD_X1 - x
     bullets = slide.y_chinh[:3]
     for i, bullet in enumerate(bullets):
-        if y > _Y_MAX:
+        if y > _BOARD_Y1 - 40:
             break
-        start = 0.12 + reveal_span * (i / max(1, len(bullets)))
+        start = 0.12 + 0.5 * (i / max(1, len(bullets)))
         a = _ease((prog - start) / 0.18) if prog > start else 0.0
         if a <= 0:
             continue
-        dx = int((1 - a) * 24)
-        col = tuple(int(255 + (_INK[j] - 255) * a) for j in range(3))
-        d.ellipse([64 + dx, y + 12, 78 + dx, y + 26], fill=tuple(int(255 + (_BLUE2[j] - 255) * a) for j in range(3)))
-        for line in _wrap(d, bullet, _font(30), left_w - 60):
-            d.text((96 + dx, y), line, font=_font(30), fill=col)
-            y += 44
-        y += 20
+        al = int(255 * a)
+        d.ellipse([x + 2, y + 11, x + 14, y + 23], fill=(*_BLUE2, al))
+        for line in _wrap(d, bullet, _font(27), text_w - 34):
+            d.text((x + 30, y), line, font=_font(27), fill=(*_INK, al))
+            y += 39
+        y += 14
 
-    # Công thức: chỉ 1 khung, và chỉ khi còn chỗ (không đè phụ đề).
+    # Công thức: bút dạ xanh lớn + gạch nền nhạt (không phải hộp đục)
     for ct in slide.cong_thuc[:1]:
         a = _ease((prog - 0.4) / 0.2) if prog > 0.4 else 0.0
-        if a <= 0 or y + 78 > _Y_MAX:
+        if a <= 0 or y + 60 > _BOARD_Y1:
             continue
-        d.rounded_rectangle([64, y + 6, left_w, y + 78], radius=12, fill=(232, 240, 255))
-        d.text((88, y + 22), latex_to_unicode(ct), font=_font(40), fill=_BLUE)
-        y += 96
+        al = int(255 * a)
+        uni = latex_to_unicode(ct)
+        ff = _font(44)
+        fw = d.textlength(uni, font=ff)
+        d.rounded_rectangle([x - 6, y + 44, x + fw + 16, y + 56], radius=5,
+                            fill=(*_BLUE2, int(70 * a)))
+        d.text((x + 4, y), uni, font=ff, fill=(*_BLUE, al))
+        y += 72
 
-    # Cột phải: minh hoạ động THEO khái niệm (hiện sau ~0.15 prog)
-    if prog > 0.15:
-        illustrations.draw(concept_slug, d, 990, 380, _ease((prog - 0.15) / 0.3), local_frame)
-
-    # Phụ đề (lời thoại -> chữ, vì không có tiếng) hiện cuối slide
+    # Phụ đề canh giữa dưới đáy
     if slide.loi_thoai:
-        a = _ease((prog - 0.25) / 0.2) if prog > 0.25 else 0.0
+        a = _ease((prog - 0.2) / 0.2) if prog > 0.2 else 0.0
         if a > 0:
-            d.rounded_rectangle([40, _H - 118, _W - 40, _H - 40], radius=14,
-                                fill=(255, 255, 255))
-            cy = _H - 104
-            for line in _wrap(d, slide.loi_thoai, _font(26), _W - 130)[:2]:
-                col = tuple(int(255 + (_SUB[j] - 255) * a) for j in range(3))
-                d.text((72, cy), line, font=_font(26), fill=col)
-                cy += 34
-    return img
+            _subtitle(d, slide.loi_thoai, a)
+
+    return Image.alpha_composite(img, layer).convert("RGB")
 
 
 def render_storyboard(storyboard: Storyboard, out_mp4: str | Path,
                       *, concept_slug: str | None = None,
+                      background: Image.Image | None = None,
                       sec_per_slide: float = _SEC_PER_SLIDE) -> float:
-    """Sinh mp4 câm từ storyboard. Trả về thời lượng (giây). Validate mọi công
-    thức qua KaTeX trước (sai cú pháp -> KaTeXError, không tạo video lỗi)."""
+    """Sinh mp4 câm. `background` là ảnh cảnh AI (1280x720) — None thì dùng nền
+    gradient + minh hoạ vector. Trả về thời lượng (giây)."""
     for s in storyboard.slides:
         for ct in s.cong_thuc:
             katex_validate(ct)
 
+    has_scene = background is not None
+    bg = background if has_scene else _GRADIENT
     frames_per_slide = int(sec_per_slide * _FPS)
+    total_frames_all = frames_per_slide * max(1, len(storyboard.slides))
+
     proc = subprocess.Popen(
         ["ffmpeg", "-y", "-f", "rawvideo", "-pixel_format", "rgb24",
          "-video_size", f"{_W}x{_H}", "-framerate", str(_FPS), "-i", "-",
@@ -151,10 +196,13 @@ def render_storyboard(storyboard: Storyboard, out_mp4: str | Path,
     assert proc.stdin is not None
     try:
         total = len(storyboard.slides)
+        done = 0
         for idx, slide in enumerate(storyboard.slides):
             for f in range(frames_per_slide):
-                frame = _slide_frame(slide, f, frames_per_slide, idx, total, concept_slug)
+                gp = done / max(1, total_frames_all)
+                frame = _slide_frame(slide, f, frames_per_slide, idx, total, bg, has_scene, gp)
                 proc.stdin.write(frame.tobytes())
+                done += 1
     finally:
         proc.stdin.close()
     err = proc.stderr.read().decode()[-300:] if proc.stderr else ""

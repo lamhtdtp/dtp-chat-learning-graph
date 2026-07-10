@@ -15,9 +15,18 @@ class Settings(BaseSettings):
     gemini_model_cheap: str = "gemini/gemini-3.1-flash-lite"
     gemini_model_strong: str = "gemini/gemini-3.1-pro-preview"
     embedding_model: str = "openai/text-embedding-3-large"
+    image_model: str = "openai/gpt-image-1"  # sinh ảnh nền cảnh video (đã verify)
 
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "sgk_toan"
+
+    # Itest (EPIC-10) — ngân hàng câu hỏi ngoài, truy cập READ-ONLY qua DB nền
+    # tảng (schema unit_test/question, subject='MATH', grade_id='G6'; xem repo
+    # dtp-chat-learning). Credential CHỈ-ĐỌC riêng, không nằm trong bất kỳ giao
+    # dịch ghi nào. Rỗng -> tính năng Itest tắt (suggest chỉ chạy trên mirror đã
+    # đồng bộ). URL ảnh câu hỏi = itest_cdn_base + question.image.
+    itest_database_url: str = ""
+    itest_cdn_base: str = "https://cdn.i-test.vn/prod/"
 
     database_url: str = "postgresql+asyncpg://lamthanh@localhost:5432/chat_learning"
     redis_url: str = "redis://localhost:6380/0"

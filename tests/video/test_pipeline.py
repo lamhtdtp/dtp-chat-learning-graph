@@ -20,6 +20,8 @@ def _job():
 def _mock_media(mocker):
     mocker.patch("app.video.animate.render_storyboard", return_value=40.0)
     mocker.patch("app.video.storage.save_video", return_value="/video/files/x.mp4")
+    # Không gọi sinh ảnh nền thật trong unit test (tốn quota/flaky).
+    mocker.patch.object(pipeline.scene, "fetch_scene", mocker.AsyncMock(return_value=None))
 
 
 async def test_pipeline_thanh_cong_job_done(mocker):
@@ -64,6 +66,7 @@ async def test_pipeline_loi_render_thi_failed(mocker):
         slides=[Slide(y_chinh=["x"], loi_thoai="ok")],
     )))
     mocker.patch("app.video.animate.render_storyboard", side_effect=RuntimeError("ffmpeg lỗi"))
+    mocker.patch.object(pipeline.scene, "fetch_scene", mocker.AsyncMock(return_value=None))
     session = mocker.AsyncMock()
     job = _job()
 

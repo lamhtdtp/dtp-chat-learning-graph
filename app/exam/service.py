@@ -53,6 +53,25 @@ def _ti_le_theo_muc_do(cells: list[BlueprintCell]) -> dict[str, float]:
     return totals
 
 
+async def tinh_chi_tieu(
+    session: AsyncSession,
+    *,
+    hoc_ky: str,
+    tong_so_cau: int,
+    mon: str = "Toán",
+    khoi: str = "Lớp 6",
+) -> tuple[Blueprint, dict[str, int], dict[str, float]]:
+    """Nạp blueprint + tính chỉ tiêu số câu theo mức độ (deterministic). Dùng
+    chung cho sinh đề (SGK) và gợi ý Itest (EPIC-10) để cùng một ma trận."""
+    bp = await _load_blueprint(session, mon=mon, khoi=khoi, hoc_ky=hoc_ky)
+    cells = list(
+        await session.scalars(select(BlueprintCell).filter_by(blueprint_id=bp.id))
+    )
+    ti_le = _ti_le_theo_muc_do(cells)
+    chi_tieu = build_blueprint(ti_le, tong_so_cau)
+    return bp, chi_tieu, ti_le
+
+
 async def sinh_de(
     session: AsyncSession,
     *,
@@ -61,13 +80,12 @@ async def sinh_de(
     mon: str = "Toán",
     khoi: str = "Lớp 6",
 ) -> dict:
-    bp = await _load_blueprint(session, mon=mon, khoi=khoi, hoc_ky=hoc_ky)
-
+    bp, chi_tieu, ti_le = await tinh_chi_tieu(
+        session, hoc_ky=hoc_ky, tong_so_cau=tong_so_cau, mon=mon, khoi=khoi
+    )
     cells = list(
         await session.scalars(select(BlueprintCell).filter_by(blueprint_id=bp.id))
     )
-    ti_le = _ti_le_theo_muc_do(cells)
-    chi_tieu = build_blueprint(ti_le, tong_so_cau)
 
     # mạch nội dung phủ trong học kỳ (theo order_index) — dùng làm câu truy vấn
     # ngữ liệu SGK cho node sinh đề.

@@ -49,6 +49,21 @@ def ingest_book_task(
     )
 
 
+@celery_app.task(name="sync_itest", bind=True, max_retries=3, default_retry_delay=60)
+def sync_itest_task(self) -> dict:
+    """Đồng bộ ngân hàng Itest (read-only) -> mirror + gợi ý ánh xạ (EPIC-10).
+    Chạy nền, KHÔNG chặn chat. Lỗi kết nối Itest -> retry (tối đa 3 lần) để
+    không để mirror nửa vời:
+        celery -A app.ingestion.celery_app worker --loglevel=info
+    """
+    from app.integrations.itest.tasks import run_sync
+
+    try:
+        return asyncio.run(run_sync())
+    except Exception as exc:  # noqa: BLE001 - lỗi kết nối/tạm thời -> retry
+        raise self.retry(exc=exc)
+
+
 @celery_app.task(name="render_video")
 def render_video_task(*, job_id: int) -> str | None:
     """Sinh video AI cho 1 job (Epic-09). Chạy nền, KHÔNG chặn đường chat.

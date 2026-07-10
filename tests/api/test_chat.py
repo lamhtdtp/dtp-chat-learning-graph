@@ -128,3 +128,36 @@ async def test_chat_khong_dinh_video_khi_khong_grounding(client, mocker):
 
     r = await client.post("/chat", json={"message": "Số nguyên tố là gì?"}, headers=h)
     assert r.json()["video"] is None
+
+
+async def test_chat_hoc_sinh_co_goi_y_itest(client, mocker):
+    """Học sinh + intent hỏi đáp -> câu trả lời kèm gợi ý bài tập/đề Itest."""
+    import app.api.chat as chat_api
+    from app.exam.itest_suggest import GoiYItest, UngVien
+
+    h = await _auth(client)  # role hoc_sinh
+    _fake_graph(mocker, answer="Số nguyên tố là...", intent="hoi_dap")
+    mocker.patch.object(chat_api, "suggest_cho_hoc_sinh", mocker.AsyncMock(return_value=GoiYItest(
+        bai_tap=[UngVien(itest_id="q1", noi_dung="7 là số nguyên tố?", tag_goc="Đề Số nguyên tố")],
+        de=["Đề Số nguyên tố"],
+    )))
+
+    body = (await client.post("/chat", json={"message": "Số nguyên tố là gì?"}, headers=h)).json()
+
+    assert body["itest"] is not None
+    assert body["itest"]["de"] == ["Đề Số nguyên tố"]
+    assert body["itest"]["bai_tap"][0]["itest_id"] == "q1"
+
+
+async def test_chat_intent_ngoai_pham_vi_khong_goi_y_itest(client, mocker):
+    """intent 'sinh_de' không thuộc _ITEST_INTENTS -> không gọi suggest, itest=None."""
+    import app.api.chat as chat_api
+
+    h = await _auth(client)
+    _fake_graph(mocker, answer="đề...", intent="sinh_de")
+    spy = mocker.patch.object(chat_api, "suggest_cho_hoc_sinh", mocker.AsyncMock())
+
+    body = (await client.post("/chat", json={"message": "tạo đề"}, headers=h)).json()
+
+    assert body["itest"] is None
+    spy.assert_not_called()  # gating chặn trước khi gọi

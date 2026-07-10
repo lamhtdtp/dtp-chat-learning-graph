@@ -126,6 +126,44 @@ class Message(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class ItestQuestion(Base):
+    """Mirror cục bộ 1 câu hỏi ngân hàng Itest (EPIC-10, US-21). Đồng bộ READ-ONLY
+    từ DB Itest ngoài -> suggest online chạy trên mirror này (nhanh, không phụ
+    thuộc Itest). `itest_id` unique để idempotent; `content_hash` để bỏ qua khi
+    nội dung không đổi, cập nhật khi đổi. `tag_goc` (tên đề unit_test) là khoá
+    ánh xạ sang taxonomy (xem ItestTopicMap)."""
+
+    __tablename__ = "itest_questions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    itest_id: Mapped[str] = mapped_column(unique=True, index=True)
+    tag_goc: Mapped[str] = mapped_column(index=True)  # tên đề Itest (unit_test.name)
+    question_type: Mapped[str] = mapped_column(default="MC")
+    noi_dung: Mapped[str] = mapped_column(Text)
+    options_json: Mapped[str | None] = mapped_column(Text, default=None)
+    dap_an: Mapped[str | None] = mapped_column(Text, default=None)
+    loi_giai: Mapped[str | None] = mapped_column(Text, default=None)
+    image_url: Mapped[str | None] = mapped_column(default=None)
+    content_hash: Mapped[str] = mapped_column(index=True)
+    synced_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+
+class ItestTopicMap(Base):
+    """Ánh xạ tag Itest (tên đề) -> taxonomy chương trình (EPIC-10, US-22). LLM
+    gợi ý (status='cho_duyet'), người duyệt xác nhận ('da_duyet') mới đủ điều
+    kiện suggest. Tag không map được -> 'chua_map' (đếm vào báo cáo, KHÔNG âm
+    thầm bỏ). topic_id/muc_do NULL khi chưa map."""
+
+    __tablename__ = "itest_topic_map"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    itest_tag: Mapped[str] = mapped_column(unique=True, index=True)
+    topic_id: Mapped[int | None] = mapped_column(ForeignKey("curriculum_topics.id"), default=None)
+    muc_do: Mapped[str | None] = mapped_column(default=None)  # de|trung_binh|kho
+    status: Mapped[str] = mapped_column(default="cho_duyet")  # cho_duyet|da_duyet|chua_map
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 class VideoJob(Base):
     """Job sinh video AI ngắn cho 1 khái niệm (Epic-09). Vòng đời
     QUEUED→RENDERING→DONE|FAILED lưu ở Postgres để API/WebSocket truy vấn.

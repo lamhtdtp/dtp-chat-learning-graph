@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.graph.grounding import has_grounding
 from app.graph.nodes.qa import qa_node
 from app.retrieval import retriever
-from app.video import animate, storage
+from app.video import animate, scene, storage
 from app.video.concept import CONCEPT_QUERY
 from app.video.guard import check_script
 from app.video.script import generate_script
@@ -57,10 +57,19 @@ async def build_video_for_job(session: AsyncSession, job) -> "job":
         if not guard.ok:
             raise PipelineError(f"Guard chặn kịch bản: {guard.reason}")
 
+        # Ảnh nền cảnh AI (giáo viên + lớp học). Lỗi sinh ảnh -> None -> tự lùi
+        # về nền gradient + minh hoạ vector, KHÔNG làm hỏng video.
+        try:
+            background = await scene.fetch_scene(storyboard.tieu_de or "Toán lớp 6")
+        except Exception:  # noqa: BLE001
+            background = None
+
         with tempfile.TemporaryDirectory() as td:
             out = Path(td) / "out.mp4"
-            # Video hoạt hình câm (không TTS): chữ hiện dần + minh hoạ theo khái niệm.
-            duration = animate.render_storyboard(storyboard, out, concept_slug=slug)
+            # Video câm: nền cảnh AI (hoặc gradient) + bảng nội dung + phụ đề.
+            duration = animate.render_storyboard(
+                storyboard, out, concept_slug=slug, background=background
+            )
             url = storage.save_video(out, _safe_name(job.concept_key))
 
         job.status = DONE

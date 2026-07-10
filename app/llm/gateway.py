@@ -65,6 +65,10 @@ TASK_TIER: dict[str, Tier] = {
     # Kịch bản video bám câu trả lời ĐÃ grounding sẵn (chỉ diễn đạt lại, không
     # cần suy luận mới) -> tầng rẻ đủ dùng, rẻ cho tính năng đính kèm.
     "video_script": "cheap",
+    # Gợi ý ánh xạ tag Itest -> taxonomy (EPIC-10, US-22): phân loại 1 tên đề vào
+    # mạch/đơn vị kiến thức + mức độ có sẵn — việc phân loại nhẹ, tầng rẻ đủ; kết
+    # quả LÀ ĐỀ XUẤT, người duyệt xác nhận mới dùng nên sai sót được chặn ở khâu duyệt.
+    "itest_map": "cheap",
     "solve": "strong",
     "exam_gen": "strong",
 }
@@ -207,3 +211,19 @@ async def embed(texts: list[str]) -> list[list[float]]:
     except _TRANSIENT_ERRORS as e:
         raise LLMUnavailable(str(e)) from e
     return [item.embedding for item in response.data]
+
+
+async def generate_image(prompt: str, *, size: str = "1536x1024") -> bytes:
+    """Sinh 1 ảnh (bytes PNG) qua model ảnh trên VNGCloud (OpenAI SDK
+    images.generate, đã verify với openai/gpt-image-1). Dùng làm nền cảnh cho
+    video kiểu explainer AI (app/video/scene.py)."""
+    import base64
+
+    client = _openai_client()
+    try:
+        response = await client.images.generate(
+            model=settings.image_model, prompt=prompt, size=size, n=1,
+        )
+    except _TRANSIENT_ERRORS as e:
+        raise LLMUnavailable(str(e)) from e
+    return base64.b64decode(response.data[0].b64_json)
