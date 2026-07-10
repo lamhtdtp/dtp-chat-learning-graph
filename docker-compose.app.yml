@@ -49,6 +49,10 @@ services:
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-openai/text-embedding-3-large}
       GEMINI_MODEL_CHEAP: ${GEMINI_MODEL_CHEAP:-gemini/gemini-3.1-flash-lite}
       GEMINI_MODEL_STRONG: ${GEMINI_MODEL_STRONG:-gemini/gemini-3.1-pro-preview}
+      # i-Test (EPIC-10): DB ngân hàng câu hỏi ngoài (MySQL, READ-ONLY) để mời
+      # học sinh làm bài trắc nghiệm. Rỗng -> tính năng tắt.
+      ITEST_DATABASE_URL: ${ITEST_DATABASE_URL:-}
+      ITEST_CDN_BASE: ${ITEST_CDN_BASE:-https://cdn.i-test.vn/prod/}
     extra_hosts:
       - "host.docker.internal:host-gateway" # Linux cần dòng này; Docker Desktop đã có sẵn
     volumes:
@@ -74,6 +78,8 @@ services:
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-openai/text-embedding-3-large}
       GEMINI_MODEL_CHEAP: ${GEMINI_MODEL_CHEAP:-gemini/gemini-3.1-flash-lite}
       GEMINI_MODEL_STRONG: ${GEMINI_MODEL_STRONG:-gemini/gemini-3.1-pro-preview}
+      ITEST_DATABASE_URL: ${ITEST_DATABASE_URL:-}  # đồng bộ Itest (read-only) cần DB nguồn
+      ITEST_CDN_BASE: ${ITEST_CDN_BASE:-https://cdn.i-test.vn/prod/}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

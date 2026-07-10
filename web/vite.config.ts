@@ -14,6 +14,7 @@ export default defineConfig({
       "/books": "http://localhost:8000",
       "/exam": "http://localhost:8000",
       "/video": "http://localhost:8000",
+      "/itest": "http://localhost:8000",
       "/health": "http://localhost:8000",
     },
   },

@@ -14,7 +14,8 @@ WORKDIR /app
 COPY pyproject.toml alembic.ini ./
 COPY app ./app
 COPY alembic ./alembic
-RUN pip install --upgrade pip && pip install "."
+# Cài kèm extra [itest] (pymysql) để endpoint /itest/quiz query DB i-Test được.
+RUN pip install --upgrade pip && pip install ".[itest]"
 
 # Chạy dưới user không phải root
 RUN useradd --create-home appuser && chown -R appuser /app
