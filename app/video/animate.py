@@ -122,29 +122,29 @@ def _slide_frame(slide, local_frame, total_frames, index, total,
     d = ImageDraw.Draw(layer)
 
     x = _BOARD_X0
-    if has_scene:
-        # Lớp trắng RẤT mờ chỉ để bảo đảm tương phản chữ trên bảng — đọc như mặt
-        # bảng, KHÔNG phải thẻ slide đục. Không có thanh tiêu đề màu.
-        d.rounded_rectangle([_BOARD_X0 - 20, _BOARD_Y0 - 20, _BOARD_X1 + 20, _BOARD_Y1 + 20],
-                            radius=22, fill=(255, 255, 255, 66))
-    else:
-        # Nền gradient (không có ảnh cảnh): nền đục để dễ đọc + minh hoạ vector.
+    # Không còn tấm nền trắng mờ: chữ viết THẲNG lên cảnh (mặt bảng trắng trống
+    # bên trái). Có ảnh cảnh -> thêm viền trắng quanh chữ (stroke) để nổi rõ trên
+    # mọi nền mà không cần thẻ nền. Nền gradient thì vẫn đục + minh hoạ vector.
+    def stroke(alpha: int) -> dict:
+        return {"stroke_width": 3, "stroke_fill": (255, 255, 255, alpha)} if has_scene else {}
+
+    if not has_scene:
         d.rounded_rectangle([_BOARD_X0 - 20, _BOARD_Y0 - 20, _BOARD_X1 + 20, _BOARD_Y1 + 20],
                             radius=22, fill=(255, 255, 255, 255))
         if prog > 0.15:
             illustrations.draw(None, d, 990, 380, _ease((prog - 0.15) / 0.3), local_frame)
 
-    # Tiêu đề: chữ xanh đậm + gạch chân kiểu bút dạ (trượt vào nhẹ), KHÔNG thanh nền.
+    # Tiêu đề: chữ xanh đậm + gạch chân kiểu bút dạ (trượt vào nhẹ).
     head_in = _ease(prog / 0.12) if prog < 0.12 else 1.0
     tal = int(255 * head_in)
     ty = _BOARD_Y0 + int(-6 + 6 * head_in)
     title = slide.tieu_de or "Bài học"
     tf = _font(38)
-    d.text((x, ty), title, font=tf, fill=(*_BLUE, tal))
+    d.text((x, ty), title, font=tf, fill=(*_BLUE, tal), **stroke(tal))
     tw = d.textlength(title, font=tf)
     d.line([x, ty + 52, x + tw, ty + 52], fill=(*_BLUE2, int(220 * head_in)), width=4)
     d.text((_BOARD_X1 - 52, ty + 8), f"{index + 1}/{total}", font=_font(20),
-           fill=(*_SUB, tal))
+           fill=(*_SUB, tal), **stroke(tal))
 
     # Ý chính hiện dần (chấm xanh + chữ mực)
     y = ty + 86
@@ -160,7 +160,7 @@ def _slide_frame(slide, local_frame, total_frames, index, total,
         al = int(255 * a)
         d.ellipse([x + 2, y + 11, x + 14, y + 23], fill=(*_BLUE2, al))
         for line in _wrap(d, bullet, _font(27), text_w - 34):
-            d.text((x + 30, y), line, font=_font(27), fill=(*_INK, al))
+            d.text((x + 30, y), line, font=_font(27), fill=(*_INK, al), **stroke(al))
             y += 39
         y += 14
 
@@ -175,7 +175,7 @@ def _slide_frame(slide, local_frame, total_frames, index, total,
         fw = d.textlength(uni, font=ff)
         d.rounded_rectangle([x - 6, y + 44, x + fw + 16, y + 56], radius=5,
                             fill=(*_BLUE2, int(70 * a)))
-        d.text((x + 4, y), uni, font=ff, fill=(*_BLUE, al))
+        d.text((x + 4, y), uni, font=ff, fill=(*_BLUE, al), **stroke(al))
         y += 72
 
     # Phụ đề canh giữa dưới đáy
