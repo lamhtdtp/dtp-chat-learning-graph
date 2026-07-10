@@ -7,13 +7,14 @@ Không có ảnh nền (background=None) -> quay về nền gradient + minh ho�
 (illustrations.py). Tất định: frame là hàm thuần của (nội dung, chỉ số frame).
 """
 
-import math
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from app.video import illustrations
+from app.video import illustrations, tts
 from app.video.render import katex_validate, latex_to_unicode
 from app.video.script import Slide, Storyboard
 
@@ -171,41 +172,109 @@ def _slide_frame(slide, local_frame, total_frames, index, total,
     return Image.alpha_composite(img, layer).convert("RGB")
 
 
+def _ff(args: list[str]) -> None:
+    p = subprocess.run(["ffmpeg", "-y", *args], capture_output=True, text=True)
+    if p.returncode != 0:
+        raise RuntimeError(f"ffmpeg lỗi: {p.stderr[-300:]}")
+
+
+def _slide_durations(storyboard: Storyboard, tmp: Path, sec_per_slide: float
+                     ) -> tuple[list[float], list[Path | None]]:
+    """Thời lượng mỗi slide theo giọng đọc (nếu có TTS) + file audio từng slide.
+    Slide không lời / không TTS -> giữ sec_per_slide, audio None (đệm im lặng)."""
+    want = tts.available()
+    durations: list[float] = []
+    segs: list[Path | None] = []
+    for i, s in enumerate(storyboard.slides):
+        txt = (s.loi_thoai or "").strip()
+        seg: Path | None = None
+        if want and txt:
+            seg = tmp / f"seg{i}.m4a"
+            try:
+                dur = tts.synthesize(txt, seg)
+            except tts.TTSUnavailable:
+                want, seg, dur = False, None, sec_per_slide
+            else:
+                dur = max(2.5, min(14.0, dur)) + 0.5  # đệm nhẹ cuối câu
+        else:
+            dur = sec_per_slide
+        durations.append(dur)
+        segs.append(seg)
+    return durations, segs
+
+
+def _build_audio(segs: list[Path | None], durations: list[float], tmp: Path) -> Path | None:
+    """Ghép audio từng slide (đệm im lặng cho đủ đúng thời lượng slide) thành 1
+    track. None nếu không slide nào có giọng đọc."""
+    if not any(segs):
+        return None
+    parts = []
+    for i, (seg, dur) in enumerate(zip(segs, durations)):
+        pad = tmp / f"pad{i}.m4a"
+        if seg is not None:  # giọng đọc + đệm im lặng cho đủ dur
+            _ff(["-i", str(seg), "-af", "apad", "-t", f"{dur:.3f}", "-c:a", "aac", str(pad)])
+        else:                # slide không lời -> im lặng đúng dur
+            _ff(["-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+                 "-t", f"{dur:.3f}", "-c:a", "aac", str(pad)])
+        parts.append(pad)
+    listing = tmp / "audio_list.txt"
+    listing.write_text("\n".join(f"file '{p.resolve()}'" for p in parts), encoding="utf-8")
+    out = tmp / "audio.m4a"
+    _ff(["-f", "concat", "-safe", "0", "-i", str(listing), "-c:a", "aac", str(out)])
+    return out
+
+
 def render_storyboard(storyboard: Storyboard, out_mp4: str | Path,
                       *, concept_slug: str | None = None,
                       background: Image.Image | None = None,
                       sec_per_slide: float = _SEC_PER_SLIDE) -> float:
-    """Sinh mp4 câm. `background` là ảnh cảnh AI (1280x720) — None thì dùng nền
-    gradient + minh hoạ vector. Trả về thời lượng (giây)."""
+    """Sinh mp4 CÓ TIẾNG (thuyết minh tiếng Việt) — mỗi slide hiển thị đúng bằng
+    thời lượng giọng đọc của nó. Không có TTS -> video câm, mỗi slide
+    sec_per_slide. `background` là ảnh cảnh AI (1280x720) — None thì nền gradient
+    + minh hoạ vector. Trả về thời lượng (giây)."""
     for s in storyboard.slides:
         for ct in s.cong_thuc:
             katex_validate(ct)
 
     has_scene = background is not None
     bg = background if has_scene else _GRADIENT
-    frames_per_slide = int(sec_per_slide * _FPS)
-    total_frames_all = frames_per_slide * max(1, len(storyboard.slides))
 
-    proc = subprocess.Popen(
-        ["ffmpeg", "-y", "-f", "rawvideo", "-pixel_format", "rgb24",
-         "-video_size", f"{_W}x{_H}", "-framerate", str(_FPS), "-i", "-",
-         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
-         str(out_mp4)],
-        stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-    )
-    assert proc.stdin is not None
-    try:
-        total = len(storyboard.slides)
-        done = 0
-        for idx, slide in enumerate(storyboard.slides):
-            for f in range(frames_per_slide):
-                gp = done / max(1, total_frames_all)
-                frame = _slide_frame(slide, f, frames_per_slide, idx, total, bg, has_scene, gp)
-                proc.stdin.write(frame.tobytes())
-                done += 1
-    finally:
-        proc.stdin.close()
-    err = proc.stderr.read().decode()[-300:] if proc.stderr else ""
-    if proc.wait() != 0:
-        raise RuntimeError(f"ffmpeg dựng video lỗi: {err}")
-    return len(storyboard.slides) * sec_per_slide
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        durations, segs = _slide_durations(storyboard, tmp, sec_per_slide)
+        frame_counts = [max(1, round(d * _FPS)) for d in durations]
+        total_frames_all = sum(frame_counts)
+
+        silent = tmp / "silent.mp4"
+        proc = subprocess.Popen(
+            ["ffmpeg", "-y", "-f", "rawvideo", "-pixel_format", "rgb24",
+             "-video_size", f"{_W}x{_H}", "-framerate", str(_FPS), "-i", "-",
+             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+             str(silent)],
+            stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        )
+        assert proc.stdin is not None
+        try:
+            total = len(storyboard.slides)
+            done = 0
+            for idx, slide in enumerate(storyboard.slides):
+                n = frame_counts[idx]
+                for f in range(n):
+                    gp = done / max(1, total_frames_all)
+                    frame = _slide_frame(slide, f, n, idx, total, bg, has_scene, gp)
+                    proc.stdin.write(frame.tobytes())
+                    done += 1
+        finally:
+            proc.stdin.close()
+        err = proc.stderr.read().decode()[-300:] if proc.stderr else ""
+        if proc.wait() != 0:
+            raise RuntimeError(f"ffmpeg dựng video lỗi: {err}")
+
+        audio = _build_audio(segs, durations, tmp)
+        if audio is None:  # câm
+            shutil.copyfile(silent, out_mp4)
+        else:              # ghép tiếng
+            _ff(["-i", str(silent), "-i", str(audio), "-c:v", "copy",
+                 "-c:a", "aac", "-shortest", str(out_mp4)])
+
+    return float(sum(durations))
