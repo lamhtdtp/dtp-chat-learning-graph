@@ -40,6 +40,7 @@ export function MessageBubble({
   if (msg.pending) {
     return (
       <div className="row bot">
+        <div className="dtp-logo bot-avatar"><img src="/dtp-logo.png" alt="" /></div>
         <div className="bubble bot pending">
           <span className="dot" /> <span className="dot" /> <span className="dot" />
         </div>
@@ -60,6 +61,7 @@ export function MessageBubble({
 
   return (
     <div className="row bot">
+      <div className="dtp-logo bot-avatar"><img src="/dtp-logo.png" alt="" /></div>
       <div className="bot-stack">
         <div className={cls}>
           {notFound && <div className="notfound-tag">Chưa có trong SGK</div>}

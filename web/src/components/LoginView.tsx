@@ -1,15 +1,11 @@
 import { useState } from "react";
 import { ApiError, login, register } from "../api";
-import { APP_NAME, TUTOR_NAME } from "../config";
+import { TUTOR_NAME } from "../config";
+import { ThemeToggle } from "./ThemeToggle";
 import type { Role } from "../types";
 
-const SYMBOLS = [
-  { s: "÷", style: { top: "8%", right: "12%", fontSize: 120, opacity: 0.1 }, r: "-8deg", dur: "7s" },
-  { s: "×", style: { bottom: "16%", left: "8%", fontSize: 140, opacity: 0.09 }, r: "10deg", dur: "9s" },
-  { s: "√", style: { top: "44%", right: "7%", fontSize: 88, opacity: 0.1 }, r: "6deg", dur: "8s" },
-  { s: "π", style: { top: "24%", left: "14%", fontSize: 70, opacity: 0.1 }, r: "-5deg", dur: "6.4s" },
-];
-
+// Đăng nhập + chọn vai trò. 2 cột responsive (auth-screen tự xuống 1 cột ≤600px).
+// Vai trò chỉ dùng khi ĐĂNG KÝ (đăng nhập lấy vai trò từ tài khoản).
 export function LoginView({ onAuthed }: { onAuthed: (role: Role) => void }) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -35,92 +31,69 @@ export function LoginView({ onAuthed }: { onAuthed: (role: Role) => void }) {
     }
   };
 
+  const roleBtn = (value: Role, icon: string, title: string, desc: string) => (
+    <button type="button" className={"role-btn" + (role === value ? " sel" : "")}
+      data-subject="toan" onClick={() => setRole(value)} aria-pressed={role === value}>
+      <span className="role-ic" aria-hidden>{icon}</span>
+      <span>
+        <span className="role-name">{title}</span>
+        <span className="role-desc" style={{ display: "block" }}>{desc}</span>
+      </span>
+    </button>
+  );
+
   return (
-    <div className="auth-screen">
-      <div className="auth-hero">
-        {SYMBOLS.map((x, i) => (
-          <span key={i} className="hero-sym" style={{ ...x.style, ["--r" as string]: x.r, animationDuration: x.dur }}>
-            {x.s}
-          </span>
-        ))}
-
-        <div className="hero-brand">
-          <div className="hero-logo-box">
-            <img src="/dtp-logo.png" alt="DTP" />
+    <div className="auth-screen" data-subject="toan">
+      <div className="auth-col-left">
+        <div className="auth-card">
+          <div className="auth-logo-row">
+            <div className="dtp-logo"><img src="/dtp-logo.png" alt="DTP" /></div>
+            <div>
+              <div className="auth-title">{TUTOR_NAME}</div>
+              <div className="auth-sub">Học đa môn cùng gia sư AI</div>
+            </div>
+            <div style={{ marginLeft: "auto" }}><ThemeToggle /></div>
           </div>
-          <div>
-            <div className="name">DTP</div>
-            <div className="sub">{APP_NAME}</div>
-          </div>
-        </div>
 
-        <div className="hero-center">
-          <div className="hero-badge" aria-hidden>🎓</div>
-          <div className="hero-title">Học Toán thông minh<br />cùng {TUTOR_NAME}</div>
-          <div className="hero-desc">
-            Gia sư ảo bám sát sách giáo khoa — giải thích từng bước, trích dẫn đúng
-            trang sách, và đồng hành cùng bạn mỗi ngày.
+          <div className="auth-tabs">
+            <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Đăng nhập</button>
+            <button type="button" className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>Đăng ký</button>
           </div>
-        </div>
 
-        <div className="hero-feats">
-          <div className="feat"><span className="ic">📘</span> Bám sát SGK</div>
-          <div className="feat"><span className="ic">✏️</span> Giải thích từng bước</div>
-          <div className="feat"><span className="ic">📝</span> Trích dẫn số trang</div>
+          {error && <div className="auth-error">{error}</div>}
+
+          <form onSubmit={submit}>
+            {mode === "register" && (
+              <label>Họ và tên
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nguyễn Minh An" required />
+              </label>
+            )}
+            <label>Email
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ten@email.com" required />
+            </label>
+            <label>Mật khẩu
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
+            </label>
+            <button className="auth-submit" type="submit" disabled={busy}>
+              {busy ? "Đang xử lý…" : mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
+            </button>
+          </form>
         </div>
       </div>
 
-      <div className="auth-panel">
-        <div className="auth-col">
-          <div className="mobile-brand">
-            <div className="box"><img src="/dtp-logo.png" alt="DTP" /></div>
-            <div className="t">DTP · {APP_NAME}</div>
+      <div className="auth-col-right">
+        <div className="auth-card">
+          <div className="role-title">Bạn là ai?</div>
+          <div className="auth-sub" style={{ marginTop: -6 }}>
+            {mode === "register" ? "Chọn vai trò để tạo tài khoản." : "Đăng nhập sẽ tự nhận vai trò của tài khoản."}
           </div>
-
-          <div className="auth-card">
-            <div>
-              <div className="hi">Xin chào! 👋</div>
-              <div className="hi-sub">
-                {mode === "login" ? `Đăng nhập để tiếp tục học cùng ${TUTOR_NAME}.` : "Tạo tài khoản để bắt đầu."}
-              </div>
-            </div>
-
-            <div className="tabs">
-              <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Đăng nhập</button>
-              <button type="button" className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>Đăng ký</button>
-            </div>
-
-            {error && <div className="error">{error}</div>}
-
-            <form onSubmit={submit}>
-              {mode === "register" && (
-                <div className="row2">
-                  <label style={{ flex: 1 }}>
-                    Họ và tên
-                    <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nguyễn Minh An" required />
-                  </label>
-                  <label style={{ width: 130 }}>
-                    Vai trò
-                    <select value={role} onChange={(e) => setRole(e.target.value as Role)}>
-                      <option value="hoc_sinh">Học sinh</option>
-                      <option value="giao_vien">Giáo viên</option>
-                    </select>
-                  </label>
-                </div>
-              )}
-              <label>
-                Email
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ten@email.com" required />
-              </label>
-              <label>
-                Mật khẩu
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
-              </label>
-              <button className="btn-primary" type="submit" disabled={busy}>
-                {busy ? "Đang xử lý…" : mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
-              </button>
-            </form>
+          <div className="role-grid">
+            {roleBtn("hoc_sinh", "🎒", "Học sinh", "Hỏi bài · xem video · luyện i-Test")}
+            {roleBtn("giao_vien", "👩‍🏫", "Giáo viên", "Sinh đề theo ma trận · ngân hàng câu hỏi")}
           </div>
+        </div>
+        <div className="a11y-note">
+          Giao diện đa môn, hỗ trợ sáng/tối, tương phản đạt WCAG AA, thao tác được bằng bàn phím.
         </div>
       </div>
     </div>

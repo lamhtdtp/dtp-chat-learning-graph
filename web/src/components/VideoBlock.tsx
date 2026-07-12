@@ -14,6 +14,8 @@ export function VideoBlock({ info }: { info: VideoInfo }) {
   const [err, setErr] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const timer = useRef<number | null>(null);
+  // Khoá lưu vị trí phát ổn định theo khái niệm/job (URL có chữ ký đổi mỗi phiên).
+  const posKey = `dtp_vidpos:${info.concept_key ?? jobId ?? url ?? ""}`;
 
   // Poll trạng thái khi job đang chạy (QUEUED/RENDERING).
   useEffect(() => {
@@ -92,6 +94,14 @@ export function VideoBlock({ info }: { info: VideoInfo }) {
                   controlsList="nodownload noremoteplayback noplaybackrate"
                   disablePictureInPicture
                   onContextMenu={(e) => e.preventDefault()}
+                  onLoadedMetadata={(e) => {
+                    // Đọc lại vị trí phát đã lưu (bỏ qua nếu gần cuối).
+                    const v = e.currentTarget;
+                    const saved = Number(localStorage.getItem(posKey) || 0);
+                    if (saved > 1 && saved < v.duration - 2) v.currentTime = saved;
+                  }}
+                  onTimeUpdate={(e) => localStorage.setItem(posKey, String(Math.floor(e.currentTarget.currentTime)))}
+                  onEnded={() => localStorage.removeItem(posKey)}
                 />
               )}
               {(status === "QUEUED" || status === "RENDERING") && (

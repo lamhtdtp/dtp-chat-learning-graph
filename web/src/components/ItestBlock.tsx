@@ -27,10 +27,10 @@ export function ItestBlock({ offer }: { offer: ItestOffer }) {
 
   return (
     <>
-      <div className="itest-block">
-        <button className="itest-toggle" type="button" onClick={load}>
-          📝 Luyện tập với i-Test
-        </button>
+      <div className="itest-card">
+        <div className="ic-title">✏️ i-Test: luyện tập chủ đề vừa học</div>
+        <div className="ic-sub">Đề trắc nghiệm thật · chấm điểm ngay</div>
+        <button className="itest-start" type="button" onClick={load}>Bắt đầu luyện tập →</button>
       </div>
       {open && (
         <QuizModal
