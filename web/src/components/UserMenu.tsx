@@ -4,9 +4,7 @@ import { useEffect, useRef, useState } from "react";
 // Đăng xuất. Thay cho avatar bấm-là-thoát-ngay (dễ bấm nhầm, không thấy tên).
 const ROLE_LABEL: Record<string, string> = { hoc_sinh: "Học sinh", giao_vien: "Giáo viên" };
 
-export function UserMenu({ name, role, onOpenExam, onLogout }: {
-  name: string; role?: string; onOpenExam?: () => void; onLogout: () => void;
-}) {
+export function UserMenu({ name, role, onLogout }: { name: string; role?: string; onLogout: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const initial = (name || "?").trim().charAt(0).toUpperCase();
@@ -49,12 +47,6 @@ export function UserMenu({ name, role, onOpenExam, onLogout }: {
               {role && <div className="user-pop-role">{ROLE_LABEL[role] ?? role}</div>}
             </div>
           </div>
-          {onOpenExam && (
-            <button className="user-pop-item" role="menuitem" type="button"
-              onClick={() => { setOpen(false); onOpenExam(); }}>
-              <span aria-hidden>📝</span> Sinh đề theo ma trận
-            </button>
-          )}
           <button className="user-pop-item" role="menuitem" type="button" onClick={onLogout}>
             <span aria-hidden>⎋</span> Đăng xuất
           </button>

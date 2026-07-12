@@ -16,6 +16,33 @@ def _q(muc_do, n):
             for i in range(n)]
 
 
+# ----- _parse_cau_hoi: chịu được JSON bị CẮT (unterminated) không sập -----
+
+def test_parse_cau_hoi_json_bi_cat_van_vot_duoc_cau_hoan_chinh():
+    # câu 1 hoàn chỉnh, câu 2 bị cắt giữa chuỗi (LLM chạm max_tokens)
+    raw = (
+        '{"cau_hoi":[{"muc_do":"de","noi_dung":"1+1=?","dap_an":"2","loi_giai":"cong"},'
+        '{"muc_do":"kho","noi_dung":"Giai thich dai dong chua ke'
+    )
+    cau = node_mod._parse_cau_hoi(raw)
+    assert len(cau) == 1  # câu cắt bị bỏ, không JSONDecodeError
+    assert cau[0].muc_do == "de"
+
+
+def test_parse_cau_hoi_rac_tra_rong_khong_sap():
+    assert node_mod._parse_cau_hoi("xin lỗi tôi không trả lời được") == []
+
+
+def test_parse_cau_hoi_fenced_json():
+    raw = '```json\n{"cau_hoi":[{"muc_do":"de","noi_dung":"x","dap_an":"y","loi_giai":"z"}]}\n```'
+    assert len(node_mod._parse_cau_hoi(raw)) == 1
+
+
+def test_system_prompt_theo_mon():
+    assert "Tiếng Anh" in node_mod._system("tieng_anh")
+    assert "Tiếng Anh" not in node_mod._system("toan")
+
+
 # ----- exam_gen_node: hợp đồng, chỉ sinh phần thiếu -----
 
 async def test_exam_gen_node_sinh_dung_json_va_tang_so_lan_lap(mocker):

@@ -109,8 +109,13 @@ export function ChatView({
           <div className="brand-name">{TUTOR_NAME}</div>
         </div>
         <div className="spacer" />
+        {onOpenExam && (
+          <button className="btn accent hdr-exam-btn" type="button" onClick={onOpenExam} title="Sinh đề kiểm tra theo ma trận">
+            📝 Sinh đề
+          </button>
+        )}
         <ThemeToggle />
-        <UserMenu name={name} role={role} onOpenExam={onOpenExam} onLogout={onLogout} />
+        <UserMenu name={name} role={role} onLogout={onLogout} />
       </div>
 
       {/* Subject switcher — đổi tab là RE-THEME toàn khung chat */}
