@@ -50,16 +50,18 @@ async def test_video_file_chu_ky_hop_le_duoc_phuc_vu(client, mocker, tmp_path):
 
 
 async def test_book_page_khong_chu_ky_bi_403(client):
-    r = await client.get("/books/pages/1/6")
+    r = await client.get("/books/pages/toan/1/6")
     assert r.status_code == 403
 
 
 async def test_book_pages_url_can_auth_va_tra_link_ky(client):
     # thiếu token -> 401
-    assert (await client.get("/books/pages-url/1/6")).status_code == 401
-    # có token -> trả URL đã ký
+    assert (await client.get("/books/pages-url/toan/1/6")).status_code == 401
+    # có token -> trả URL đã ký, có mon trong path (citation môn Anh mở đúng sách)
     h = await _auth(client)
-    r = await client.get("/books/pages-url/1/6", headers=h)
+    r = await client.get("/books/pages-url/anh/1/6", headers=h)
     assert r.status_code == 200
     url = r.json()["url"]
-    assert url.startswith("/books/pages/1/6?") and "sig=" in url
+    assert url.startswith("/books/pages/anh/1/6?") and "sig=" in url
+    # môn không hợp lệ -> 404
+    assert (await client.get("/books/pages-url/xyz/1/6", headers=h)).status_code == 404

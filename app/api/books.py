@@ -22,8 +22,31 @@ from app.db.session import get_session
 
 router = APIRouter(prefix="/books", tags=["books"])
 
-# Hiện chỉ có Toán lớp 6; mở rộng mon/khoi khi có sách khác.
-_BOOK_ROOT = Path("data/books/maths/6").resolve()
+# Ảnh trang theo MÔN — không hard-code Toán nữa (citation môn Anh phải mở đúng
+# sách Anh). `mon` nhận cả key frontend ("toan"/"anh") lẫn giá trị Qdrant
+# ("tieng_anh"...); ánh xạ trùng với app/ingestion/tasks.py::_SUBJECT_FOLDER.
+_BOOK_BASE = Path("data/books").resolve()
+_KHOI_DIR = "6"
+_MON_FOLDER = {
+    "toan": "maths", "maths": "maths",
+    "anh": "english", "tieng_anh": "english", "english": "english",
+}
+
+
+def _book_root(mon: str) -> Path:
+    return (_BOOK_BASE / _MON_FOLDER.get(mon, "maths") / _KHOI_DIR).resolve()
+
+
+def _page_path(mon: str, tap: int, page: int) -> Path | None:
+    """Đường dẫn ảnh trang, hỗ trợ 2 bố cục như ingestion: có thư mục tập
+    (maths/6/<tap>/<page>.png) hoặc phẳng (english/6/<page>.png). Chặn path
+    traversal: file phải nằm trong thư mục môn."""
+    root = _book_root(mon)
+    for cand in (root / str(tap) / f"{page}.png", root / f"{page}.png"):
+        p = cand.resolve()
+        if root in p.parents and p.is_file():
+            return p
+    return None
 
 
 @router.get("/topics")
@@ -68,24 +91,26 @@ async def get_topics(
     return groups
 
 
-@router.get("/pages-url/{tap}/{page}")
-async def get_page_url(tap: int, page: int, user: User = Depends(get_current_user)) -> dict:
-    """Cấp URL ký (có hạn) cho 1 trang SGK — chỉ user đã đăng nhập. UI gán vào <img>."""
-    if tap not in (1, 2) or page < 1:
+@router.get("/pages-url/{mon}/{tap}/{page}")
+async def get_page_url(
+    mon: str, tap: int, page: int, user: User = Depends(get_current_user)
+) -> dict:
+    """Cấp URL ký (có hạn) cho 1 trang SGK theo MÔN — chỉ user đã đăng nhập.
+    `mon` nằm trong chữ ký nên không thể đổi môn sau khi ký."""
+    if mon not in _MON_FOLDER or tap not in (1, 2) or page < 1:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Trang không hợp lệ")
-    return {"url": security.sign_media(f"/books/pages/{tap}/{page}")}
+    return {"url": security.sign_media(f"/books/pages/{mon}/{tap}/{page}")}
 
 
-@router.get("/pages/{tap}/{page}")
+@router.get("/pages/{mon}/{tap}/{page}")
 async def get_page_image(
-    tap: int, page: int, exp: str | None = None, sig: str | None = None
+    mon: str, tap: int, page: int, exp: str | None = None, sig: str | None = None
 ) -> FileResponse:
-    if not security.verify_media(f"/books/pages/{tap}/{page}", exp, sig):
+    if not security.verify_media(f"/books/pages/{mon}/{tap}/{page}", exp, sig):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Link ảnh không hợp lệ hoặc đã hết hạn")
-    if tap not in (1, 2) or page < 1:
+    if mon not in _MON_FOLDER or tap not in (1, 2) or page < 1:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Trang không hợp lệ")
-    path = (_BOOK_ROOT / str(tap) / f"{page}.png").resolve()
-    # chặn path traversal: file phải nằm trong _BOOK_ROOT
-    if _BOOK_ROOT not in path.parents or not path.is_file():
+    path = _page_path(mon, tap, page)
+    if path is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy trang")
     return FileResponse(path, media_type="image/png")

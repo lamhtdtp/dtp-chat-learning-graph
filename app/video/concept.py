@@ -12,25 +12,35 @@ video cho câu vụn/không rõ khái niệm (US-19 §gating).
 import re
 import unicodedata
 
-# slug khái niệm -> các từ khoá (đã bỏ dấu) nhận diện. Thứ tự: khái niệm cụ thể
-# hơn đứng trước để khớp trước cái tổng quát.
-_CONCEPTS: list[tuple[str, tuple[str, ...]]] = [
-    ("uoc_chung_lon_nhat", ("uoc chung lon nhat", "ucln")),
-    ("boi_chung_nho_nhat", ("boi chung nho nhat", "bcnn")),
-    ("so_nguyen_to", ("so nguyen to", "hop so")),
-    ("dau_hieu_chia_het", ("dau hieu chia het", "chia het")),
-    ("luy_thua", ("luy thua",)),
-    ("uoc_va_boi", ("uoc va boi", "uoc so", "boi so")),
-    ("tap_hop", ("tap hop", "phan tu")),
-    ("so_nguyen_am", ("so nguyen am", "so am", "so nguyen")),
-    ("phan_so", ("phan so",)),
-    ("so_thap_phan", ("so thap phan",)),
-    ("ti_so_phan_tram", ("ti so", "phan tram")),
-    ("tam_giac_deu", ("tam giac deu", "luc giac deu")),
-    ("chu_vi_dien_tich", ("chu vi", "dien tich")),
-    ("doan_thang_trung_diem", ("trung diem", "doan thang")),
-    ("goc", ("goc",)),
-]
+# slug khái niệm -> các từ khoá (đã bỏ dấu) nhận diện, TÁCH THEO MÔN. Thứ tự:
+# khái niệm cụ thể hơn đứng trước để khớp trước cái tổng quát. Nhận diện chỉ tìm
+# trong danh sách của ĐÚNG môn (mon) -> câu Tiếng Anh không khớp nhầm slug Toán.
+_CONCEPTS_BY_MON: dict[str, list[tuple[str, tuple[str, ...]]]] = {
+    "toan": [
+        ("uoc_chung_lon_nhat", ("uoc chung lon nhat", "ucln")),
+        ("boi_chung_nho_nhat", ("boi chung nho nhat", "bcnn")),
+        ("so_nguyen_to", ("so nguyen to", "hop so")),
+        ("dau_hieu_chia_het", ("dau hieu chia het", "chia het")),
+        ("luy_thua", ("luy thua",)),
+        ("uoc_va_boi", ("uoc va boi", "uoc so", "boi so")),
+        ("tap_hop", ("tap hop", "phan tu")),
+        ("so_nguyen_am", ("so nguyen am", "so am", "so nguyen")),
+        ("phan_so", ("phan so",)),
+        ("so_thap_phan", ("so thap phan",)),
+        ("ti_so_phan_tram", ("ti so", "phan tram")),
+        ("tam_giac_deu", ("tam giac deu", "luc giac deu")),
+        ("chu_vi_dien_tich", ("chu vi", "dien tich")),
+        ("doan_thang_trung_diem", ("trung diem", "doan thang")),
+        ("goc", ("goc",)),
+    ],
+    "tieng_anh": [
+        ("en_hien_tai_tiep_dien", ("hien tai tiep dien", "present continuous", "present progressive")),
+        ("en_thi_hien_tai_don", ("hien tai don", "present simple")),
+        ("en_dong_tu_to_be", ("dong tu to be", "to be", "am is are")),
+        ("en_mao_tu", ("mao tu", "a an the", "article", "mao tu a an the")),
+        ("en_so_sanh_hon", ("so sanh hon", "comparative")),
+    ],
+}
 
 
 # slug -> câu hỏi chuẩn để sinh câu trả lời grounded "đại diện" cho khái niệm
@@ -52,6 +62,18 @@ CONCEPT_QUERY: dict[str, str] = {
     "chu_vi_dien_tich": "Cách tính chu vi và diện tích hình chữ nhật?",
     "doan_thang_trung_diem": "Trung điểm của đoạn thẳng là gì?",
     "goc": "Góc là gì?",
+    # Tiếng Anh 6 — câu chuẩn để ground từ SGK Tiếng Anh (mon=tieng_anh).
+    "en_hien_tai_tiep_dien": "Thì hiện tại tiếp diễn (present continuous) dùng khi nào?",
+    "en_thi_hien_tai_don": "Thì hiện tại đơn (present simple) dùng khi nào?",
+    "en_dong_tu_to_be": "Động từ 'to be' (am, is, are) dùng như thế nào?",
+    "en_mao_tu": "Mạo từ a, an, the dùng như thế nào?",
+    "en_so_sanh_hon": "Cấu trúc so sánh hơn (comparative) trong tiếng Anh là gì?",
+}
+
+# slug -> mon: pipeline biết ground câu trả lời từ kho SGK của MÔN nào (Toán hay
+# Tiếng Anh). Suy ra từ _CONCEPTS_BY_MON để không phải khai báo lặp.
+CONCEPT_MON: dict[str, str] = {
+    slug: mon for mon, concepts in _CONCEPTS_BY_MON.items() for slug, _ in concepts
 }
 
 
@@ -63,22 +85,24 @@ def _bo_dau(text: str) -> str:
     return re.sub(r"\s+", " ", no_mark.lower()).strip()
 
 
-def detect_concept(text: str) -> str | None:
-    """slug khái niệm đầu tiên khớp, hoặc None nếu không nhận ra khái niệm nào."""
+def detect_concept(text: str, mon: str = "toan") -> str | None:
+    """slug khái niệm đầu tiên khớp TRONG MÔN `mon`, hoặc None. Tìm theo môn để
+    câu Tiếng Anh không khớp nhầm khái niệm Toán và ngược lại."""
     norm = _bo_dau(text)
-    for slug, keywords in _CONCEPTS:
+    for slug, keywords in _CONCEPTS_BY_MON.get(mon, []):
         if any(kw in norm for kw in keywords):
             return slug
     return None
 
 
-def concept_key(text: str, sgk_version: str) -> str | None:
-    """`{slug}::{sgk_version}` nếu nhận diện được khái niệm, ngược lại None."""
-    slug = detect_concept(text)
+def concept_key(text: str, sgk_version: str, mon: str = "toan") -> str | None:
+    """`{slug}::{sgk_version}` nếu nhận diện được khái niệm trong môn `mon`, ngược
+    lại None. slug là duy nhất toàn hệ nên key không cần chứa mon (cache giữ nguyên)."""
+    slug = detect_concept(text, mon)
     return f"{slug}::{sgk_version}" if slug else None
 
 
-_KNOWN_SLUGS = {slug for slug, _ in _CONCEPTS}
+_KNOWN_SLUGS = set(CONCEPT_MON)
 
 
 def is_known_concept_key(concept_key: str, sgk_version: str) -> bool:

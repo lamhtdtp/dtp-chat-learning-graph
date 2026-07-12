@@ -206,16 +206,19 @@ async def test_chat_lich_su_loc_theo_mon(client, mocker):
 
 
 async def test_chat_truyen_mon_cua_phien_vao_graph(client, mocker):
-    """/chat truyền `mon` = subject của phiên -> retrieve lọc Qdrant theo môn."""
+    """/chat map subject frontend -> `mon` payload Qdrant ("anh" -> "tieng_anh")
+    rồi truyền vào graph -> retrieve lọc đúng kho môn."""
     h = await _auth(client)
     fake = _fake_graph(mocker)
     await client.post("/chat", json={"message": "hello", "subject": "anh"}, headers=h)
     state = fake.ainvoke.await_args.args[0]
-    assert state["mon"] == "anh"
+    assert state["mon"] == "tieng_anh"
 
 
 async def test_chat_mon_khac_toan_khong_kem_tinh_nang_toan(client, mocker):
-    """Môn không phải Toán -> không đính video/i-Test/chip đề (đó là dữ liệu Toán)."""
+    """Môn khác Toán: i-Test & chip đề vẫn là dữ liệu Toán -> luôn tắt. Video đa
+    môn nhưng câu không khớp khái niệm nào (vd 'present perfect' ngoài bộ lớp 6)
+    -> vẫn None."""
     import app.api.chat as chat_api
 
     h = await _auth(client)

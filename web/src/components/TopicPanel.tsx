@@ -8,7 +8,7 @@ import { TOPIC_GROUPS } from "../data";
 
 interface Group { title: string; emoji: string; items: string[] }
 
-// curriculum_topics không có emoji -> gán theo từ khoá mạch nội dung.
+// curriculum_topics không có emoji -> gán theo từ khoá mạch nội dung (đa môn).
 function emojiFor(mach: string): string {
   const s = mach.toLowerCase();
   if (s.includes("phân số") || s.includes("thập phân")) return "➗";
@@ -17,35 +17,48 @@ function emojiFor(mach: string): string {
   if (s.includes("thống kê") || s.includes("dữ liệu") || s.includes("xác suất")) return "📊";
   if (s.includes("đối xứng")) return "🔷";
   if (s.includes("hình")) return "📐";
+  // Tiếng Anh
+  if (s.includes("grammar") || s.includes("ngữ pháp")) return "📝";
+  if (s.includes("vocab") || s.includes("từ vựng")) return "🔤";
+  if (s.includes("read") || s.includes("đọc")) return "📖";
+  if (s.includes("listen") || s.includes("nghe")) return "🎧";
+  if (s.includes("speak") || s.includes("nói") || s.includes("phát âm")) return "🗣️";
+  if (s.includes("writ") || s.includes("viết")) return "✍️";
   return "📘";
 }
 
-const FALLBACK: Group[] = TOPIC_GROUPS.map((g) => ({ title: g.title, emoji: g.emoji, items: g.items }));
+// Fallback tĩnh CHỈ dùng cho Toán (data.ts là danh mục Toán). Môn khác không có
+// fallback tĩnh -> rỗng thì báo "chưa có" thay vì hiện nhầm danh mục Toán.
+const MATH_FALLBACK: Group[] = TOPIC_GROUPS.map((g) => ({ title: g.title, emoji: g.emoji, items: g.items }));
 
-export function TopicPanel({ onPick }: { onPick: (topic: string) => void }) {
+export function TopicPanel({ mon, subjectName, onPick }: { mon: string; subjectName: string; onPick: (topic: string) => void }) {
   const [groups, setGroups] = useState<Group[] | null>(null);
+  const fallback = mon === "Toán" ? MATH_FALLBACK : [];
 
   useEffect(() => {
     let alive = true;
-    getTopics()
+    setGroups(null);
+    getTopics(mon)
       .then((rows) => {
         if (!alive) return;
         const mapped = rows.map((r) => ({ title: r.mach_noi_dung, emoji: emojiFor(r.mach_noi_dung), items: r.items }));
-        setGroups(mapped.length ? mapped : FALLBACK);
+        setGroups(mapped.length ? mapped : fallback);
       })
-      .catch(() => alive && setGroups(FALLBACK));
+      .catch(() => alive && setGroups(fallback));
     return () => { alive = false; };
-  }, []);
+  }, [mon]);
 
   return (
-    <aside className="topic-panel" aria-label="Danh mục chủ đề Toán lớp 6">
+    <aside className="topic-panel" aria-label={`Danh mục chủ đề ${subjectName} lớp 6`}>
       <div className="tp-head">
-        <div className="tp-title">Danh mục Toán lớp 6</div>
+        <div className="tp-title">Danh mục {subjectName} lớp 6</div>
         <div className="tp-sub">Chọn một chủ đề để bắt đầu học</div>
       </div>
       <div className="tp-scroll">
         {groups === null ? (
           <div className="tp-loading">Đang tải danh mục…</div>
+        ) : groups.length === 0 ? (
+          <div className="tp-loading">Chưa có danh mục cho môn này.</div>
         ) : (
           groups.map((g) => (
             <div className="tp-group" key={g.title}>

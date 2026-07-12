@@ -116,13 +116,13 @@ export function getItestQuiz(topic: string): Promise<QuizData> {
 
 // Lấy URL ẢNH TRANG SGK đã KÝ (có hạn) — thẻ <img> không gửi được Bearer nên
 // phải xin link ký qua endpoint auth này rồi mới gán vào src.
-export function getBookPageUrl(tap: number, page: number): Promise<{ url: string }> {
-  return req<{ url: string }>(`/books/pages-url/${tap}/${page}`, { auth: true });
+export function getBookPageUrl(tap: number, page: number, mon = "toan"): Promise<{ url: string }> {
+  return req<{ url: string }>(`/books/pages-url/${encodeURIComponent(mon)}/${tap}/${page}`, { auth: true });
 }
 
 // Danh mục chương trình (panel chủ đề trong chat) — lấy từ taxonomy backend.
-export function getTopics(): Promise<{ mach_noi_dung: string; items: string[] }[]> {
-  return req("/books/topics", { auth: true });
+export function getTopics(mon = "Toán"): Promise<{ mach_noi_dung: string; items: string[] }[]> {
+  return req(`/books/topics?mon=${encodeURIComponent(mon)}`, { auth: true });
 }
 
 export { ApiError };

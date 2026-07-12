@@ -16,7 +16,7 @@ from app.graph.grounding import has_grounding
 from app.graph.nodes.qa import qa_node
 from app.retrieval import retriever
 from app.video import animate, scene, storage
-from app.video.concept import CONCEPT_QUERY
+from app.video.concept import CONCEPT_MON, CONCEPT_QUERY
 from app.video.guard import check_script
 from app.video.script import generate_script
 
@@ -27,8 +27,9 @@ class PipelineError(Exception):
 
 async def _grounded_answer(slug: str) -> tuple[str, str]:
     query = CONCEPT_QUERY.get(slug, slug.replace("_", " "))
+    mon = CONCEPT_MON.get(slug, "toan")  # ground từ đúng kho SGK của môn khái niệm
     chunks = await retriever.retrieve(
-        query, mon="toan", khoi="lop_6", top_k=5, score_threshold=0.4
+        query, mon=mon, khoi="lop_6", top_k=5, score_threshold=0.4
     )
     if not has_grounding(chunks):
         raise PipelineError(f"Không đủ ngữ liệu SGK cho khái niệm {slug!r}")
@@ -49,6 +50,7 @@ async def build_video_for_job(session: AsyncSession, job) -> "job":
     job.status = RENDERING
     await session.flush()
     slug = job.concept_key.split("::")[0]
+    fallback_title = "Tiếng Anh lớp 6" if CONCEPT_MON.get(slug) == "tieng_anh" else "Toán lớp 6"
     try:
         answer, sources = await _grounded_answer(slug)
 
@@ -60,7 +62,7 @@ async def build_video_for_job(session: AsyncSession, job) -> "job":
         # Ảnh nền cảnh AI (giáo viên + lớp học). Lỗi sinh ảnh -> None -> tự lùi
         # về nền gradient + minh hoạ vector, KHÔNG làm hỏng video.
         try:
-            background = await scene.fetch_scene(storyboard.tieu_de or "Toán lớp 6")
+            background = await scene.fetch_scene(storyboard.tieu_de or fallback_title)
         except Exception:  # noqa: BLE001
             background = None
 

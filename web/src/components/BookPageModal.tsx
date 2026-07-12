@@ -6,7 +6,7 @@ import type { Citation } from "../types";
 
 // Modal xem ảnh trang SGK gốc khi bấm chip trích dẫn. Ảnh được bảo vệ bằng URL
 // KÝ có hạn: xin link ký (Bearer) khi mở modal rồi mới gán vào <img>.
-export function BookPageModal({ cite, onClose }: { cite: Citation; onClose: () => void }) {
+export function BookPageModal({ cite, mon = "toan", onClose }: { cite: Citation; mon?: string; onClose: () => void }) {
   const [src, setSrc] = useState<string | null>(null);
   const [err, setErr] = useState(false);
 
@@ -21,13 +21,13 @@ export function BookPageModal({ cite, onClose }: { cite: Citation; onClose: () =
       setErr(true);
       return;
     }
-    getBookPageUrl(cite.tap, cite.page_no)
+    getBookPageUrl(cite.tap, cite.page_no, mon)
       .then((r) => alive && setSrc(`${API_BASE}${r.url}`))
       .catch(() => alive && setErr(true));
     return () => {
       alive = false;
     };
-  }, [cite]);
+  }, [cite, mon]);
 
   return (
     <Portal>

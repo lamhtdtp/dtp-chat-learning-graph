@@ -91,7 +91,7 @@ class ChatResponse(BaseModel):
 
 async def _maybe_video(
     session: AsyncSession, *, message: str, intent: str | None,
-    answer: str, has_citations: bool,
+    answer: str, has_citations: bool, mon: str = "toan",
 ) -> VideoInfo | None:
     """Quyết định câu này CÓ THỂ đính video không (gating). KHÔNG tự sinh: chỉ
     trả DONE nếu đã có sẵn (cache hit), hoặc OFFERED để UI hiện nút "Tạo video"
@@ -101,7 +101,7 @@ async def _maybe_video(
         return None
     if answer.startswith(KHONG_TIM_THAY):
         return None
-    ck = concept_key(message, settings.sgk_version)
+    ck = concept_key(message, settings.sgk_version, mon)
     if ck is None:
         return None
     try:
@@ -195,13 +195,15 @@ async def chat(
     answer = result.get("answer") or ""
 
     intent = result.get("intent")
-    # Video minh hoạ, i-Test, chip "tạo đề ngắn" hiện CHỈ có dữ liệu Toán -> chỉ
-    # đính khi phiên là môn Toán (tránh gợi ý sai môn cho Tiếng Anh, v.v.).
+    # Video minh hoạ: đa môn — gate theo khái niệm CÓ trong môn (concept_key trả
+    # None nếu môn chưa khai báo khái niệm nào). i-Test & chip "đề ngắn" vẫn CHỈ
+    # có dữ liệu Toán nên giữ gate is_toan.
+    mon = _SUBJECT_TO_MON.get(body.subject, body.subject)
     is_toan = body.subject == "toan"
     video = await _maybe_video(
         session, message=body.message, intent=intent, answer=answer,
-        has_citations=bool(citations),
-    ) if is_toan else None
+        has_citations=bool(citations), mon=mon,
+    )
     itest = _maybe_itest(
         message=body.message, intent=intent, role=user.role, answer=answer,
     ) if is_toan else None
