@@ -9,7 +9,7 @@ import math
 
 from PIL import ImageDraw, ImageFont
 
-_FONT = "/Library/Fonts/Arial Unicode.ttf"
+from app.video.fonts import FONT_PATH as _FONT
 _BLUE = (43, 111, 246)
 _INK = (28, 39, 66)
 _GREEN = (76, 168, 115)

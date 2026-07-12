@@ -21,3 +21,28 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+
+  # Worker RENDER VIDEO (Epic-09) — queue "video", image có ffmpeg/node/katex/font
+  # (infra/video.Dockerfile). Mount ./data GHI ĐƯỢC để xuất mp4 + cache ảnh nền.
+  video:
+    build:
+      context: .
+      dockerfile: infra/video.Dockerfile
+    command: celery -A app.ingestion.celery_app worker -Q video --loglevel=info
+    environment:
+      AI_PLATFORM_API_KEY: ${AI_PLATFORM_API_KEY}
+      AI_PLATFORM_BASE_URL: ${AI_PLATFORM_BASE_URL}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      QDRANT_URL: http://qdrant:6333
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-openai/text-embedding-3-large}
+      GEMINI_MODEL_CHEAP: ${GEMINI_MODEL_CHEAP:-gemini/gemini-3.1-flash-lite}
+      GEMINI_MODEL_STRONG: ${GEMINI_MODEL_STRONG:-gemini/gemini-3.1-pro-preview}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/app/data                       # rw: xuất data/videos + cache data/scenes
+      - ./data_processed:/app/data_processed
+    depends_on:
+      redis: { condition: service_started }
+      qdrant: { condition: service_started }

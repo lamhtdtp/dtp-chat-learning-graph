@@ -14,10 +14,10 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+from app.video.fonts import FONT_PATH as _FONT  # macOS/Linux tự chọn font (tiếng Việt + ký hiệu)
 from app.video.script import Slide
 
 _KATEX_MAIN = Path(__file__).resolve().parents[2] / "web" / "node_modules" / "katex"
-_FONT = "/Library/Fonts/Arial Unicode.ttf"  # hỗ trợ tiếng Việt + ký hiệu toán
 
 _W, _H = 1280, 720
 _BG = (247, 250, 255)

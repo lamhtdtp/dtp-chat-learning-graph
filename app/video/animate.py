@@ -15,12 +15,12 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from app.video import illustrations, tts
+from app.video.fonts import FONT_PATH as _FONT  # macOS/Linux tự chọn font phù hợp
 from app.video.render import katex_validate, latex_to_unicode
 from app.video.script import Slide, Storyboard
 
 _W, _H, _FPS = 1280, 720, 25
 _SEC_PER_SLIDE = 5.0
-_FONT = "/Library/Fonts/Arial Unicode.ttf"
 
 # Logo DTP đóng dấu góc trên-trái mọi frame (thương hiệu). Tải + resize 1 lần.
 _LOGO_PATH = Path(__file__).resolve().parents[2] / "web" / "public" / "dtp-logo.png"
