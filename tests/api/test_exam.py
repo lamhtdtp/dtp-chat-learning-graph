@@ -49,3 +49,27 @@ async def test_hoc_ky_khong_hop_le_bi_422(client):
     h = await _auth(client, "giao_vien")
     r = await client.post("/exam/generate", json={"hoc_ky": "hk3", "tong_so_cau": 10}, headers=h)
     assert r.status_code == 422
+
+
+async def test_practice_hoc_sinh_sinh_de_ngan_theo_ma_tran(client, mocker):
+    """Học sinh bấm 'Tạo một đề ngắn luyện tập' -> /exam/practice sinh đề bám ma
+    trận (KHÔNG cần quyền giáo viên)."""
+    from app.exam.check import CauHoi
+
+    h = await _auth(client, "hoc_sinh")
+    mocker.patch.object(service._EXAM_GRAPH, "ainvoke", mocker.AsyncMock(return_value={
+        "de_thi": [CauHoi(muc_do="de", noi_dung="1+1=?", dap_an="2", loi_giai="cộng")],
+        "canh_bao": None, "so_lan_lap": 1,
+    }))
+
+    r = await client.post("/exam/practice", json={}, headers=h)  # default hk1, 5 câu
+
+    assert r.status_code == 200
+    body = r.json()
+    assert sum(body["chi_tieu"].values()) == 5           # đề ngắn 5 câu, khớp ma trận
+    assert body["cau_hoi"][0]["noi_dung"] == "1+1=?"
+
+
+async def test_practice_thieu_token_401(client):
+    r = await client.post("/exam/practice", json={})
+    assert r.status_code == 401

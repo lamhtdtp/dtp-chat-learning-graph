@@ -111,3 +111,42 @@ def test_parse_real_hk2():
     tong = tong_ti_le_theo_muc_do(records)
     assert tong == {"de": 40.0, "trung_binh": 30.0, "kho": 30.0}
     assert sum(tong.values()) == 100.0
+
+
+# ── Parser .md (Tiếng Anh) ──
+_MD = """# Ma trận
+| STT | Mức độ | Năng lực | Biểu hiện | Yêu cầu cần đạt | Mạch nội dung | Đơn vị kiến thức | Dạng thức | Tỉ lệ % | Số câu |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | Dễ (Biết) | Ngữ âm | Nhận biết âm | YC âm | School | Phát âm | TN | 5 |  |
+| 2 | Dễ (Biết) | Từ vựng | Nhận biết từ | YC vocab Home | Home | Vocab rooms | TN | 10 |  |
+| 3 | Dễ (Biết) | Từ vựng | Nhận biết từ | YC vocab School | School | Vocab subjects | TN | 10 |  |
+| 4 | Trung bình (Hiểu) | Từ vựng | Hiểu từ | YC ngữ cảnh | School | Vocab context | TN | 30 |  |
+| 5 | Khó (Vận dụng) | Viết | Viết câu | YC sắp xếp | Home | Writing build | TL | 25 |  |
+| 6 | Khó (Vận dụng) | Viết | Viết lại | YC viết lại | Friends | Writing rewrite | TL | 20 |  |
+
+## Tổng hợp
+| Mức độ | Tổng % |
+|---|---|
+| Dễ | 25 |
+"""
+
+
+def test_parse_matrix_md_gop_nhom_lien_nhau(tmp_path):
+    f = tmp_path / "m.md"
+    f.write_text(_MD, encoding="utf-8")
+    from app.ingestion.matrix_parser import parse_matrix_md
+    rows = parse_matrix_md(f)
+    assert len(rows) == 6                       # chỉ bảng ma trận, không lấy bảng tổng hợp
+    # dòng 2,3 (Dễ/Từ vựng/Nhận biết từ) cùng nhóm; 5,6 (Khó/Viết/khác biểu hiện) KHÁC nhóm
+    assert rows[1].nhom_ti_le == rows[2].nhom_ti_le
+    assert rows[4].nhom_ti_le != rows[5].nhom_ti_le
+    tot = tong_ti_le_theo_muc_do(rows)
+    # Dễ: 5 + 10 (nhóm Từ vựng tính 1 lần) = 15; TB 30; Khó 25+20=45
+    assert tot == {"de": 15.0, "trung_binh": 30.0, "kho": 45.0}
+
+
+def test_parse_matrix_dispatch_theo_duoi(tmp_path):
+    from app.ingestion.matrix_parser import parse_matrix, parse_matrix_md
+    f = tmp_path / "m.md"
+    f.write_text(_MD, encoding="utf-8")
+    assert [r.model_dump() for r in parse_matrix(f)] == [r.model_dump() for r in parse_matrix_md(f)]

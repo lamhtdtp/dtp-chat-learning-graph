@@ -39,11 +39,18 @@ def test_q_multi_nhieu_dap_an():
     assert q["answers"] == [0, 2]
 
 
-def test_q_fill_tach_tung_cho_trong():
-    row = {"question_type": "FB2", "question_text": "Điền:", "correct_answers": "3#14"}
+def test_q_fill_gop_1_cau_nhieu_o_va_thay_placeholder():
+    # Nhiều chỗ trống -> 1 câu, nhiều ô; %s% -> [1] [2] theo thứ tự.
+    row = {"question_type": "FB2", "question_text": "Sớm nhất là %s%, muộn nhất là %s%.",
+           "correct_answers": "bánh xe#điện thoại"}
     qs = _q_fill(row)
-    assert len(qs) == 2
-    assert qs[0]["type"] == "fill" and qs[0]["blanks"] == ["3"]
+    assert len(qs) == 1
+    assert qs[0]["type"] == "fill" and qs[0]["blanks"] == ["bánh xe", "điện thoại"]
+    assert qs[0]["q"] == "Sớm nhất là [1], muộn nhất là [2]."
+
+    # Một chỗ trống -> [...]
+    one = _q_fill({"question_type": "FB7", "question_text": "Kết quả là %s%.", "correct_answers": "8"})
+    assert one[0]["blanks"] == ["8"] and one[0]["q"] == "Kết quả là [...]."
 
 
 def test_expand_dinh_tuyen_theo_type():
@@ -52,3 +59,17 @@ def test_expand_dinh_tuyen_theo_type():
     tf = _expand({"question_type": "TF1", "answers": "Mệnh đề 1#Mệnh đề 2", "correct_answers": "T#F"})
     assert [x["type"] for x in tf] == ["single", "single"]   # TF làm phẳng về single
     assert tf[0]["answer"] == 0 and tf[1]["answer"] == 1
+
+
+def test_expand_sl_nhieu_cho_trong_khong_lan_dau_thang():
+    """SL: nhiều chỗ trống (ngăn '#'), mỗi chỗ chọn 1 (ngăn '*') — KHÔNG để '#'
+    lẫn vào lựa chọn (bug '=#>')."""
+    qs = _expand({
+        "question_type": "SL1",
+        "question_description": "Chọn dấu thích hợp",
+        "answers": "$>$*$<$*$=$#$>$*$<$*$=$",
+        "correct_answers": "$<$#$>$",
+    })
+    assert [q["type"] for q in qs] == ["single", "single"]
+    assert all(q["options"] == ["$>$", "$<$", "$=$"] for q in qs)   # tách sạch, không '#'
+    assert qs[0]["answer"] == 1 and qs[1]["answer"] == 0            # khớp đáp án từng chỗ

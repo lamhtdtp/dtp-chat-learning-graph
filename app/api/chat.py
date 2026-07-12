@@ -35,6 +35,12 @@ _VIDEO_INTENTS = {"hoi_dap", "on_tap"}
 _ITEST_INTENTS = {"hoi_dap", "on_tap", "giai_bai"}
 
 
+# Ánh xạ KEY môn ở frontend (subjects.ts) -> giá trị `mon` trong payload Qdrant.
+# Frontend dùng "anh" cho gọn; dữ liệu OCR/ingest gắn mon="tieng_anh". Không map
+# thì retrieve lọc sai -> hỏi Tiếng Anh lại ra chunk Toán (hoặc rỗng).
+_SUBJECT_TO_MON = {"toan": "toan", "anh": "tieng_anh"}
+
+
 class ChatRequest(BaseModel):
     message: str
     session_id: int | None = None  # None = phiên mới
@@ -170,7 +176,8 @@ async def chat(
     try:
         result = await graph.ainvoke(
             # Truyền `mon` của phiên -> retrieve_node lọc Qdrant theo môn (đa môn).
-            {"messages": [{"role": "user", "content": body.message}], "role": user.role, "mon": body.subject},
+            {"messages": [{"role": "user", "content": body.message}], "role": user.role,
+             "mon": _SUBJECT_TO_MON.get(body.subject, body.subject)},
             config={"configurable": {"thread_id": thread_id}},
         )
     except LLMUnavailable:

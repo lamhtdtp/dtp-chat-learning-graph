@@ -171,15 +171,14 @@ async def test_chat_chua_cau_hinh_itest_thi_khong_moi(client, mocker):
 
 
 async def test_chat_tra_ve_chip_goi_y(client, mocker):
-    """Câu trả lời kèm ĐÚNG 1 chip 'tạo đề ngắn luyện tập'."""
+    """Câu trả lời kèm ĐÚNG 1 chip 'tạo đề ngắn luyện tập' (action sinh đề ma trận)."""
     h = await _auth(client)
     _fake_graph(mocker, answer="Tập hợp là...", intent="hoi_dap")
     body = (await client.post("/chat", json={"message": "Số nguyên âm là gì?"}, headers=h)).json()
     assert len(body["suggestions"]) == 1
-    assert body["suggestions"][0]["label"] == "Tạo một đề ngắn luyện tập"
-    # query NHÚNG chủ đề vừa hỏi -> bài tập bám sát nội dung
-    assert "Số nguyên âm là gì?" in body["suggestions"][0]["query"]
-    assert "ôn tập" in body["suggestions"][0]["query"].lower()  # -> nhánh on_tap
+    s = body["suggestions"][0]
+    assert s["label"] == "Tạo một đề ngắn luyện tập"
+    assert s["action"] == "practice_exam"   # bấm -> sinh đề theo ma trận, không gửi prompt
 
 
 async def test_chat_giai_bai_khong_video_khong_chip(client, mocker):
@@ -188,4 +187,42 @@ async def test_chat_giai_bai_khong_video_khong_chip(client, mocker):
     _fake_graph(mocker, answer="Bước 1: ...", intent="giai_bai")
     body = (await client.post("/chat", json={"message": "Tính 2 + 3 x 5"}, headers=h)).json()
     assert body["video"] is None
+    assert body["suggestions"] == []
+
+
+async def test_chat_lich_su_loc_theo_mon(client, mocker):
+    """Phiên chat gắn môn; GET /sessions?subject= chỉ trả phiên của môn đó."""
+    h = await _auth(client)
+    _fake_graph(mocker)
+    await client.post("/chat", json={"message": "câu toán", "subject": "toan"}, headers=h)
+    await client.post("/chat", json={"message": "câu văn", "subject": "van"}, headers=h)
+
+    toan = (await client.get("/sessions?subject=toan", headers=h)).json()
+    van = (await client.get("/sessions?subject=van", headers=h)).json()
+
+    assert len(toan) >= 1 and all(s["subject"] == "toan" for s in toan)
+    assert len(van) >= 1 and all(s["subject"] == "van" for s in van)
+    assert not ({s["id"] for s in toan} & {s["id"] for s in van})  # không lẫn môn
+
+
+async def test_chat_truyen_mon_cua_phien_vao_graph(client, mocker):
+    """/chat truyền `mon` = subject của phiên -> retrieve lọc Qdrant theo môn."""
+    h = await _auth(client)
+    fake = _fake_graph(mocker)
+    await client.post("/chat", json={"message": "hello", "subject": "anh"}, headers=h)
+    state = fake.ainvoke.await_args.args[0]
+    assert state["mon"] == "anh"
+
+
+async def test_chat_mon_khac_toan_khong_kem_tinh_nang_toan(client, mocker):
+    """Môn không phải Toán -> không đính video/i-Test/chip đề (đó là dữ liệu Toán)."""
+    import app.api.chat as chat_api
+
+    h = await _auth(client)
+    _fake_graph(mocker, answer="English answer", intent="hoi_dap")
+    mocker.patch.object(chat_api.settings, "itest_database_url", "mysql+pymysql://x")
+
+    body = (await client.post("/chat", json={"message": "Present perfect?", "subject": "anh"}, headers=h)).json()
+    assert body["video"] is None
+    assert body["itest"] is None
     assert body["suggestions"] == []

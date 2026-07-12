@@ -15,7 +15,16 @@ export function App() {
   const [session, setSession] = useState<Session>(null);
   const [ready, setReady] = useState(false);
   // null = đang ở Subject Hub; có key = đang chat môn đó.
-  const [subject, setSubject] = useState<string | null>(null);
+  // Lưu vào localStorage -> refresh giữa lúc chat sẽ vào lại đúng môn (không văng
+  // về màn chọn môn).
+  const [subject, setSubjectState] = useState<string | null>(
+    () => localStorage.getItem("dtp_subject"),
+  );
+  const setSubject = (key: string | null) => {
+    setSubjectState(key);
+    if (key) localStorage.setItem("dtp_subject", key);
+    else localStorage.removeItem("dtp_subject");
+  };
   // Giáo viên: mở màn Sinh đề (theo ma trận). Học sinh không dùng.
   const [showExam, setShowExam] = useState(false);
 
