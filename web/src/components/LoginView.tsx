@@ -9,13 +9,21 @@ const ROLES: { value: Role; icon: string; title: string; desc: string }[] = [
   { value: "giao_vien", icon: "👩‍🏫", title: "Giáo viên", desc: "Sinh đề theo ma trận · ngân hàng câu hỏi" },
 ];
 
-// Ký hiệu học thuật bay ở hero (đa môn: toán + ngôn ngữ + khoa học).
+// Ký hiệu học thuật bay ở hero — ĐA MÔN: Toán (÷ × √ π) + Tiếng Anh/ngôn ngữ
+// (ABC, Aa, chữ). Không còn chỉ toàn ký hiệu Toán.
 const SYMBOLS = [
-  { s: "÷", style: { top: "9%", right: "13%", fontSize: 116 }, r: "-8deg", dur: "7s" },
-  { s: "×", style: { bottom: "15%", left: "7%", fontSize: 140 }, r: "10deg", dur: "9s" },
-  { s: "√", style: { top: "45%", right: "8%", fontSize: 86 }, r: "6deg", dur: "8s" },
-  { s: "π", style: { top: "24%", left: "13%", fontSize: 70 }, r: "-5deg", dur: "6.4s" },
-  { s: "A", style: { bottom: "30%", right: "20%", fontSize: 74 }, r: "8deg", dur: "7.6s" },
+  { s: "÷", style: { top: "9%", right: "14%", fontSize: 104 }, r: "-8deg", dur: "7s" },
+  { s: "ABC", style: { top: "20%", left: "9%", fontSize: 64 }, r: "-5deg", dur: "6.4s" },
+  { s: "×", style: { bottom: "16%", left: "7%", fontSize: 120 }, r: "10deg", dur: "9s" },
+  { s: "√", style: { top: "46%", right: "9%", fontSize: 80 }, r: "6deg", dur: "8s" },
+  { s: "π", style: { bottom: "34%", left: "22%", fontSize: 68 }, r: "-6deg", dur: "7.2s" },
+  { s: "Aa", style: { bottom: "26%", right: "18%", fontSize: 72 }, r: "8deg", dur: "7.6s" },
+];
+
+// Môn đang có (đồng bộ với subjects.ts: hiện Toán + Tiếng Anh).
+const SUBJECTS_HERO = [
+  { icon: "📐", name: "Toán" },
+  { icon: "💬", name: "Tiếng Anh" },
 ];
 
 const FEATS = [
@@ -83,6 +91,11 @@ export function LoginView({ onAuthed }: { onAuthed: (role: Role) => void }) {
           <div className="hero-desc">
             Gia sư ảo đa môn bám sát sách giáo khoa — giải thích từng bước, trích
             dẫn đúng trang sách, video minh hoạ và luyện tập mỗi ngày.
+          </div>
+          <div className="hero-subjects" aria-label="Các môn đang có">
+            {SUBJECTS_HERO.map((s) => (
+              <span className="hero-subj" key={s.name}><span aria-hidden>{s.icon}</span> {s.name}</span>
+            ))}
           </div>
         </div>
         <div className="hero-feats">

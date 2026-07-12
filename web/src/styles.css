@@ -492,3 +492,7 @@ img, video { -webkit-user-drag: none; user-select: none; }
   .auth-mobilebrand { display: flex; }
   .auth-panel { justify-content: flex-start; padding-top: 48px; }
 }
+
+/* Hero: dải môn đang có (đa môn) */
+.hero-subjects { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.hero-subj { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: var(--r-pill); background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.28); font-weight: 600; font-size: 13.5px; }
