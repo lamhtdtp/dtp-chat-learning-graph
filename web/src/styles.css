@@ -240,6 +240,14 @@ img, video { -webkit-user-drag: none; user-select: none; }
 .hub-body { padding: 26px 22px; max-width: 1080px; width: 100%; margin: 0 auto; }
 .hub-greet { font-family: "Baloo 2"; font-weight: 700; font-size: 24px; }
 .hub-greet-sub { color: var(--ink-2); margin-bottom: 18px; }
+/* Thẻ Sinh đề cho giáo viên (chỉ hiện khi role=giao_vien) */
+.hub-exam-card { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; margin-bottom: 20px; padding: 16px 18px; border: 1px solid var(--accent-border); background: var(--accent-soft); border-radius: var(--r-lg); cursor: pointer; transition: background .12s, transform .12s; }
+.hub-exam-card:hover { background: var(--accent-soft-2); transform: translateY(-1px); }
+.hub-exam-ic { font-size: 26px; flex: none; }
+.hub-exam-txt { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.hub-exam-title { font-family: "Baloo 2"; font-weight: 700; font-size: 15.5px; color: var(--accent-ink); }
+.hub-exam-sub { font-size: 12.5px; color: var(--ink-3); }
+.hub-exam-go { font-size: 20px; color: var(--accent-ink); flex: none; }
 .hub-recent { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 20px; }
 .recent-chip { flex: none; display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: var(--r-pill); border: 1px solid var(--accent-border); background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; font-size: 13px; cursor: pointer; }
 .hub-section-title { font-family: "Baloo 2"; font-weight: 700; font-size: 15px; color: var(--ink-2); margin: 8px 0 12px; }

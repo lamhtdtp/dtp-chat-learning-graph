@@ -32,7 +32,7 @@ function QuestionCard({ q, index }: { q: ExamQuestion; index: number }) {
   );
 }
 
-export function ExamView({ teacherName, onLogout }: { teacherName: string; onLogout: () => void }) {
+export function ExamView({ teacherName, onBack, onLogout }: { teacherName: string; onBack?: () => void; onLogout: () => void }) {
   const [hocKy, setHocKy] = useState("hk1");
   const [soCau, setSoCau] = useState(10);
   const [busy, setBusy] = useState(false);
@@ -53,6 +53,7 @@ export function ExamView({ teacherName, onLogout }: { teacherName: string; onLog
           <div className="dtp-logo"><img src="/dtp-logo.png" alt="DTP" /></div>
           <div className="brand-name">{TUTOR_NAME}</div>
         </div>
+        {onBack && <button className="btn" type="button" onClick={onBack}>← Về trang chính</button>}
         <span className="pill-select" style={{ cursor: "default" }}>📐 Toán · Lớp 6</span>
         <div className="spacer" />
         <ThemeToggle />

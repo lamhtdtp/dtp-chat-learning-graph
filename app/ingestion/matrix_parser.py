@@ -157,6 +157,51 @@ def _raw_row_texts(row) -> list[str]:
     ]
 
 
+def parse_matrix_md(path: str | Path) -> list[MatrixRow]:
+    """Đọc bảng ma trận từ file .md (bảng Markdown GFM) — dùng cho môn soạn dạng
+    .md (vd Tiếng Anh ANH_6_HK*.md). Cùng thứ tự cột với .docx: | STT | Mức độ |
+    Năng lực | Biểu hiện | Yêu cầu | Mạch | Đơn vị | Dạng thức | Tỉ lệ % | Số câu |.
+
+    Khác .docx: .md LẶP giá trị Tỉ lệ % trên MỌI dòng (docx gộp ô -> dòng tiếp
+    để trống). Để `nhom_ti_le` đúng, ta suy nhóm: các dòng LIỀN NHAU cùng
+    (mức độ, năng lực, biểu hiện) là 1 nhóm -> chỉ giữ ti_le ở dòng đầu nhóm,
+    làm trống các dòng sau (giống ô gộp dọc), rồi tái dùng parse_matrix_rows.
+    """
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    header_i = next(
+        (i for i, l in enumerate(lines)
+         if l.lstrip().startswith("|") and "STT" in l and "Tỉ lệ" in l),
+        None,
+    )
+    if header_i is None:
+        raise ValueError(f"Không thấy bảng ma trận (header 'STT'…'Tỉ lệ') trong {path}")
+
+    rows: list[list[str]] = []
+    for line in lines[header_i + 2:]:  # bỏ dòng header + dòng ngăn cách |---|
+        s = line.strip()
+        if not s.startswith("|"):
+            break  # hết bảng (bảng tổng hợp / heading khác không tính)
+        cells = [c.strip() for c in s.strip("|").split("|")]
+        if len(cells) < 10:
+            continue
+        rows.append(cells[1:9])  # bỏ STT (cột 0) và Số câu (cột 9)
+
+    # Suy ô gộp dọc của cột Tỉ lệ %: dòng cùng nhóm (mức độ, năng lực, biểu hiện)
+    # với dòng ngay trên -> để trống ti_le để parse_matrix_rows KHÔNG mở nhóm mới.
+    prev_key = None
+    for r in rows:
+        key = (r[0], r[1], r[2])
+        if key == prev_key:
+            r[_TI_LE_INDEX] = ""
+        prev_key = key
+    return parse_matrix_rows(rows)
+
+
+def parse_matrix(path: str | Path) -> list[MatrixRow]:
+    """Chọn parser theo đuôi file: .md -> parse_matrix_md, còn lại -> .docx."""
+    return parse_matrix_md(path) if str(path).lower().endswith(".md") else parse_matrix_docx(path)
+
+
 def parse_matrix_docx(path: str | Path) -> list[MatrixRow]:
     """Đọc bảng ma trận từ file .docx thật.
 

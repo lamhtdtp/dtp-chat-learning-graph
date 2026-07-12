@@ -5,7 +5,7 @@ import {
 import { TUTOR_NAME } from "../config";
 import { SUBJECTS, SUBJECT_MAP } from "../subjects";
 import { useSpeech } from "../hooks/useSpeech";
-import type { ChatMessage, Citation, SessionRow } from "../types";
+import type { ChatMessage, Citation, Role, SessionRow } from "../types";
 import { BookPageModal } from "./BookPageModal";
 import { MessageBubble } from "./MessageBubble";
 import { ChatSidebar } from "./Sidebar";
@@ -14,10 +14,11 @@ import { TopicPanel } from "./TopicPanel";
 import { UserMenu } from "./UserMenu";
 
 export function ChatView({
-  initialSubject, name, onBackToHub, onLogout,
+  initialSubject, name, role, onBackToHub, onLogout,
 }: {
   initialSubject: string;
   name: string;
+  role: Role;
   onBackToHub: () => void;
   onLogout: () => void;
 }) {
@@ -108,7 +109,7 @@ export function ChatView({
         </div>
         <div className="spacer" />
         <ThemeToggle />
-        <UserMenu name={name} role="hoc_sinh" onLogout={onLogout} />
+        <UserMenu name={name} role={role} onLogout={onLogout} />
       </div>
 
       {/* Subject switcher — đổi tab là RE-THEME toàn khung chat */}

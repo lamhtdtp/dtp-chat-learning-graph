@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Blueprint, BlueprintCell, CurriculumTopic, Grade, Subject
-from app.ingestion.matrix_parser import parse_matrix_docx
+from app.ingestion.matrix_parser import parse_matrix
 
 
 async def _get_or_create(session: AsyncSession, model, defaults=None, **keys):
@@ -33,7 +33,7 @@ async def load_matrix(
     khoi: str = "Lớp 6",
     hoc_ky: str,
 ) -> Blueprint:
-    records = parse_matrix_docx(path)
+    records = parse_matrix(path)  # tự chọn parser .docx / .md theo đuôi file
 
     subject = await _get_or_create(session, Subject, name=mon)
     grade = await _get_or_create(session, Grade, name=khoi)
