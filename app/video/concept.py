@@ -9,6 +9,8 @@ concept_key GỒM sgk_version: đổi sách -> key khác -> cache miss -> làm m
 video cho câu vụn/không rõ khái niệm (US-19 §gating).
 """
 
+import base64
+import binascii
 import re
 import unicodedata
 
@@ -104,9 +106,68 @@ def concept_key(text: str, sgk_version: str, mon: str = "toan") -> str | None:
 
 _KNOWN_SLUGS = set(CONCEPT_MON)
 
+# ---- Video "chủ đề tự do" (free) ----------------------------------------
+# Khi học sinh CHỦ ĐỘNG xin video ("...video...") về một chủ đề CÓ ngữ liệu
+# nhưng không nằm trong bảng khái niệm cố định, ta vẫn sinh video. Câu hỏi + môn
+# được MÃ HOÁ thẳng vào concept_key (prefix free: + base64) -> không cần cột DB
+# hay đổi frontend; pipeline giải mã lại để ground đúng câu, đúng môn. Cùng câu
+# + môn -> cùng key -> vẫn dùng lại (cache), tất định.
+_FREE_PREFIX = "free:"
+_MAX_FREE_QUERY = 160  # chặn key phình + chống lạm dụng
+
+_VIDEO_REQUEST_KW = ("video", "clip", "doan phim")
+
+
+def is_video_request(text: str) -> bool:
+    """Câu có phải học sinh XIN một video minh hoạ không (vd 'cho em xem video…')."""
+    norm = _bo_dau(text)
+    return any(kw in norm for kw in _VIDEO_REQUEST_KW)
+
+
+# Cụm "xin video" cần lược để lấy CHỦ ĐỀ sạch -> ground chuẩn + cùng chủ đề (dù
+# khác cách xin) ra cùng free-key. Giữ dấu tiếng Việt để không đổi nghĩa chủ đề.
+_REQUEST_PHRASES = re.compile(
+    r"(?i)\b(cho|giúp)\s+(em|mình|tớ|con|thầy|cô)\b|"
+    r"\b(xem|làm|tạo|vẽ|dựng|xin)\b|\b(một|1)\b|"
+    r"\bvideo\b|\bclip\b|\bđoạn phim\b|\bminh\s*ho[aạ]\b|\bvề\b|\bgiúp\b"
+)
+
+
+def topic_from_request(text: str) -> str:
+    """Bỏ cụm 'xin video' khỏi câu -> còn lại chủ đề. Nếu lược quá ngắn (<3 ký tự)
+    thì giữ nguyên câu gốc để không mất ngữ nghĩa."""
+    stripped = _REQUEST_PHRASES.sub(" ", text)
+    stripped = re.sub(r"\s+", " ", stripped).strip(" ?.!,:;-")
+    return stripped if len(stripped) >= 3 else text.strip()
+
+
+def free_concept_key(query: str, mon: str, sgk_version: str) -> str:
+    """concept_key cho chủ đề tự do: free:<b64('{mon}|{query}')>::<sgk_version>."""
+    payload = f"{mon}|{query.strip()[:_MAX_FREE_QUERY]}".encode()
+    body = base64.urlsafe_b64encode(payload).decode()
+    return f"{_FREE_PREFIX}{body}::{sgk_version}"
+
+
+def decode_free_slug(slug: str) -> tuple[str, str] | None:
+    """Giải mã phần slug (đã bỏ ::version) của free-key -> (mon, query). None nếu
+    không phải free-key hợp lệ."""
+    if not slug.startswith(_FREE_PREFIX):
+        return None
+    try:
+        raw = base64.urlsafe_b64decode(slug[len(_FREE_PREFIX):]).decode()
+    except (binascii.Error, ValueError, UnicodeDecodeError):
+        return None
+    mon, sep, query = raw.partition("|")
+    if not sep or not query:
+        return None
+    return mon, query
+
 
 def is_known_concept_key(concept_key: str, sgk_version: str) -> bool:
-    """Kiểm concept_key client gửi lên có hợp lệ không (đúng định dạng, slug
-    thuộc danh sách khái niệm, đúng phiên bản SGK) — chống tạo job tuỳ tiện."""
+    """Kiểm concept_key client gửi lên có hợp lệ không (đúng định dạng + phiên bản
+    SGK): slug thuộc bảng khái niệm, HOẶC là free-key giải mã được. Chống tạo job
+    tuỳ tiện — nhưng free-key vẫn phải ground được ở pipeline mới ra video."""
     slug, sep, ver = concept_key.partition("::")
-    return sep == "::" and ver == sgk_version and slug in _KNOWN_SLUGS
+    if sep != "::" or ver != sgk_version:
+        return False
+    return slug in _KNOWN_SLUGS or decode_free_slug(slug) is not None

@@ -97,6 +97,31 @@ async def test_chat_offer_video_khong_tu_sinh(client, mocker):
     create.assert_not_called()  # chưa bấm -> chưa tạo job
 
 
+async def test_chat_xin_video_chu_de_tu_do_van_offer(client, mocker):
+    # Chủ đề KHÔNG thuộc bảng khái niệm nhưng học sinh CHỦ ĐỘNG xin video +
+    # có grounding -> OFFERED với free-key (giải mã ra đúng câu để pipeline ground).
+    from app.video.concept import decode_free_slug
+    h = await _auth(client)
+    _fake_graph(mocker, answer="Hình thang có hai cạnh đáy song song...", intent="hoi_dap")
+    mocker.patch("app.api.chat.video_cache.get_done_video", mocker.AsyncMock(return_value=None))
+
+    r = await client.post("/chat", json={"message": "Cho em xem video về hình thang cân"}, headers=h)
+
+    v = r.json()["video"]
+    assert v["status"] == "OFFERED"
+    slug = v["concept_key"].split("::")[0]
+    mon, query = decode_free_slug(slug)
+    assert mon == "toan" and "hình thang" in query.lower()
+
+
+async def test_chat_chu_de_tu_do_khong_xin_video_thi_khong_offer(client, mocker):
+    # Chủ đề ngoài bảng khái niệm mà KHÔNG xin video -> không đính (tránh sinh tràn).
+    h = await _auth(client)
+    _fake_graph(mocker, answer="Hình thang có hai cạnh đáy song song...", intent="hoi_dap")
+    r = await client.post("/chat", json={"message": "Hình thang cân là gì?"}, headers=h)
+    assert r.json()["video"] is None
+
+
 async def test_chat_cache_hit_hien_video_ngay(client, mocker):
     # Đã có video cho khái niệm -> trả DONE + URL ngay, không cần bấm (US-19).
     h = await _auth(client)

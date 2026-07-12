@@ -7,6 +7,7 @@ Video theo KHÁI NIỆM (không theo câu chữ 1 học sinh): câu trả lời 
 được sinh lại grounded từ chính khái niệm -> dùng chung + pre-generate được.
 """
 
+import hashlib
 import tempfile
 from pathlib import Path
 
@@ -16,7 +17,7 @@ from app.graph.grounding import has_grounding
 from app.graph.nodes.qa import qa_node
 from app.retrieval import retriever
 from app.video import animate, scene, storage
-from app.video.concept import CONCEPT_MON, CONCEPT_QUERY
+from app.video.concept import CONCEPT_MON, CONCEPT_QUERY, decode_free_slug
 from app.video.guard import check_script
 from app.video.script import generate_script
 
@@ -25,9 +26,18 @@ class PipelineError(Exception):
     pass
 
 
+def _resolve_query_mon(slug: str) -> tuple[str, str]:
+    """(query, mon) để ground. Free-key -> giải mã câu hỏi + môn đã lưu trong key;
+    khái niệm cố định -> tra bảng CONCEPT_QUERY/CONCEPT_MON."""
+    free = decode_free_slug(slug)
+    if free is not None:
+        mon, query = free
+        return query, mon
+    return CONCEPT_QUERY.get(slug, slug.replace("_", " ")), CONCEPT_MON.get(slug, "toan")
+
+
 async def _grounded_answer(slug: str) -> tuple[str, str]:
-    query = CONCEPT_QUERY.get(slug, slug.replace("_", " "))
-    mon = CONCEPT_MON.get(slug, "toan")  # ground từ đúng kho SGK của môn khái niệm
+    query, mon = _resolve_query_mon(slug)  # ground từ đúng kho SGK + đúng câu hỏi
     chunks = await retriever.retrieve(
         query, mon=mon, khoi="lop_6", top_k=5, score_threshold=0.4
     )
@@ -40,7 +50,12 @@ async def _grounded_answer(slug: str) -> tuple[str, str]:
 
 
 def _safe_name(concept_key: str) -> str:
-    return concept_key.replace("::", "__").replace("/", "_") + ".mp4"
+    stem = concept_key.replace("::", "__").replace("/", "_").replace(":", "_")
+    # free-key mã hoá base64 rất dài -> rút gọn bằng hash (vẫn tất định, không đụng
+    # giới hạn độ dài tên file).
+    if len(stem) > 80:
+        stem = stem[:24] + "_" + hashlib.sha1(concept_key.encode()).hexdigest()[:16]
+    return stem + ".mp4"
 
 
 async def build_video_for_job(session: AsyncSession, job) -> "job":
@@ -50,7 +65,8 @@ async def build_video_for_job(session: AsyncSession, job) -> "job":
     job.status = RENDERING
     await session.flush()
     slug = job.concept_key.split("::")[0]
-    fallback_title = "Tiếng Anh lớp 6" if CONCEPT_MON.get(slug) == "tieng_anh" else "Toán lớp 6"
+    _, job_mon = _resolve_query_mon(slug)
+    fallback_title = "Tiếng Anh lớp 6" if job_mon == "tieng_anh" else "Toán lớp 6"
     try:
         answer, sources = await _grounded_answer(slug)
 

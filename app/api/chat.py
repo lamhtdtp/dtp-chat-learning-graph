@@ -22,7 +22,9 @@ from app.api import security
 from app.graph.grounding import KHONG_TIM_THAY
 from app.llm.gateway import LLMUnavailable
 from app.video import cache as video_cache
-from app.video.concept import concept_key
+from app.video.concept import (
+    concept_key, free_concept_key, is_video_request, topic_from_request,
+)
 
 router = APIRouter(tags=["chat"])
 
@@ -101,9 +103,14 @@ async def _maybe_video(
         return None
     if answer.startswith(KHONG_TIM_THAY):
         return None
+    # Khái niệm cố định -> auto-offer (dùng lại video chung). Nếu không khớp mà học
+    # sinh CHỦ ĐỘNG xin video, chủ đề đã grounded (has_citations) -> free-key theo
+    # đúng câu hỏi + môn, vẫn sinh được video (US-16: video theo yêu cầu).
     ck = concept_key(message, settings.sgk_version, mon)
     if ck is None:
-        return None
+        if not is_video_request(message):
+            return None
+        ck = free_concept_key(topic_from_request(message), mon, settings.sgk_version)
     try:
         done = await video_cache.get_done_video(session, ck, settings.sgk_version)
         if done is not None:  # đã có -> hiện player ngay, không cần bấm
