@@ -4,7 +4,11 @@ FROM node:20-alpine AS build
 
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
-RUN npm ci
+# Dùng `npm install` (không phải `npm ci`): npm có bug optional-deps (#4828) khiến
+# ci đôi khi THIẾU native binary rollup theo nền tảng -> `vite build` lỗi
+# "Cannot find module @rollup/rollup-linux-*". install resolve optional đúng nền
+# tảng đang build (musl/glibc, arm64/x64) và không kén lock lệch nhẹ.
+RUN npm install --no-audit --no-fund
 COPY web/ ./
 
 ARG VITE_API_URL=""
