@@ -240,9 +240,32 @@ def _q_match(row: dict) -> list[dict]:
     return out
 
 
+def _q_select(row: dict) -> list[dict]:
+    """SL*: chọn đáp án cho TỪNG chỗ trống. answers = các chỗ ngăn '#', mỗi chỗ
+    có lựa chọn ngăn '*'; correct_answers = đáp án đúng mỗi chỗ (ngăn '#'). Mỗi
+    chỗ -> 1 câu chọn-1 (tránh lẫn '#' vào lựa chọn như trước)."""
+    blanks = str(row.get("answers") or "").split("#")
+    cors = [_clean(c) for c in str(row.get("correct_answers") or "").split("#")]
+    stem = _stem(row, "answers") or "Chọn đáp án thích hợp:"
+    multi = len(blanks) > 1
+    out: list[dict] = []
+    for i, blank in enumerate(blanks):
+        opts = [o for o in (_clean(x) for x in blank.split("*")) if o]
+        if len(opts) < 2:
+            continue
+        cor = cors[i] if i < len(cors) else ""
+        ans = next((j for j, o in enumerate(opts) if _norm(o) == _norm(cor)), -1)
+        out.append({"type": "single",
+                    "q": f"{stem} — Chỗ {i + 1}" if multi else stem,
+                    "options": opts, "answer": ans})
+    return out
+
+
 def _expand(row: dict) -> list[dict]:
     qt = (row.get("question_type") or "").upper()
-    if qt.startswith("TF"):
+    if qt.startswith("SL"):
+        qs = _q_select(row)
+    elif qt.startswith("TF"):
         qs = _q_truefalse(row)
     elif qt.startswith("MG"):
         qs = _q_match(row)
