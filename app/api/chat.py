@@ -169,7 +169,8 @@ async def chat(
     thread_id = f"{user.id}:{session_pk}"
     try:
         result = await graph.ainvoke(
-            {"messages": [{"role": "user", "content": body.message}], "role": user.role},
+            # Truyền `mon` của phiên -> retrieve_node lọc Qdrant theo môn (đa môn).
+            {"messages": [{"role": "user", "content": body.message}], "role": user.role, "mon": body.subject},
             config={"configurable": {"thread_id": thread_id}},
         )
     except LLMUnavailable:
@@ -187,13 +188,16 @@ async def chat(
     answer = result.get("answer") or ""
 
     intent = result.get("intent")
+    # Video minh hoạ, i-Test, chip "tạo đề ngắn" hiện CHỈ có dữ liệu Toán -> chỉ
+    # đính khi phiên là môn Toán (tránh gợi ý sai môn cho Tiếng Anh, v.v.).
+    is_toan = body.subject == "toan"
     video = await _maybe_video(
         session, message=body.message, intent=intent, answer=answer,
         has_citations=bool(citations),
-    )
+    ) if is_toan else None
     itest = _maybe_itest(
         message=body.message, intent=intent, role=user.role, answer=answer,
-    )
+    ) if is_toan else None
 
     session.add(Message(session_id=session_pk, role="user", content=body.message))
     session.add(Message(
@@ -212,5 +216,5 @@ async def chat(
         session_id=session_pk,
         video=video,
         itest=itest,
-        suggestions=_suggestions(intent),
+        suggestions=_suggestions(intent) if is_toan else [],
     )

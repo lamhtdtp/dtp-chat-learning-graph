@@ -16,9 +16,9 @@ export interface Subject {
 export const SUBJECTS: Subject[] = [
   { key: "toan", name: "Toán", short: "Toán", icon: "📐", cats: 6, unlocked: true,
     suggestions: ["Số nguyên tố là gì?", "Ước chung lớn nhất và bội chung nhỏ nhất", "Cách viết một tập hợp?", "Ôn tập chương Số tự nhiên"] },
-  { key: "van", name: "Tiếng Anh", short: "Tiếng Anh", icon: "💬", cats: 5, unlocked: false,
+  { key: "anh", name: "Tiếng Anh", short: "Tiếng Anh", icon: "💬", cats: 5, unlocked: true,
     suggestions: ["Present Perfect dùng khi nào?", "Từ vựng chủ đề du lịch", "Viết lại câu", "Luyện phát âm"] },
-  { key: "anh", name: "Ngữ văn", short: "Ngữ văn", icon: "✒️", cats: 5, unlocked: false,
+  { key: "van", name: "Ngữ văn", short: "Ngữ văn", icon: "✒️", cats: 5, unlocked: false,
     suggestions: ["Phân tích bài Ánh trăng", "Lập dàn ý nghị luận", "Biện pháp tu từ", "Tóm tắt Làng"] },
   { key: "khtn", name: "KHTN", short: "KHTN", icon: "🔬", cats: 6, unlocked: false,
     suggestions: ["Định luật Ôm", "Cân bằng phương trình hoá học", "Cấu tạo tế bào", "Bài tập điện trở"] },

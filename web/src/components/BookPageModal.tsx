@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { API_BASE } from "../config";
 import { getBookPageUrl } from "../api";
+import { Portal } from "./Portal";
 import type { Citation } from "../types";
 
 // Modal xem ảnh trang SGK gốc khi bấm chip trích dẫn. Ảnh được bảo vệ bằng URL
@@ -29,6 +30,7 @@ export function BookPageModal({ cite, onClose }: { cite: Citation; onClose: () =
   }, [cite]);
 
   return (
+    <Portal>
     <div className="modal-scrim" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
@@ -46,5 +48,6 @@ export function BookPageModal({ cite, onClose }: { cite: Citation; onClose: () =
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

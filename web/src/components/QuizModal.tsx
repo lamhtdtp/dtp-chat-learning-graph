@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { renderRich } from "../markdown";
+import { Portal } from "./Portal";
 import type { QuizData, QuizQuestion } from "../types";
 
 // Bài trắc nghiệm i-Test tương tác (port từ repo dtp-chat-learning): chọn đáp án
@@ -62,6 +63,7 @@ export function QuizModal({ loading, error, data, onClose, onRetry }: Props) {
   );
 
   return (
+    <Portal>
     <div className="modal-scrim" onClick={onClose}>
       <div className="modal-card quiz-card" onClick={(e) => e.stopPropagation()}>
         <div className="quiz-head">
@@ -118,6 +120,7 @@ export function QuizModal({ loading, error, data, onClose, onRetry }: Props) {
         )}
       </div>
     </div>
+    </Portal>
   );
 }
 

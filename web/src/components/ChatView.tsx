@@ -128,7 +128,7 @@ export function ChatView({
         ))}
       </div>
 
-      <div className={"chat-frame" + (!locked ? " with-topics" : "")} data-subject={subject}>
+      <div className={"chat-frame" + (subject === "toan" ? " with-topics" : "")} data-subject={subject}>
         {drawer && <div className="drawer-scrim" onClick={() => setDrawer(false)} />}
         <ChatSidebar
           className={drawer ? "open" : ""}
@@ -192,7 +192,7 @@ export function ChatView({
           </div>
         </div>
 
-        {!locked && <TopicPanel onPick={ask} />}
+        {subject === "toan" && <TopicPanel onPick={ask} />}
       </div>
 
       {pageModal && <BookPageModal cite={pageModal} onClose={() => setPageModal(null)} />}

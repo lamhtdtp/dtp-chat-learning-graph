@@ -23,7 +23,7 @@ async def retrieve_node(state: ChatState) -> dict:
     # thêm khi có nhu cầu; hiện chỉ 1 sách nên filter mon/khoi là đủ.)
     chunks = await retriever.retrieve(
         query,
-        mon="toan",
+        mon=state.get("mon", "toan"),  # lọc theo môn của phiên (đa môn)
         khoi="lop_6",
         top_k=_TOP_K,
         score_threshold=_SCORE_THRESHOLD,

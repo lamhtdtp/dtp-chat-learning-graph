@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ApiError, generatePracticeExam } from "../api";
 import { renderRich } from "../markdown";
+import { Portal } from "./Portal";
 import type { ExamQuestion, ExamResult } from "../types";
 
 // Chip "Tạo một đề ngắn luyện tập": bấm -> sinh đề NGẮN bám ma trận đặc tả (gọi
@@ -58,6 +59,7 @@ export function PracticeExamChip({ label }: { label: string }) {
       </button>
 
       {open && (
+        <Portal>
         <div className="modal-scrim" onClick={() => setOpen(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
@@ -86,6 +88,7 @@ export function PracticeExamChip({ label }: { label: string }) {
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </>
   );

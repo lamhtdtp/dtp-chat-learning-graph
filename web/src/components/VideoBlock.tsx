@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { API_BASE } from "../config";
 import { generateVideo, getVideoStatus } from "../api";
+import { Portal } from "./Portal";
 import type { VideoInfo } from "../types";
 
 // Video sinh ON-DEMAND. Trong bong bóng trả lời chỉ hiện 1 nút; bấm mở POPUP:
@@ -77,6 +78,7 @@ export function VideoBlock({ info }: { info: VideoInfo }) {
       </div>
 
       {open && (
+        <Portal>
         <div className="modal-scrim" onClick={() => setOpen(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
@@ -119,6 +121,7 @@ export function VideoBlock({ info }: { info: VideoInfo }) {
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </>
   );
