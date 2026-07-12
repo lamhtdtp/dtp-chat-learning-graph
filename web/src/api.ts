@@ -108,4 +108,10 @@ export function getItestQuiz(topic: string): Promise<QuizData> {
   return req<QuizData>(`/itest/quiz?topic=${encodeURIComponent(topic)}`, { auth: true });
 }
 
+// Lấy URL ẢNH TRANG SGK đã KÝ (có hạn) — thẻ <img> không gửi được Bearer nên
+// phải xin link ký qua endpoint auth này rồi mới gán vào src.
+export function getBookPageUrl(tap: number, page: number): Promise<{ url: string }> {
+  return req<{ url: string }>(`/books/pages-url/${tap}/${page}`, { auth: true });
+}
+
 export { ApiError };

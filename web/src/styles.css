@@ -31,6 +31,9 @@ h1, h2, .font-display { font-family: "Baloo 2", cursive; }
 ::-webkit-scrollbar-thumb { background: #cdd9ee; border-radius: 999px; border: 3px solid transparent; background-clip: padding-box; }
 .katex { font-size: 1.04em; }
 
+/* Hạn chế tải ảnh/video: chặn kéo-thả ra desktop + bôi chọn (best-effort). */
+img, video { -webkit-user-drag: none; user-select: none; }
+
 @keyframes mb-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes mb-blink { 0%,80%,100% { opacity: .4; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-4px); } }
 @keyframes mb-float { 0%,100% { transform: translateY(0) rotate(var(--r,0deg)); } 50% { transform: translateY(-12px) rotate(var(--r,0deg)); } }
@@ -168,6 +171,7 @@ input:focus, select:focus { border-color: var(--blue-2); background: #fff; }
 .modal-close { border: 0; background: #eef3fd; width: 32px; height: 32px; border-radius: 8px; cursor: pointer; color: #4a5568; font-size: 14px; }
 .modal-body { overflow: auto; padding: 14px; background: #f4f8ff; }
 .modal-body img { width: 100%; height: auto; display: block; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+.book-msg { padding: 28px 16px; text-align: center; color: var(--muted); font-size: 14px; }
 
 .pending { display: flex; gap: 5px; align-items: center; }
 .pending .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue-2); animation: mb-blink 1.3s infinite both; }

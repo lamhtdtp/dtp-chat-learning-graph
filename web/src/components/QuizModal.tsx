@@ -91,7 +91,8 @@ export function QuizModal({ loading, error, data, onClose, onRetry }: Props) {
                 <span>{rich(q.q)}</span>
               </div>
               {q.image && (
-                <img className="quiz-img" src={q.image} alt="Hình câu hỏi" loading="lazy" />
+                <img className="quiz-img" src={q.image} alt="Hình câu hỏi" loading="lazy"
+                  draggable={false} onContextMenu={(e) => e.preventDefault()} />
               )}
               <QuizBody q={q} qi={qi} resp={resp} submitted={submitted} setResp={setResp} />
             </div>

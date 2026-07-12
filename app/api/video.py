@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api import security
 from app.api.deps import get_current_user
 from app.config import settings
 from app.db.models import User, VideoJob
@@ -36,8 +37,10 @@ class GenerateRequest(BaseModel):
 
 
 def _to_status(job: VideoJob) -> VideoStatus:
+    # Ký URL video khi trả client (bắt buộc để GET /video/files được phục vụ).
+    url = security.sign_media(job.video_url) if job.video_url else None
     return VideoStatus(
-        job_id=job.id, status=job.status, video_url=job.video_url,
+        job_id=job.id, status=job.status, video_url=url,
         title=job.title, duration_sec=job.duration_sec,
     )
 
@@ -77,7 +80,10 @@ async def get_job(job_id: int, session: AsyncSession = Depends(get_session)) -> 
 
 
 @router.get("/files/{name}")
-async def get_file(name: str) -> FileResponse:
+async def get_file(name: str, exp: str | None = None, sig: str | None = None) -> FileResponse:
+    # Chỉ phục vụ khi có chữ ký hợp lệ (chống tải trực tiếp bằng URL đoán được).
+    if not security.verify_media(f"/video/files/{name}", exp, sig):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Link video không hợp lệ hoặc đã hết hạn")
     path = storage.resolve_url(f"/video/files/{name}")
     if path is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Video không tồn tại")

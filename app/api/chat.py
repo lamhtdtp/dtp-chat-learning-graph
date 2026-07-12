@@ -18,6 +18,7 @@ from app.api.deps import get_current_user
 from app.config import settings
 from app.db.models import ChatSession, Message, User
 from app.db.session import get_session
+from app.api import security
 from app.graph.grounding import KHONG_TIM_THAY
 from app.llm.gateway import LLMUnavailable
 from app.video import cache as video_cache
@@ -97,7 +98,8 @@ async def _maybe_video(
     try:
         done = await video_cache.get_done_video(session, ck, settings.sgk_version)
         if done is not None:  # đã có -> hiện player ngay, không cần bấm
-            return VideoInfo(status="DONE", concept_key=ck, job_id=done.id, video_url=done.video_url)
+            return VideoInfo(status="DONE", concept_key=ck, job_id=done.id,
+                             video_url=security.sign_media(done.video_url) if done.video_url else None)
         return VideoInfo(status="OFFERED", concept_key=ck)
     except Exception:  # noqa: BLE001
         return None

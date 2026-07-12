@@ -107,7 +107,10 @@ async def test_chat_cache_hit_hien_video_ngay(client, mocker):
     r = await client.post("/chat", json={"message": "Số nguyên tố là gì?"}, headers=h)
 
     v = r.json()["video"]
-    assert v["status"] == "DONE" and v["video_url"] == "/video/files/x.mp4"
+    assert v["status"] == "DONE"
+    # video_url được KÝ (có exp+sig) — không còn là đường dẫn trần
+    assert v["video_url"].startswith("/video/files/x.mp4?")
+    assert "exp=" in v["video_url"] and "sig=" in v["video_url"]
 
 
 async def test_chat_khong_dinh_video_khi_giai_bai(client, mocker):

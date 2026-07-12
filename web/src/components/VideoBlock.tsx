@@ -83,7 +83,16 @@ export function VideoBlock({ info }: { info: VideoInfo }) {
             </div>
             <div className="modal-body">
               {status === "DONE" && url && (
-                <video className="video-player" controls autoPlay preload="metadata" src={`${API_BASE}${url}`} />
+                <video
+                  className="video-player"
+                  controls
+                  autoPlay
+                  preload="metadata"
+                  src={`${API_BASE}${url}`}
+                  controlsList="nodownload noremoteplayback noplaybackrate"
+                  disablePictureInPicture
+                  onContextMenu={(e) => e.preventDefault()}
+                />
               )}
               {(status === "QUEUED" || status === "RENDERING") && (
                 <div className="video-block pending"><span className="video-spin" /> Đang tạo video minh hoạ…</div>
