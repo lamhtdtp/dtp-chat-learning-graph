@@ -13,8 +13,25 @@ from app.ingestion.loaders.vision_page_loader import load_or_ocr_page
 from app.ingestion.page_structure import gan_chuong_bai_theo_trang
 from app.ingestion.qdrant_store import upsert_chunks
 
-DATA_ROOT = Path("data/books/maths")
+DATA_ROOT = Path("data/books")
 CACHE_ROOT = Path("data_processed")
+
+# mon -> thư mục ảnh dưới data/books/. Thêm môn mới = thêm 1 dòng ở đây.
+_SUBJECT_FOLDER = {
+    "toan": "maths", "maths": "maths",
+    "tieng_anh": "english", "english": "english", "anh": "english",
+}
+
+
+def _book_dir(mon: str, khoi: str, tap: int) -> Path:
+    """Thư mục ảnh trang của (môn, khối, tập). Hỗ trợ 2 kiểu bố cục:
+    - có thư mục tập:  data/books/<folder>/<khối>/<tap>/*.png  (vd Toán: maths/6/1)
+    - phẳng (1 tập):   data/books/<folder>/<khối>/*.png         (vd Anh: english/6)
+    """
+    folder = _SUBJECT_FOLDER.get(mon, mon)
+    base = DATA_ROOT / folder / khoi.removeprefix("lop_")
+    sub = base / str(tap)
+    return sub if sub.is_dir() else base
 
 
 def _page_numbers(book_dir: Path) -> list[int]:
@@ -43,7 +60,7 @@ async def build_chunks_for_book(
     pairs = []
     for page_no in target:
         md = await load_or_ocr_page(
-            book_dir / f"{page_no}.png", cache_dir / f"{page_no}.md", force=force_ocr
+            book_dir / f"{page_no}.png", cache_dir / f"{page_no}.md", force=force_ocr, mon=mon
         )
         pairs.append((page_no, md))
 
@@ -67,8 +84,9 @@ async def ingest_book(
     force_ocr: bool = False,
 ) -> int:
     """Chạy trọn luồng cho 1 tập sách -> ghi Qdrant. Trả về số chunk đã ghi."""
-    book_dir = DATA_ROOT / khoi.removeprefix("lop_") / str(tap)
-    cache_dir = CACHE_ROOT / f"tap{tap}"
+    book_dir = _book_dir(mon, khoi, tap)
+    # Cache OCR tách theo môn để Anh/Toán không đè nhau (trước chỉ theo tap).
+    cache_dir = CACHE_ROOT / _SUBJECT_FOLDER.get(mon, mon) / f"tap{tap}"
     chunks = await build_chunks_for_book(
         mon=mon, khoi=khoi, sach=sach, tap=tap,
         book_dir=book_dir, cache_dir=cache_dir, pages=pages, force_ocr=force_ocr,

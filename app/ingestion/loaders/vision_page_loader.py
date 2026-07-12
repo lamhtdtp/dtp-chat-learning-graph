@@ -15,7 +15,9 @@ from pathlib import Path
 
 from app.llm import gateway
 
-OCR_PROMPT = (
+# OCR prompt theo môn: Toán nhấn công thức LaTeX + giữ ký hiệu; môn khác (vd
+# Tiếng Anh) giữ nguyên văn bản gốc + cấu trúc hội thoại/từ vựng/bảng.
+_MATH_PROMPT = (
     "Trích xuất TOÀN BỘ nội dung trang sách giáo khoa Toán này thành markdown "
     "tiếng Việt. Yêu cầu:\n"
     "- Công thức toán viết bằng LaTeX (dùng $...$).\n"
@@ -27,20 +29,38 @@ OCR_PROMPT = (
     "ngoặc, đừng bịa nội dung.\n"
     "Chỉ trả về markdown, không thêm lời giải thích."
 )
+_GENERAL_PROMPT = (
+    "Trích xuất TOÀN BỘ nội dung trang sách giáo khoa này thành markdown. Yêu cầu:\n"
+    "- GIỮ NGUYÊN văn bản gốc (giữ tiếng Anh nếu là tiếng Anh, giữ phần tiếng "
+    "Việt nếu có); không dịch, không diễn giải, không bịa.\n"
+    "- Nếu trang có tiêu đề Unit/Lesson/Chương/Bài, viết thành heading markdown "
+    "(ví dụ '# Unit 1: My New School', '## Lesson 1').\n"
+    "- Giữ cấu trúc: bảng từ vựng, hội thoại (mỗi lượt 1 dòng), bài đọc, câu hỏi/"
+    "bài tập đánh số; nếu có công thức thì dùng LaTeX $...$.\n"
+    "- Với hình minh hoạ, ghi chú ngắn gọn trong ngoặc.\n"
+    "Chỉ trả về markdown, không thêm lời giải thích."
+)
+
+# Giữ tên cũ để tương thích (mặc định Toán).
+OCR_PROMPT = _MATH_PROMPT
+
+
+def _prompt_for(mon: str) -> str:
+    return _MATH_PROMPT if mon in ("toan", "maths") else _GENERAL_PROMPT
 
 
 def _image_b64(path: Path) -> str:
     return base64.standard_b64encode(path.read_bytes()).decode()
 
 
-async def ocr_page_image(image_path: Path) -> str:
-    """OCR 1 ảnh trang -> markdown. Không cache — caller (ingest_book/CLI) lo
-    phần cache idempotent qua `load_or_ocr_page`."""
+async def ocr_page_image(image_path: Path, mon: str = "toan") -> str:
+    """OCR 1 ảnh trang -> markdown. Prompt chọn theo môn. Không cache — caller
+    (ingest_book/CLI) lo phần cache idempotent qua `load_or_ocr_page`."""
     messages = [
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": OCR_PROMPT},
+                {"type": "text", "text": _prompt_for(mon)},
                 {
                     "type": "image",
                     "source": {
@@ -55,13 +75,14 @@ async def ocr_page_image(image_path: Path) -> str:
     return await gateway.complete("ocr_page", messages)
 
 
-async def load_or_ocr_page(image_path: Path, cache_path: Path, force: bool = False) -> str:
+async def load_or_ocr_page(image_path: Path, cache_path: Path, force: bool = False,
+                           mon: str = "toan") -> str:
     """Trả markdown của trang; nếu đã có file cache thì đọc lại (idempotent),
     ngược lại OCR rồi ghi cache. `force=True` bỏ qua cache, OCR lại."""
     if cache_path.exists() and not force:
         return cache_path.read_text(encoding="utf-8")
 
-    markdown = await ocr_page_image(image_path)
+    markdown = await ocr_page_image(image_path, mon=mon)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(markdown, encoding="utf-8")
     return markdown
