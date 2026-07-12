@@ -3,18 +3,17 @@ import type { SessionRow } from "../types";
 interface Props {
   sessions: SessionRow[];
   activeId: number | null;
-  userName?: string;
   className?: string;
   onSelect: (id: number) => void;
   onDelete: (id: number) => void;
   onNewChat: () => void;
-  onLogout: () => void;
 }
 
 // Sidebar bên trái khung chat (lịch sử hội thoại). Trên mobile trượt vào dạng
-// drawer (class "open" do ChatView điều khiển).
+// drawer (class "open" do ChatView điều khiển). Đăng xuất/tên nằm ở menu người
+// dùng góc phải app-bar (UserMenu), không lặp ở đây.
 export function ChatSidebar({
-  sessions, activeId, userName, className = "", onSelect, onDelete, onNewChat, onLogout,
+  sessions, activeId, className = "", onSelect, onDelete, onNewChat,
 }: Props) {
   return (
     <aside className={"chat-side " + className}>
@@ -29,12 +28,6 @@ export function ChatSidebar({
               onClick={(e) => { e.stopPropagation(); onDelete(s.id); }}>✕</button>
           </div>
         ))}
-      </div>
-      <div className="side-foot">
-        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {userName || "Học sinh"} · Lớp 6
-        </span>
-        <button className="side-logout" type="button" onClick={onLogout}>Đăng xuất</button>
       </div>
     </aside>
   );

@@ -3,6 +3,7 @@ import { ApiError, generateExam } from "../api";
 import { TUTOR_NAME } from "../config";
 import { renderRich } from "../markdown";
 import { ThemeToggle } from "./ThemeToggle";
+import { UserMenu } from "./UserMenu";
 import type { ExamQuestion, ExamResult } from "../types";
 
 const MUC_DO_LABEL: Record<string, string> = { de: "Dễ", trung_binh: "Trung bình", kho: "Khó" };
@@ -45,8 +46,6 @@ export function ExamView({ teacherName, onLogout }: { teacherName: string; onLog
     finally { setBusy(false); }
   };
 
-  const initial = (teacherName || "GV").trim().charAt(0).toUpperCase();
-
   return (
     <div className="exam-page" data-subject="toan">
       <div className="app-bar">
@@ -57,7 +56,7 @@ export function ExamView({ teacherName, onLogout }: { teacherName: string; onLog
         <span className="pill-select" style={{ cursor: "default" }}>📐 Toán · Lớp 6</span>
         <div className="spacer" />
         <ThemeToggle />
-        <button className="avatar-btn" type="button" title={teacherName} onClick={onLogout} aria-label="Đăng xuất">{initial}</button>
+        <UserMenu name={teacherName} role="giao_vien" onLogout={onLogout} />
       </div>
 
       <div className="exam-grid">

@@ -19,6 +19,7 @@ router = APIRouter(prefix="/sessions", tags=["sessions"])
 class SessionRow(BaseModel):
     id: int
     title: str
+    subject: str
     last_active: str
 
 
@@ -30,14 +31,20 @@ class MessageRow(BaseModel):
 
 @router.get("", response_model=list[SessionRow])
 async def list_sessions(
-    user: User = Depends(get_current_user), session: AsyncSession = Depends(get_session)
+    subject: str | None = None,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
 ) -> list[SessionRow]:
-    rows = await session.scalars(
-        select(ChatSession)
-        .where(ChatSession.user_id == user.id)
-        .order_by(ChatSession.last_active.desc())
-    )
-    return [SessionRow(id=r.id, title=r.title, last_active=r.last_active.isoformat()) for r in rows]
+    """Lịch sử phiên chat của user. `subject` (tuỳ chọn) -> chỉ lấy phiên của môn
+    đó (lịch sử theo môn học)."""
+    q = select(ChatSession).where(ChatSession.user_id == user.id)
+    if subject:
+        q = q.where(ChatSession.subject == subject)
+    rows = await session.scalars(q.order_by(ChatSession.last_active.desc()))
+    return [
+        SessionRow(id=r.id, title=r.title, subject=r.subject, last_active=r.last_active.isoformat())
+        for r in rows
+    ]
 
 
 async def _owned_session(session: AsyncSession, user: User, session_id: int) -> ChatSession:

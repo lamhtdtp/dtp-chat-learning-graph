@@ -110,6 +110,7 @@ class ChatSession(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    subject: Mapped[str] = mapped_column(default="toan", server_default="toan", index=True)  # môn học (đa môn)
     title: Mapped[str] = mapped_column(default="Cuộc trò chuyện")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     last_active: Mapped[datetime] = mapped_column(server_default=func.now())

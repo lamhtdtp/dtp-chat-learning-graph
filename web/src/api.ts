@@ -80,12 +80,18 @@ export function generateExam(hoc_ky: string, tong_so_cau: number): Promise<ExamR
   return post<ExamResult>("/exam/generate", { hoc_ky, tong_so_cau }, true);
 }
 
-export function sendChat(message: string, sessionId: number | null): Promise<ChatResponse> {
-  return post<ChatResponse>("/chat", { message, session_id: sessionId }, true);
+// Học sinh: đề NGẮN bám ma trận (như giáo viên), không cần quyền giáo viên.
+export function generatePracticeExam(hoc_ky = "hk1", tong_so_cau = 5): Promise<ExamResult> {
+  return post<ExamResult>("/exam/practice", { hoc_ky, tong_so_cau }, true);
 }
 
-export function getSessions(): Promise<SessionRow[]> {
-  return req<SessionRow[]>("/sessions", { auth: true });
+export function sendChat(message: string, sessionId: number | null, subject = "toan"): Promise<ChatResponse> {
+  return post<ChatResponse>("/chat", { message, session_id: sessionId, subject }, true);
+}
+
+export function getSessions(subject?: string): Promise<SessionRow[]> {
+  const q = subject ? `?subject=${encodeURIComponent(subject)}` : "";
+  return req<SessionRow[]>(`/sessions${q}`, { auth: true });
 }
 
 export function getSessionMessages(id: number): Promise<MessageRow[]> {
@@ -112,6 +118,11 @@ export function getItestQuiz(topic: string): Promise<QuizData> {
 // phải xin link ký qua endpoint auth này rồi mới gán vào src.
 export function getBookPageUrl(tap: number, page: number): Promise<{ url: string }> {
   return req<{ url: string }>(`/books/pages-url/${tap}/${page}`, { auth: true });
+}
+
+// Danh mục chương trình (panel chủ đề trong chat) — lấy từ taxonomy backend.
+export function getTopics(): Promise<{ mach_noi_dung: string; items: string[] }[]> {
+  return req("/books/topics", { auth: true });
 }
 
 export { ApiError };

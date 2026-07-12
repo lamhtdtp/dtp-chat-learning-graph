@@ -15,10 +15,12 @@ export interface VideoInfo {
   video_url: string | null;
 }
 
-// Chip gợi ý bước tiếp theo dưới câu trả lời (bấm -> gửi `query`).
+// Chip gợi ý dưới câu trả lời. action="ask" -> gửi `query`; action="practice_exam"
+// -> mở đề ngắn sinh theo ma trận.
 export interface Suggestion {
   label: string;
-  query: string;
+  query?: string;
+  action?: "ask" | "practice_exam";
 }
 
 // Đề nghị luyện tập i-Test kèm câu trả lời — chỉ mang chủ đề; bấm nút mới tải đề.
@@ -56,6 +58,7 @@ export interface ChatResponse {
 export interface SessionRow {
   id: number;
   title: string;
+  subject: string;
   last_active: string;
 }
 

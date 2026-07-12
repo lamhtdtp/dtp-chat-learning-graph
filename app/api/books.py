@@ -12,15 +12,60 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import security
 from app.api.deps import get_current_user
-from app.db.models import User
+from app.db.models import CurriculumTopic, Grade, Subject, User
+from app.db.session import get_session
 
 router = APIRouter(prefix="/books", tags=["books"])
 
 # Hiện chỉ có Toán lớp 6; mở rộng mon/khoi khi có sách khác.
 _BOOK_ROOT = Path("data/books/maths/6").resolve()
+
+
+@router.get("/topics")
+async def get_topics(
+    mon: str = "Toán",
+    khoi: str = "Lớp 6",
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    """Danh mục chương trình cho panel chủ đề trong chat — lấy từ taxonomy thật
+    `curriculum_topics` (không hard-code frontend). Gom theo mạch nội dung, giữ
+    thứ tự order_index, khử trùng đơn vị kiến thức."""
+    subject = await session.scalar(select(Subject).filter_by(name=mon))
+    grade = await session.scalar(select(Grade).filter_by(name=khoi))
+    if subject is None or grade is None:
+        return []
+    rows = list(await session.scalars(
+        select(CurriculumTopic)
+        .filter_by(subject_id=subject.id, grade_id=grade.id)
+        .order_by(CurriculumTopic.order_index)
+    ))
+    import re
+
+    def norm(s: str) -> str:
+        return re.sub(r"\s+", " ", (s or "").strip())
+
+    groups: list[dict] = []
+    index: dict[str, dict] = {}
+    for t in rows:
+        mach = norm(t.mach_noi_dung)
+        dv = norm(t.don_vi_kien_thuc)
+        g = index.get(mach.lower())
+        if g is None:
+            g = {"mach_noi_dung": mach, "items": [], "_seen": set()}
+            index[mach.lower()] = g
+            groups.append(g)
+        if dv and dv.lower() not in g["_seen"]:
+            g["_seen"].add(dv.lower())
+            g["items"].append(dv)
+    for g in groups:
+        g.pop("_seen", None)
+    return groups
 
 
 @router.get("/pages-url/{tap}/{page}")

@@ -53,6 +53,7 @@ export function App() {
   return (
     <ChatView
       initialSubject={subject || DEFAULT_SUBJECT}
+      name={session.name}
       onBackToHub={() => setSubject(null)}
       onLogout={handleLogout}
     />

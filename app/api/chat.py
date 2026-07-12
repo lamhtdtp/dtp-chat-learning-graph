@@ -38,6 +38,7 @@ _ITEST_INTENTS = {"hoi_dap", "on_tap", "giai_bai"}
 class ChatRequest(BaseModel):
     message: str
     session_id: int | None = None  # None = phiên mới
+    subject: str = "toan"          # môn học -> gắn vào phiên để lọc lịch sử theo môn
 
 
 class Citation(BaseModel):
@@ -65,9 +66,11 @@ class ItestOffer(BaseModel):
 
 
 class Suggestion(BaseModel):
-    # Chip gợi ý hành động dưới câu trả lời (bấm -> gửi `query` như tin nhắn mới).
+    # Chip gợi ý dưới câu trả lời. action="ask" -> gửi `query` như tin nhắn mới;
+    # action="practice_exam" -> mở đề ngắn sinh theo ma trận (như giáo viên).
     label: str
-    query: str
+    query: str = ""
+    action: str = "ask"
 
 
 class ChatResponse(BaseModel):
@@ -123,21 +126,13 @@ def _maybe_itest(*, message: str, intent: str | None, role: str, answer: str) ->
 _SUGGEST_INTENTS = {"hoi_dap", "on_tap"}
 
 
-def _suggestions(intent: str | None, topic: str) -> list[Suggestion]:
-    """Chip 'tạo đề ngắn luyện tập' dưới câu trả lời. Query NHÚNG chủ đề vừa hỏi
-    + từ khoá 'ôn tập' -> router vào nhánh on_tap và retrieve bám ĐÚNG nội dung
-    vừa học (không sinh đề toàn ma trận, không lạc chủ đề). Câu giải bài tập
-    (giai_bai) -> KHÔNG mời."""
+def _suggestions(intent: str | None) -> list[Suggestion]:
+    """Chip 'Tạo một đề ngắn luyện tập' dưới câu trả lời — bấm sẽ sinh đề NGẮN
+    bám ĐÚNG ma trận đặc tả (như luồng giáo viên), không phải gửi prompt chat.
+    Câu giải bài tập (giai_bai) -> KHÔNG mời."""
     if intent not in _SUGGEST_INTENTS:
         return []
-    topic = " ".join(topic.split())
-    if "về:" in topic:  # bấm chip liên tiếp -> lấy đúng chủ đề, không lồng nhau
-        topic = topic.split("về:")[-1].strip()
-    topic = topic[:200].strip() or "phần vừa học"
-    return [Suggestion(
-        label="Tạo một đề ngắn luyện tập",
-        query=f"Ôn tập nhanh và ra cho em vài bài tập ngắn để luyện về: {topic}",
-    )]
+    return [Suggestion(label="Tạo một đề ngắn luyện tập", action="practice_exam")]
 
 
 def _title_from(text: str) -> str:
@@ -154,7 +149,7 @@ async def chat(
 ) -> ChatResponse:
     # Lấy/ tạo phiên (kiểm quyền sở hữu nếu client gửi session_id).
     if body.session_id is None:
-        chat_session = ChatSession(user_id=user.id, title=_title_from(body.message))
+        chat_session = ChatSession(user_id=user.id, subject=body.subject, title=_title_from(body.message))
         session.add(chat_session)
         await session.flush()
     else:
@@ -217,5 +212,5 @@ async def chat(
         session_id=session_pk,
         video=video,
         itest=itest,
-        suggestions=_suggestions(intent, body.message),
+        suggestions=_suggestions(intent),
     )

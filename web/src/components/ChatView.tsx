@@ -10,11 +10,14 @@ import { BookPageModal } from "./BookPageModal";
 import { MessageBubble } from "./MessageBubble";
 import { ChatSidebar } from "./Sidebar";
 import { ThemeToggle } from "./ThemeToggle";
+import { TopicPanel } from "./TopicPanel";
+import { UserMenu } from "./UserMenu";
 
 export function ChatView({
-  initialSubject, onBackToHub, onLogout,
+  initialSubject, name, onBackToHub, onLogout,
 }: {
   initialSubject: string;
+  name: string;
   onBackToHub: () => void;
   onLogout: () => void;
 }) {
@@ -35,9 +38,10 @@ export function ChatView({
   const { supported: micOk, listening, toggle } = useSpeech((t) => setInput(t));
 
   const refreshSessions = async () => {
-    try { setSessions(await getSessions()); } catch { /* bỏ qua */ }
+    try { setSessions(await getSessions(subject)); } catch { /* bỏ qua */ }
   };
-  useEffect(() => { refreshSessions(); }, []);
+  // Lịch sử theo MÔN: đổi môn -> tải lại danh sách phiên của môn đó.
+  useEffect(() => { refreshSessions(); }, [subject]);
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
@@ -55,7 +59,7 @@ export function ChatView({
     setBusy(true);
     setMessages((m) => [...m, { who: "user", text: q }, { who: "bot", text: "", pending: true }]);
     try {
-      const res = await sendChat(q, activeId);
+      const res = await sendChat(q, activeId, subject);
       setActiveId(res.session_id);
       setMessages((m) => [...m.slice(0, -1), {
         who: "bot", text: res.reply, citations: res.citations,
@@ -104,7 +108,7 @@ export function ChatView({
         </div>
         <div className="spacer" />
         <ThemeToggle />
-        <button className="btn" type="button" onClick={onBackToHub}>Đổi môn</button>
+        <UserMenu name={name} role="hoc_sinh" onLogout={onLogout} />
       </div>
 
       {/* Subject switcher — đổi tab là RE-THEME toàn khung chat */}
@@ -124,12 +128,12 @@ export function ChatView({
         ))}
       </div>
 
-      <div className="chat-frame" data-subject={subject}>
+      <div className={"chat-frame" + (!locked ? " with-topics" : "")} data-subject={subject}>
         {drawer && <div className="drawer-scrim" onClick={() => setDrawer(false)} />}
         <ChatSidebar
           className={drawer ? "open" : ""}
-          sessions={sessions} activeId={activeId} userName=""
-          onSelect={openSession} onDelete={removeSession} onNewChat={newChat} onLogout={onLogout}
+          sessions={sessions} activeId={activeId}
+          onSelect={openSession} onDelete={removeSession} onNewChat={newChat}
         />
 
         <div className="chat-main">
@@ -187,6 +191,8 @@ export function ChatView({
             <div className="foot-note">Trợ lý có thể nhầm — bạn nhớ kiểm tra lại các bước quan trọng nhé.</div>
           </div>
         </div>
+
+        {!locked && <TopicPanel onPick={ask} />}
       </div>
 
       {pageModal && <BookPageModal cite={pageModal} onClose={() => setPageModal(null)} />}

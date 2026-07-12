@@ -1,6 +1,7 @@
 import { TUTOR_NAME } from "../config";
 import { SUBJECTS } from "../subjects";
 import { ThemeToggle } from "./ThemeToggle";
+import { UserMenu } from "./UserMenu";
 
 // Màn gốc điều hướng đa môn (sau đăng nhập, vai trò học sinh). Chọn môn -> vào
 // chat. Môn chưa có dữ liệu (unlocked=false) hiển thị "Sắp ra mắt", không vào.
@@ -12,7 +13,6 @@ export function SubjectHub({
   onLogout: () => void;
 }) {
   const open = SUBJECTS.filter((s) => s.unlocked);
-  const initial = (name || "H").trim().charAt(0).toUpperCase();
 
   return (
     <div className="hub">
@@ -24,7 +24,7 @@ export function SubjectHub({
         <button className="pill-select" type="button">🎒 Lớp 6 ▾</button>
         <div className="spacer" />
         <ThemeToggle />
-        <button className="avatar-btn" type="button" title={name} onClick={onLogout} aria-label="Đăng xuất">{initial}</button>
+        <UserMenu name={name} role="hoc_sinh" onLogout={onLogout} />
       </div>
 
       <div className="hub-body">

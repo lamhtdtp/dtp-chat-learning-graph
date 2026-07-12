@@ -6,7 +6,7 @@ import { SuggestionChips } from "./SuggestionChips";
 
 // Chip mặc định cho câu trả lời cuối khi thiếu (vd mở lại phiên cũ chưa lưu chip).
 const DEFAULT_CHIPS: Suggestion[] = [
-  { label: "Tạo một đề ngắn luyện tập", query: "Ôn tập nhanh và ra cho em vài bài tập ngắn phần vừa học" },
+  { label: "Tạo một đề ngắn luyện tập", action: "practice_exam" },
 ];
 
 // "không tìm thấy trong SGK" là trạng thái CỐ Ý (guard chống bịa), phải khác

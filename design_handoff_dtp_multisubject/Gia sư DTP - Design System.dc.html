@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Baloo+2:wght@500;600;700&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; }
+  /* ===== DTP DESIGN TOKENS ===== */
+  .dtp {
+    /* Brand (fixed across subjects) */
+    --brand: #1b4fbf;
+    --brand-strong: #143a8f;
+    --brand-ink: #ffffff;
+
+    /* Light surfaces */
+    --bg: #f4f8ff;
+    --surface: #ffffff;
+    --surface-2: #eef3fe;
+    --surface-3: #e3ecfc;
+    --border: #d8e2f5;
+    --border-strong: #c2d1ee;
+    --ink: #0f1b33;
+    --ink-2: #4b5876;
+    --ink-3: #8593b4;
+
+    /* Feedback */
+    --ok: #16a34a;
+    --warn: #d97706;
+    --err: #dc2626;
+
+    /* Difficulty */
+    --easy: #16a34a;
+    --mid: #d97706;
+    --hard: #dc2626;
+
+    /* Elevation */
+    --sh-1: 0 1px 2px rgba(16,27,51,.06), 0 1px 3px rgba(16,27,51,.05);
+    --sh-2: 0 4px 14px rgba(16,27,51,.08), 0 2px 6px rgba(16,27,51,.05);
+    --sh-3: 0 18px 48px rgba(16,27,51,.16), 0 6px 16px rgba(16,27,51,.10);
+
+    /* Radii + rhythm */
+    --r-sm: 8px; --r-md: 12px; --r-lg: 18px; --r-xl: 26px; --r-pill: 999px;
+    --sp: 4px;
+
+    /* Default subject accent = Toán (brand) */
+    --subject: #1b4fbf;
+
+    /* ===== Theme-per-subject: ALL derived from one --subject on --surface/--ink ===== */
+    --accent: var(--subject);
+    --accent-strong: color-mix(in oklab, var(--subject) 78%, #000);
+    --accent-soft: color-mix(in oklab, var(--subject) 12%, var(--surface));
+    --accent-soft-2: color-mix(in oklab, var(--subject) 20%, var(--surface));
+    --accent-border: color-mix(in oklab, var(--subject) 34%, var(--border));
+    --accent-ink: color-mix(in oklab, var(--subject) 62%, var(--ink));
+    --accent-glow: color-mix(in oklab, var(--subject) 30%, transparent);
+    --on-accent: #ffffff;
+
+    color-scheme: light;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Be Vietnam Pro", system-ui, -apple-system, sans-serif;
+    font-feature-settings: "ss01";
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+  }
+  /* Auto dark (follows OS) unless user forced light */
+  @media (prefers-color-scheme: dark) {
+    .dtp:not([data-theme="light"]) {
+      --bg: #0a1120; --surface: #111a2e; --surface-2: #16223a; --surface-3: #1d2c48;
+      --border: #263654; --border-strong: #33456a;
+      --ink: #eaf0ff; --ink-2: #a7b6d6; --ink-3: #6f7fa3;
+      --brand: #4f82ff; --brand-strong: #6f9bff;
+      --accent-soft: color-mix(in oklab, var(--subject) 26%, var(--surface));
+      --accent-soft-2: color-mix(in oklab, var(--subject) 38%, var(--surface));
+      --accent-border: color-mix(in oklab, var(--subject) 46%, var(--border));
+      --accent-ink: color-mix(in oklab, var(--subject) 42%, var(--ink));
+      --sh-2: 0 4px 14px rgba(0,0,0,.34), 0 2px 6px rgba(0,0,0,.3);
+      --sh-3: 0 20px 52px rgba(0,0,0,.55), 0 6px 16px rgba(0,0,0,.4);
+      color-scheme: dark;
+    }
+  }
+  /* Manual dark override */
+  .dtp[data-theme="dark"] {
+    --bg: #0a1120; --surface: #111a2e; --surface-2: #16223a; --surface-3: #1d2c48;
+    --border: #263654; --border-strong: #33456a;
+    --ink: #eaf0ff; --ink-2: #a7b6d6; --ink-3: #6f7fa3;
+    --brand: #4f82ff; --brand-strong: #6f9bff;
+    --accent-soft: color-mix(in oklab, var(--subject) 26%, var(--surface));
+    --accent-soft-2: color-mix(in oklab, var(--subject) 38%, var(--surface));
+    --accent-border: color-mix(in oklab, var(--subject) 46%, var(--border));
+    --accent-ink: color-mix(in oklab, var(--subject) 42%, var(--ink));
+    --sh-2: 0 4px 14px rgba(0,0,0,.34), 0 2px 6px rgba(0,0,0,.3);
+    --sh-3: 0 20px 52px rgba(0,0,0,.55), 0 6px 16px rgba(0,0,0,.4);
+    color-scheme: dark;
+  }
+  /* Subject accents (single source per subject) */
+  .dtp [data-subject="toan"]  { --subject: #1b4fbf; }
+  .dtp [data-subject="van"]   { --subject: #e0457b; }
+  .dtp [data-subject="anh"]   { --subject: #7c4dff; }
+  .dtp [data-subject="khtn"]  { --subject: #10a596; }
+  .dtp [data-subject="sudia"] { --subject: #d9820a; }
+  .dtp [data-subject="tin"]   { --subject: #0e9bc4; }
+  .dtp [data-subject="gdcd"]  { --subject: #12a150; }
+
+  .dtp ::selection { background: var(--accent-glow); }
+  .dtp :focus-visible { outline: 3px solid color-mix(in oklab, var(--accent) 55%, transparent); outline-offset: 2px; border-radius: 6px; }
+
+  @keyframes dtp-fade { from { opacity: 0; transform: translateY(8px);} to { opacity: 1; transform: none; } }
+  @keyframes dtp-pop { from { opacity: 0; transform: translateY(14px) scale(.97);} to { opacity: 1; transform: none; } }
+  @keyframes dtp-blink { 0%,100%{ opacity:.25 } 50%{ opacity:1 } }
+  @keyframes dtp-shimmer { from { background-position: -180% 0 } to { background-position: 180% 0 } }
+  @keyframes dtp-spin { to { transform: rotate(360deg) } }
+  @media (prefers-reduced-motion: reduce) { .dtp * { animation-duration: .001ms !important; } }
+  .dtp .subj-tab[aria-current="true"] { background: var(--accent); color: #fff; border-color: transparent; box-shadow: 0 6px 16px var(--accent-glow); }
+  .dtp .subj-tab:not([aria-current="true"]):hover { background: var(--accent-soft); }
+  .dtp code { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  @media (max-width: 720px) {
+    .dtp [data-chatgrid] { grid-template-columns: 1fr !important; }
+    .dtp [data-chatgrid] > aside { display: none !important; }
+    .dtp [data-teachergrid] { grid-template-columns: 1fr !important; }
+    .dtp [data-teachergrid] > div:first-child { position: static !important; }
+  }
+</style>
+</helmet>
+<div class="dtp" data-theme="{{ themeAttr }}" style="min-height:100vh; padding-bottom:80px;">
+
+  <!-- ===== TOOLBAR ===== -->
+  <header style="position:sticky; top:0; z-index:40; backdrop-filter: blur(12px); background: color-mix(in oklab, var(--bg) 82%, transparent); border-bottom:1px solid var(--border);">
+    <div style="max-width:1180px; margin:0 auto; padding:12px 20px; display:flex; align-items:center; gap:14px;">
+      <div style="display:flex; align-items:center; gap:11px; min-width:0;">
+        <div style="width:38px; height:38px; border-radius:11px; background:linear-gradient(135deg, var(--brand), var(--brand-strong)); display:grid; place-items:center; box-shadow: var(--sh-2); flex:none;">
+          <span style="font-family:'Baloo 2',sans-serif; font-weight:700; color:#fff; font-size:18px; letter-spacing:-.5px;">D</span>
+        </div>
+        <div style="min-width:0;">
+          <div style="font-family:'Baloo 2',sans-serif; font-weight:700; font-size:17px; line-height:1; letter-spacing:-.2px;">Gia sư DTP</div>
+          <div style="font-size:11.5px; color:var(--ink-2); font-weight:500;">Design System · Đa môn</div>
+        </div>
+      </div>
+      <nav style="margin-left:14px; display:flex; gap:2px; overflow-x:auto;">
+        <a href="#tokens" style="padding:7px 11px; border-radius:var(--r-pill); font-size:13px; font-weight:600; color:var(--ink-2); text-decoration:none; white-space:nowrap;">Tokens</a>
+        <a href="#components" style="padding:7px 11px; border-radius:var(--r-pill); font-size:13px; font-weight:600; color:var(--ink-2); text-decoration:none; white-space:nowrap;">Components</a>
+        <a href="#hub" style="padding:7px 11px; border-radius:var(--r-pill); font-size:13px; font-weight:600; color:var(--ink-2); text-decoration:none; white-space:nowrap;">Subject Hub</a>
+        <a href="#chat" style="padding:7px 11px; border-radius:var(--r-pill); font-size:13px; font-weight:600; color:var(--ink-2); text-decoration:none; white-space:nowrap;">Chat</a>
+        <a href="#teacher" style="padding:7px 11px; border-radius:var(--r-pill); font-size:13px; font-weight:600; color:var(--ink-2); text-decoration:none; white-space:nowrap;">Sinh đề</a>
+      </nav>
+      <button onClick="{{ toggleTheme }}" aria-label="Đổi giao diện sáng/tối" style="margin-left:auto; flex:none; height:40px; padding:0 14px; border-radius:var(--r-pill); border:1px solid var(--border); background:var(--surface); color:var(--ink); font-weight:600; font-size:13px; font-family:inherit; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow:var(--sh-1);">
+        <span style="font-size:15px;">{{ themeIcon }}</span><span>{{ themeLabel }}</span>
+      </button>
+    </div>
+  </header>
+
+  <main style="max-width:1180px; margin:0 auto; padding:0 20px;">
+
+    <!-- ===== MOODBOARD / HERO ===== -->
+    <section style="padding:56px 0 40px; animation: dtp-fade .5s ease both;">
+      <div style="display:inline-flex; align-items:center; gap:8px; padding:6px 13px; border-radius:var(--r-pill); background:var(--accent-soft); border:1px solid var(--accent-border); color:var(--accent-ink); font-weight:600; font-size:12.5px; margin-bottom:18px;">
+        <span style="width:7px; height:7px; border-radius:50%; background:var(--accent);"></span>Redesign · v2 · học sinh 6–12 &amp; giáo viên
+      </div>
+      <h1 style="font-family:'Baloo 2',sans-serif; font-weight:700; font-size:clamp(32px,5.4vw,52px); line-height:1.05; letter-spacing:-1px; margin:0 0 18px; max-width:16ch;">
+        Một trợ lý học tập, <span style="color:var(--brand);">mọi môn học.</span>
+      </h1>
+      <p style="font-size:clamp(15px,2vw,18px); color:var(--ink-2); max-width:62ch; margin:0 0 26px; text-wrap:pretty;">
+        <b style="color:var(--ink);">Moodboard.</b> Đáng tin như một cuốn SGK — sạch, nhiều khoảng thở, chữ dễ đọc tiếng Việt có dấu.
+        Vui vừa đủ cho học sinh qua bo góc mềm, màu môn tươi và mascot chữ. Nghiêm túc với giáo viên qua bố cục dạng bảng, dữ liệu rõ ràng.
+        Toàn bộ giao diện giữ <b style="color:var(--ink);">một khung xanh DTP</b>, chỉ đổi <b style="color:var(--ink);">màu nhấn theo môn</b>.
+      </p>
+      <div style="display:flex; flex-wrap:wrap; gap:10px;">
+        <div style="display:flex; align-items:center; gap:8px; padding:8px 14px; border-radius:var(--r-pill); background:var(--surface); border:1px solid var(--border); font-size:13px; font-weight:600; box-shadow:var(--sh-1);"><span style="width:14px;height:14px;border-radius:4px;background:var(--brand);"></span>#1b4fbf DTP</div>
+        <div style="display:flex; align-items:center; gap:8px; padding:8px 14px; border-radius:var(--r-pill); background:var(--surface); border:1px solid var(--border); font-size:13px; font-weight:600; box-shadow:var(--sh-1);">Be Vietnam Pro</div>
+        <div style="display:flex; align-items:center; gap:8px; padding:8px 14px; border-radius:var(--r-pill); background:var(--surface); border:1px solid var(--border); font-size:13px; font-weight:600; font-family:'Baloo 2';box-shadow:var(--sh-1);">Baloo 2 · điểm nhấn</div>
+        <div style="display:flex; align-items:center; gap:8px; padding:8px 14px; border-radius:var(--r-pill); background:var(--surface); border:1px solid var(--border); font-size:13px; font-weight:600; box-shadow:var(--sh-1);">Sáng · Tối · Auto</div>
+      </div>
+    </section>
+    <!-- ===== TOKENS ===== -->
+    <section id="tokens" style="padding:28px 0; scroll-margin-top:84px;">
+      <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:6px;">
+        <span style="font-family:'Baloo 2'; font-weight:700; color:var(--accent); font-size:14px;">01</span>
+        <h2 style="font-family:'Baloo 2'; font-weight:700; font-size:26px; margin:0; letter-spacing:-.4px;">Design Tokens</h2>
+      </div>
+      <p style="color:var(--ink-2); margin:0 0 22px; max-width:64ch;">Toàn bộ hệ thống chạy trên biến CSS: đổi <code style="background:var(--surface-2); padding:1px 6px; border-radius:6px; font-size:12.5px;">--subject</code> là cả theme môn đổi theo. Nền sáng/tối dùng <code style="background:var(--surface-2); padding:1px 6px; border-radius:6px; font-size:12.5px;">prefers-color-scheme</code> + <code style="background:var(--surface-2); padding:1px 6px; border-radius:6px; font-size:12.5px;">data-theme</code>.</p>
+
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:16px;">
+        <!-- Brand & surfaces -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; box-shadow:var(--sh-1);">
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:14px;">Thương hiệu &amp; nền</div>
+          <div style="display:grid; gap:9px;">
+            <div style="display:flex; align-items:center; gap:11px;"><span style="width:34px;height:34px;border-radius:9px;background:var(--brand);box-shadow:var(--sh-1);"></span><div><div style="font-weight:600;font-size:13px;">--brand</div><div style="font-size:11.5px;color:var(--ink-3);font-family:monospace;">#1b4fbf</div></div></div>
+            <div style="display:flex; align-items:center; gap:11px;"><span style="width:34px;height:34px;border-radius:9px;background:var(--bg);border:1px solid var(--border);"></span><div><div style="font-weight:600;font-size:13px;">--bg</div><div style="font-size:11.5px;color:var(--ink-3);font-family:monospace;">page</div></div></div>
+            <div style="display:flex; align-items:center; gap:11px;"><span style="width:34px;height:34px;border-radius:9px;background:var(--surface);border:1px solid var(--border);"></span><div><div style="font-weight:600;font-size:13px;">--surface</div><div style="font-size:11.5px;color:var(--ink-3);font-family:monospace;">card</div></div></div>
+            <div style="display:flex; align-items:center; gap:11px;"><span style="width:34px;height:34px;border-radius:9px;background:var(--surface-2);border:1px solid var(--border);"></span><div><div style="font-weight:600;font-size:13px;">--surface-2</div><div style="font-size:11.5px;color:var(--ink-3);font-family:monospace;">subtle</div></div></div>
+          </div>
+        </div>
+        <!-- Ink -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; box-shadow:var(--sh-1);">
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:14px;">Chữ &amp; phản hồi</div>
+          <div style="display:grid; gap:9px;">
+            <div style="display:flex; align-items:center; gap:11px;"><span style="width:34px;height:34px;border-radius:9px;background:var(--ink);"></span><div><div style="font-weight:600;font-size:13px;">--ink</div><div style="font-size:11.5px;color:var(--ink-3);">văn bản chính</div></div></div>
+            <div style="display:flex; align-items:center; gap:11px;"><span style="width:34px;height:34px;border-radius:9px;background:var(--ink-2);"></span><div><div style="font-weight:600;font-size:13px;">--ink-2</div><div style="font-size:11.5px;color:var(--ink-3);">phụ / mờ</div></div></div>
+            <div style="display:flex; align-items:center; gap:11px;"><span style="width:34px;height:34px;border-radius:9px;background:var(--ok);"></span><div><div style="font-weight:600;font-size:13px;">--ok</div><div style="font-size:11.5px;color:var(--ink-3);">đúng / thành công</div></div></div>
+            <div style="display:flex; align-items:center; gap:11px;"><span style="width:34px;height:34px;border-radius:9px;background:var(--err);"></span><div><div style="font-weight:600;font-size:13px;">--err</div><div style="font-size:11.5px;color:var(--ink-3);">lỗi / sai</div></div></div>
+          </div>
+        </div>
+        <!-- Type scale -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; box-shadow:var(--sh-1);">
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:12px;">Kiểu chữ</div>
+          <div style="font-family:'Baloo 2'; font-weight:700; font-size:28px; line-height:1.1; letter-spacing:-.5px;">Aa Đđ Ương</div>
+          <div style="font-size:11.5px; color:var(--ink-3); margin:2px 0 12px;">Baloo 2 · tiêu đề, mascot, con số vui</div>
+          <div style="font-family:'Be Vietnam Pro'; font-weight:600; font-size:16px;">Học tốt mọi môn cùng DTP</div>
+          <div style="font-family:'Be Vietnam Pro'; font-weight:400; font-size:14px; color:var(--ink-2);">Be Vietnam Pro · nội dung, dấu tiếng Việt gọn, dễ đọc dài.</div>
+          <div style="margin-top:10px; font-size:12px; color:var(--ink-3);">Vì sao đổi: Baloo 2 <b style="color:var(--ink-2);">chỉ dùng điểm nhấn</b> (không cho đoạn dài — chữ tròn khó đọc dày đặc); Be Vietnam Pro làm nền vì bộ dấu tiếng Việt cân đối, đáng tin.</div>
+        </div>
+        <!-- Radius/space/elevation -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; box-shadow:var(--sh-1);">
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:14px;">Bo góc &amp; đổ bóng</div>
+          <div style="display:flex; gap:8px; align-items:flex-end; margin-bottom:14px;">
+            <div style="width:38px;height:38px;background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:var(--r-sm);"></div>
+            <div style="width:38px;height:38px;background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:var(--r-md);"></div>
+            <div style="width:38px;height:38px;background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:var(--r-lg);"></div>
+            <div style="width:38px;height:38px;background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:var(--r-xl);"></div>
+          </div>
+          <div style="display:flex; gap:12px;">
+            <div style="width:52px;height:38px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--sh-1);"></div>
+            <div style="width:52px;height:38px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--sh-2);"></div>
+            <div style="width:52px;height:38px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--sh-3);"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subject palette + formula -->
+      <div style="margin-top:16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:20px; box-shadow:var(--sh-1);">
+        <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:14px;">Màu môn → sinh theme (1 màu → cả bộ)</div>
+        <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px;">
+          <div data-subject="toan"  style="display:flex;align-items:center;gap:9px;padding:9px 14px;border-radius:var(--r-pill);background:var(--accent-soft);border:1px solid var(--accent-border);"><span style="width:16px;height:16px;border-radius:5px;background:var(--accent);"></span><b style="font-size:13px;color:var(--accent-ink);">Toán</b></div>
+          <div data-subject="van"   style="display:flex;align-items:center;gap:9px;padding:9px 14px;border-radius:var(--r-pill);background:var(--accent-soft);border:1px solid var(--accent-border);"><span style="width:16px;height:16px;border-radius:5px;background:var(--accent);"></span><b style="font-size:13px;color:var(--accent-ink);">Ngữ văn</b></div>
+          <div data-subject="anh"   style="display:flex;align-items:center;gap:9px;padding:9px 14px;border-radius:var(--r-pill);background:var(--accent-soft);border:1px solid var(--accent-border);"><span style="width:16px;height:16px;border-radius:5px;background:var(--accent);"></span><b style="font-size:13px;color:var(--accent-ink);">Tiếng Anh</b></div>
+          <div data-subject="khtn"  style="display:flex;align-items:center;gap:9px;padding:9px 14px;border-radius:var(--r-pill);background:var(--accent-soft);border:1px solid var(--accent-border);"><span style="width:16px;height:16px;border-radius:5px;background:var(--accent);"></span><b style="font-size:13px;color:var(--accent-ink);">KHTN</b></div>
+          <div data-subject="sudia" style="display:flex;align-items:center;gap:9px;padding:9px 14px;border-radius:var(--r-pill);background:var(--accent-soft);border:1px solid var(--accent-border);"><span style="width:16px;height:16px;border-radius:5px;background:var(--accent);"></span><b style="font-size:13px;color:var(--accent-ink);">Sử &amp; Địa</b></div>
+          <div data-subject="tin"   style="display:flex;align-items:center;gap:9px;padding:9px 14px;border-radius:var(--r-pill);background:var(--accent-soft);border:1px solid var(--accent-border);"><span style="width:16px;height:16px;border-radius:5px;background:var(--accent);"></span><b style="font-size:13px;color:var(--accent-ink);">Tin học</b></div>
+          <div data-subject="gdcd"  style="display:flex;align-items:center;gap:9px;padding:9px 14px;border-radius:var(--r-pill);background:var(--accent-soft);border:1px solid var(--accent-border);"><span style="width:16px;height:16px;border-radius:5px;background:var(--accent);"></span><b style="font-size:13px;color:var(--accent-ink);">GDCD</b></div>
+        </div>
+        <pre style="margin:0; overflow-x:auto; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r-md); padding:14px 16px; font-size:12.5px; line-height:1.7; color:var(--ink-2);"><code>--subject: #e0457b;        <span style="color:var(--ink-3);">/* chỉ đặt 1 biến này theo môn */</span>
+--accent:        var(--subject);
+--accent-soft:   color-mix(in oklab, var(--subject) 12%, var(--surface));
+--accent-border: color-mix(in oklab, var(--subject) 34%, var(--border));
+--accent-ink:    color-mix(in oklab, var(--subject) 62%, var(--ink));   <span style="color:var(--ink-3);">/* auto-tương phản */</span></code></pre>
+        <p style="margin:12px 0 0; font-size:12.5px; color:var(--ink-2);">Nền tối tự tăng % pha để giữ tương phản WCAG AA. Khung bố cục, khoảng cách, bo góc <b style="color:var(--ink);">không đổi</b> khi chuyển môn — chỉ màu nhấn.</p>
+      </div>
+    </section>
+
+    <!-- ===== COMPONENT LIBRARY ===== -->
+    <section id="components" style="padding:28px 0; scroll-margin-top:84px;" data-subject="toan">
+      <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:6px;">
+        <span style="font-family:'Baloo 2'; font-weight:700; color:var(--accent); font-size:14px;">02</span>
+        <h2 style="font-family:'Baloo 2'; font-weight:700; font-size:26px; margin:0; letter-spacing:-.4px;">Component Library</h2>
+      </div>
+      <p style="color:var(--ink-2); margin:0 0 22px; max-width:64ch;">Mọi thành phần đều lấy màu qua <code style="background:var(--surface-2); padding:1px 6px; border-radius:6px; font-size:12.5px;">var(--accent…)</code> nên tự đổi theo môn. Chạm ≥ 44px, có trạng thái hover/focus rõ.</p>
+
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px;">
+
+        <!-- Buttons -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; box-shadow:var(--sh-1);">
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:14px;">Nút</div>
+          <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+            <button style="height:44px;padding:0 20px;border:none;border-radius:var(--r-pill);background:var(--accent);color:var(--on-accent);font-weight:700;font-size:14px;font-family:inherit;cursor:pointer;box-shadow:0 6px 16px var(--accent-glow);" style-hover="filter:brightness(1.06);transform:translateY(-1px);">Gửi câu hỏi</button>
+            <button style="height:44px;padding:0 18px;border:1px solid var(--accent-border);border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-ink);font-weight:600;font-size:14px;font-family:inherit;cursor:pointer;" style-hover="background:var(--accent-soft-2);">Thứ hai</button>
+            <button style="height:44px;padding:0 16px;border:1px solid var(--border);border-radius:var(--r-pill);background:transparent;color:var(--ink-2);font-weight:600;font-size:14px;font-family:inherit;cursor:pointer;" style-hover="border-color:var(--border-strong);color:var(--ink);">Ghost</button>
+            <button aria-label="Ghi âm" style="width:44px;height:44px;border:1px solid var(--border);border-radius:50%;background:var(--surface);color:var(--ink-2);font-size:17px;cursor:pointer;" style-hover="color:var(--accent);border-color:var(--accent-border);">🎤</button>
+          </div>
+        </div>
+
+        <!-- Chips + difficulty -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; box-shadow:var(--sh-1);">
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:14px;">Chip gợi ý &amp; badge mức độ</div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+            <button style="height:36px;padding:0 14px;border:1px solid var(--accent-border);border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-ink);font-weight:600;font-size:13px;font-family:inherit;cursor:pointer;">Giải phương trình bậc 2</button>
+            <button style="height:36px;padding:0 14px;border:1px solid var(--border);border-radius:var(--r-pill);background:var(--surface-2);color:var(--ink-2);font-weight:600;font-size:13px;font-family:inherit;cursor:pointer;">Ôn tập chương 3</button>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <span style="display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;border-radius:var(--r-pill);background:color-mix(in oklab,var(--easy) 15%,var(--surface));color:var(--easy);font-weight:700;font-size:12px;">● Dễ</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;border-radius:var(--r-pill);background:color-mix(in oklab,var(--mid) 15%,var(--surface));color:var(--mid);font-weight:700;font-size:12px;">● TB</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;border-radius:var(--r-pill);background:color-mix(in oklab,var(--hard) 15%,var(--surface));color:var(--hard);font-weight:700;font-size:12px;">● Khó</span>
+          </div>
+        </div>
+
+        <!-- Citation chip -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; box-shadow:var(--sh-1);">
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:14px;">Chip trích dẫn SGK</div>
+          <button style="display:inline-flex;align-items:center;gap:9px;height:40px;padding:0 8px 0 14px;border:1px solid var(--accent-border);border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-ink);font-weight:600;font-size:13px;font-family:inherit;cursor:pointer;box-shadow:var(--sh-1);" style-hover="background:var(--accent-soft-2);">
+            <span style="font-size:15px;">📖</span> Trang 42 · Bài 3
+            <span style="display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--surface);color:var(--accent);font-size:14px;">↗</span>
+          </button>
+          <p style="margin:12px 0 0; font-size:12px; color:var(--ink-3);">Bấm để mở ảnh trang sách gốc.</p>
+        </div>
+
+        <!-- Input -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; box-shadow:var(--sh-1); grid-column:1/-1;">
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:14px;">Ô nhập (micro + gửi)</div>
+          <div style="display:flex; align-items:center; gap:10px; background:var(--surface-2); border:1.5px solid var(--border); border-radius:var(--r-xl); padding:8px 8px 8px 18px;">
+            <span style="flex:1; color:var(--ink-3); font-size:15px;">Hỏi Gia sư DTP một câu hỏi…</span>
+            <button aria-label="Ghi âm" style="width:44px;height:44px;border:none;border-radius:50%;background:transparent;color:var(--ink-2);font-size:18px;cursor:pointer;flex:none;">🎤</button>
+            <button aria-label="Gửi" style="width:44px;height:44px;border:none;border-radius:50%;background:var(--accent);color:#fff;font-size:18px;cursor:pointer;flex:none;box-shadow:0 6px 16px var(--accent-glow);">↑</button>
+          </div>
+        </div>
+
+        <!-- Chat bubbles -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; box-shadow:var(--sh-1); grid-column:1/-1;">
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:14px;">Bong bóng hội thoại</div>
+          <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+            <div style="max-width:80%; background:var(--accent); color:var(--on-accent); padding:11px 16px; border-radius:var(--r-lg) var(--r-lg) 6px var(--r-lg); font-size:14.5px; box-shadow:0 4px 12px var(--accent-glow);">Giải giúp em phương trình x² − 5x + 6 = 0</div>
+          </div>
+          <div style="display:flex; gap:10px; align-items:flex-start;">
+            <div style="width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--brand-strong));display:grid;place-items:center;flex:none;font-family:'Baloo 2';font-weight:700;color:#fff;font-size:13px;">D</div>
+            <div style="max-width:80%; background:var(--surface-2); border:1px solid var(--border); padding:12px 16px; border-radius:var(--r-lg) var(--r-lg) var(--r-lg) 6px; font-size:14.5px;">
+              Ta có phương trình bậc hai với <span style="font-style:italic;">a=1, b=−5, c=6</span>. Nghiệm:
+              <div style="margin:8px 0; padding:9px 14px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md); font-family:'Cambria Math',Georgia,serif; font-size:16px; text-align:center;">x = (5 ± √(25 − 24)) / 2 → x₁ = 3, x₂ = 2</div>
+              <span style="font-size:12px; color:var(--ink-3);">Công thức hiển thị bằng KaTeX trong sản phẩm.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Video card + Quiz card -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; box-shadow:var(--sh-1);">
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:14px;">Thẻ video AI</div>
+          <div style="display:flex; gap:13px; align-items:center; padding:12px; border:1px solid var(--border); border-radius:var(--r-md); background:var(--surface-2);">
+            <div style="width:74px;height:52px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-strong));display:grid;place-items:center;flex:none;position:relative;overflow:hidden;">
+              <div style="width:0;height:0;border-left:14px solid #fff;border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:3px;"></div>
+            </div>
+            <div style="min-width:0;"><div style="font-weight:600;font-size:14px;">Minh hoạ: Định lý Viète</div><div style="font-size:12px;color:var(--ink-3);">Video AI · 1:24</div></div>
+          </div>
+        </div>
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; box-shadow:var(--sh-1);">
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:14px;">Thẻ i-Test</div>
+          <div style="padding:14px; border:1px solid var(--accent-border); border-radius:var(--r-md); background:var(--accent-soft);">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="font-size:16px;">✏️</span><b style="font-size:14px;color:var(--accent-ink);">Luyện tập: Phương trình bậc hai</b></div>
+            <div style="font-size:12.5px;color:var(--accent-ink);opacity:.85;margin-bottom:12px;">5 câu · trắc nghiệm · chấm ngay</div>
+            <button style="height:38px;padding:0 16px;border:none;border-radius:var(--r-pill);background:var(--accent);color:#fff;font-weight:700;font-size:13px;font-family:inherit;cursor:pointer;">Bắt đầu →</button>
+          </div>
+        </div>
+
+        <!-- States -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; box-shadow:var(--sh-1); grid-column:1/-1;">
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:14px;">Trạng thái: rỗng · tải · lỗi · ngoài SGK</div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px;">
+            <div style="text-align:center;padding:18px 14px;border:1px dashed var(--border-strong);border-radius:var(--r-md);">
+              <div style="font-size:26px;">💬</div><div style="font-weight:600;font-size:13.5px;margin-top:6px;">Chưa có hội thoại</div><div style="font-size:12px;color:var(--ink-3);">Chọn một gợi ý để bắt đầu.</div>
+            </div>
+            <div style="padding:18px 14px;border:1px solid var(--border);border-radius:var(--r-md);">
+              <div style="display:flex;gap:5px;margin-bottom:10px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--accent);animation:dtp-blink 1s infinite;"></span><span style="width:8px;height:8px;border-radius:50%;background:var(--accent);animation:dtp-blink 1s .2s infinite;"></span><span style="width:8px;height:8px;border-radius:50%;background:var(--accent);animation:dtp-blink 1s .4s infinite;"></span></div>
+              <div style="height:10px;border-radius:5px;margin-bottom:7px;background:linear-gradient(90deg,var(--surface-2),var(--surface-3),var(--surface-2));background-size:200% 100%;animation:dtp-shimmer 1.4s infinite;"></div>
+              <div style="height:10px;width:70%;border-radius:5px;background:linear-gradient(90deg,var(--surface-2),var(--surface-3),var(--surface-2));background-size:200% 100%;animation:dtp-shimmer 1.4s infinite;"></div>
+            </div>
+            <div style="padding:18px 14px;border:1px solid color-mix(in oklab,var(--err) 32%,var(--border));border-radius:var(--r-md);background:color-mix(in oklab,var(--err) 8%,var(--surface));">
+              <div style="font-weight:600;font-size:13.5px;color:var(--err);">⚠️ Mất kết nối</div><div style="font-size:12px;color:var(--ink-2);margin:4px 0 10px;">Không gửi được câu hỏi.</div><button style="height:32px;padding:0 12px;border:1px solid var(--err);border-radius:var(--r-pill);background:transparent;color:var(--err);font-weight:600;font-size:12px;font-family:inherit;cursor:pointer;">Thử lại</button>
+            </div>
+            <div style="padding:18px 14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);">
+              <div style="font-weight:600;font-size:13.5px;">📗 Chưa có trong SGK</div><div style="font-size:12px;color:var(--ink-2);margin:4px 0 0;">Nội dung này không có trong sách hiện chọn. Em có muốn xem giải thích tổng quát không?</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ===== SUBJECT HUB ===== -->
+    <section id="hub" style="padding:28px 0; scroll-margin-top:84px;">
+      <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:6px;">
+        <span style="font-family:'Baloo 2'; font-weight:700; color:var(--brand); font-size:14px;">03</span>
+        <h2 style="font-family:'Baloo 2'; font-weight:700; font-size:26px; margin:0; letter-spacing:-.4px;">Subject Hub</h2>
+      </div>
+      <p style="color:var(--ink-2); margin:0 0 20px; max-width:64ch;">Màn sau đăng nhập: lưới thẻ môn (mỗi môn màu + icon riêng), lớp đang học, gợi ý gần đây. Đây là gốc điều hướng đa môn.</p>
+
+      <div style="border:1px solid var(--border); border-radius:var(--r-xl); overflow:hidden; box-shadow:var(--sh-3); background:var(--bg);">
+        <!-- app bar -->
+        <div style="display:flex; align-items:center; gap:12px; padding:14px 20px; background:var(--surface); border-bottom:1px solid var(--border);">
+          <div style="width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--brand-strong));display:grid;place-items:center;flex:none;font-family:'Baloo 2';font-weight:700;color:#fff;font-size:15px;">D</div>
+          <b style="font-family:'Baloo 2';font-size:15px;">Gia sư DTP</b>
+          <button style="margin-left:6px;display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 12px;border:1px solid var(--border);border-radius:var(--r-pill);background:var(--surface-2);font-weight:600;font-size:13px;color:var(--ink);font-family:inherit;cursor:pointer;">🎒 Lớp 9 <span style="color:var(--ink-3);">▾</span></button>
+          <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+            <button aria-label="Thông báo" style="width:38px;height:38px;border-radius:50%;border:1px solid var(--border);background:var(--surface);font-size:15px;cursor:pointer;">🔔</button>
+            <div style="width:38px;height:38px;border-radius:50%;background:var(--surface-3);display:grid;place-items:center;font-weight:700;color:var(--brand);">M</div>
+          </div>
+        </div>
+
+        <div style="padding:26px 22px;">
+          <h3 style="font-family:'Baloo 2'; font-weight:700; font-size:24px; margin:0 0 4px; letter-spacing:-.4px;">Chào Minh 👋 Hôm nay học môn gì?</h3>
+          <p style="color:var(--ink-2); margin:0 0 20px; font-size:14.5px;">Chọn một môn để bắt đầu hỏi bài, luyện tập hoặc ôn tập.</p>
+
+          <!-- recent -->
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:10px;">Gần đây</div>
+          <div style="display:flex; gap:10px; overflow-x:auto; padding-bottom:14px; margin-bottom:8px;">
+            <button data-subject="toan" style="flex:none;display:flex;align-items:center;gap:9px;padding:9px 14px;border:1px solid var(--accent-border);border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-ink);font-weight:600;font-size:13px;font-family:inherit;cursor:pointer;">📐 Toán · Hàm số bậc hai</button>
+            <button data-subject="van" style="flex:none;display:flex;align-items:center;gap:9px;padding:9px 14px;border:1px solid var(--accent-border);border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-ink);font-weight:600;font-size:13px;font-family:inherit;cursor:pointer;">✒️ Văn · Phân tích Kiều</button>
+            <button data-subject="anh" style="flex:none;display:flex;align-items:center;gap:9px;padding:9px 14px;border:1px solid var(--accent-border);border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-ink);font-weight:600;font-size:13px;font-family:inherit;cursor:pointer;">💬 Anh · Present Perfect</button>
+          </div>
+
+          <!-- subject grid -->
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin:14px 0 12px;">Tất cả môn học</div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:14px;">
+            <button data-subject="toan" style="text-align:left;cursor:pointer;font-family:inherit;padding:16px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--sh-1);position:relative;overflow:hidden;" style-hover="transform:translateY(-3px);box-shadow:var(--sh-2);border-color:var(--accent-border);">
+              <span style="position:absolute;inset:0 0 auto 0;height:4px;background:var(--accent);"></span>
+              <div style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);display:grid;place-items:center;font-size:24px;margin-bottom:12px;">📐</div>
+              <div style="font-family:'Baloo 2';font-weight:700;font-size:16px;">Toán</div>
+              <div style="font-size:12px;color:var(--ink-3);margin-top:2px;">Đại số · Hình học</div>
+              <div style="font-size:11.5px;color:var(--accent-ink);font-weight:600;margin-top:8px;">12 mạch chủ đề</div>
+            </button>
+            <button data-subject="van" style="text-align:left;cursor:pointer;font-family:inherit;padding:16px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--sh-1);position:relative;overflow:hidden;" style-hover="transform:translateY(-3px);box-shadow:var(--sh-2);border-color:var(--accent-border);">
+              <span style="position:absolute;inset:0 0 auto 0;height:4px;background:var(--accent);"></span>
+              <div style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);display:grid;place-items:center;font-size:24px;margin-bottom:12px;">✒️</div>
+              <div style="font-family:'Baloo 2';font-weight:700;font-size:16px;">Ngữ văn</div>
+              <div style="font-size:12px;color:var(--ink-3);margin-top:2px;">Đọc hiểu · Làm văn</div>
+              <div style="font-size:11.5px;color:var(--accent-ink);font-weight:600;margin-top:8px;">9 mạch chủ đề</div>
+            </button>
+            <button data-subject="anh" style="text-align:left;cursor:pointer;font-family:inherit;padding:16px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--sh-1);position:relative;overflow:hidden;" style-hover="transform:translateY(-3px);box-shadow:var(--sh-2);border-color:var(--accent-border);">
+              <span style="position:absolute;inset:0 0 auto 0;height:4px;background:var(--accent);"></span>
+              <div style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);display:grid;place-items:center;font-size:24px;margin-bottom:12px;">💬</div>
+              <div style="font-family:'Baloo 2';font-weight:700;font-size:16px;">Tiếng Anh</div>
+              <div style="font-size:12px;color:var(--ink-3);margin-top:2px;">Ngữ pháp · Từ vựng</div>
+              <div style="font-size:11.5px;color:var(--accent-ink);font-weight:600;margin-top:8px;">10 mạch chủ đề</div>
+            </button>
+            <button data-subject="khtn" style="text-align:left;cursor:pointer;font-family:inherit;padding:16px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--sh-1);position:relative;overflow:hidden;" style-hover="transform:translateY(-3px);box-shadow:var(--sh-2);border-color:var(--accent-border);">
+              <span style="position:absolute;inset:0 0 auto 0;height:4px;background:var(--accent);"></span>
+              <div style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);display:grid;place-items:center;font-size:24px;margin-bottom:12px;">🔬</div>
+              <div style="font-family:'Baloo 2';font-weight:700;font-size:16px;">KHTN</div>
+              <div style="font-size:12px;color:var(--ink-3);margin-top:2px;">Lý · Hoá · Sinh</div>
+              <div style="font-size:11.5px;color:var(--accent-ink);font-weight:600;margin-top:8px;">14 mạch chủ đề</div>
+            </button>
+            <button data-subject="sudia" style="text-align:left;cursor:pointer;font-family:inherit;padding:16px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--sh-1);position:relative;overflow:hidden;" style-hover="transform:translateY(-3px);box-shadow:var(--sh-2);border-color:var(--accent-border);">
+              <span style="position:absolute;inset:0 0 auto 0;height:4px;background:var(--accent);"></span>
+              <div style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);display:grid;place-items:center;font-size:24px;margin-bottom:12px;">🗺️</div>
+              <div style="font-family:'Baloo 2';font-weight:700;font-size:16px;">Lịch sử &amp; Địa lí</div>
+              <div style="font-size:12px;color:var(--ink-3);margin-top:2px;">Lịch sử · Địa lí</div>
+              <div style="font-size:11.5px;color:var(--accent-ink);font-weight:600;margin-top:8px;">11 mạch chủ đề</div>
+            </button>
+            <button data-subject="tin" style="text-align:left;cursor:pointer;font-family:inherit;padding:16px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--sh-1);position:relative;overflow:hidden;" style-hover="transform:translateY(-3px);box-shadow:var(--sh-2);border-color:var(--accent-border);">
+              <span style="position:absolute;inset:0 0 auto 0;height:4px;background:var(--accent);"></span>
+              <div style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);display:grid;place-items:center;font-size:24px;margin-bottom:12px;">💻</div>
+              <div style="font-family:'Baloo 2';font-weight:700;font-size:16px;">Tin học</div>
+              <div style="font-size:12px;color:var(--ink-3);margin-top:2px;">Thuật toán · Ứng dụng</div>
+              <div style="font-size:11.5px;color:var(--accent-ink);font-weight:600;margin-top:8px;">7 mạch chủ đề</div>
+            </button>
+            <button data-subject="gdcd" style="text-align:left;cursor:pointer;font-family:inherit;padding:16px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--sh-1);position:relative;overflow:hidden;" style-hover="transform:translateY(-3px);box-shadow:var(--sh-2);border-color:var(--accent-border);">
+              <span style="position:absolute;inset:0 0 auto 0;height:4px;background:var(--accent);"></span>
+              <div style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);display:grid;place-items:center;font-size:24px;margin-bottom:12px;">⚖️</div>
+              <div style="font-family:'Baloo 2';font-weight:700;font-size:16px;">GDCD</div>
+              <div style="font-size:12px;color:var(--ink-3);margin-top:2px;">Đạo đức · Pháp luật</div>
+              <div style="font-size:11.5px;color:var(--accent-ink);font-weight:600;margin-top:8px;">6 mạch chủ đề</div>
+            </button>
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px;border:1px dashed var(--border-strong);border-radius:var(--r-lg);color:var(--ink-3);">
+              <div style="font-size:22px;">➕</div><div style="font-size:12.5px;font-weight:600;text-align:center;">Thêm môn<br/>sắp có</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== CHAT ===== -->
+    <section id="chat" style="padding:28px 0; scroll-margin-top:84px;">
+      <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:6px;">
+        <span style="font-family:'Baloo 2'; font-weight:700; color:var(--accent); font-size:14px;">04</span>
+        <h2 style="font-family:'Baloo 2'; font-weight:700; font-size:26px; margin:0; letter-spacing:-.4px;">Chat — bám SGK, đa môn</h2>
+      </div>
+      <p style="color:var(--ink-2); margin:0 0 14px; max-width:66ch;">Bấm nút chuyển môn để thấy theme đổi (màu nhấn · icon · gợi ý) mà khung bố cục giữ nguyên. Bấm chip trang sách, thẻ video, thẻ i-Test để mở modal.</p>
+
+      <!-- subject switcher -->
+      <div class="subj-tabs" style="display:flex; gap:8px; overflow-x:auto; padding:4px 0 14px;">
+        <button class="subj-tab" data-subject="toan"  data-key="toan"  aria-current="{{ aToan }}"  onClick="{{ pickSubject }}" style="flex:none;height:38px;padding:0 15px;border:1px solid var(--accent-border);border-radius:var(--r-pill);background:var(--surface);color:var(--accent-ink);font-weight:600;font-size:13px;font-family:inherit;cursor:pointer;">📐 Toán</button>
+        <button class="subj-tab" data-subject="van"   data-key="van"   aria-current="{{ aVan }}"   onClick="{{ pickSubject }}" style="flex:none;height:38px;padding:0 15px;border:1px solid var(--accent-border);border-radius:var(--r-pill);background:var(--surface);color:var(--accent-ink);font-weight:600;font-size:13px;font-family:inherit;cursor:pointer;">✒️ Ngữ văn</button>
+        <button class="subj-tab" data-subject="anh"   data-key="anh"   aria-current="{{ aAnh }}"   onClick="{{ pickSubject }}" style="flex:none;height:38px;padding:0 15px;border:1px solid var(--accent-border);border-radius:var(--r-pill);background:var(--surface);color:var(--accent-ink);font-weight:600;font-size:13px;font-family:inherit;cursor:pointer;">💬 Tiếng Anh</button>
+        <button class="subj-tab" data-subject="khtn"  data-key="khtn"  aria-current="{{ aKhtn }}"  onClick="{{ pickSubject }}" style="flex:none;height:38px;padding:0 15px;border:1px solid var(--accent-border);border-radius:var(--r-pill);background:var(--surface);color:var(--accent-ink);font-weight:600;font-size:13px;font-family:inherit;cursor:pointer;">🔬 KHTN</button>
+        <button class="subj-tab" data-subject="sudia" data-key="sudia" aria-current="{{ aSudia }}" onClick="{{ pickSubject }}" style="flex:none;height:38px;padding:0 15px;border:1px solid var(--accent-border);border-radius:var(--r-pill);background:var(--surface);color:var(--accent-ink);font-weight:600;font-size:13px;font-family:inherit;cursor:pointer;">🗺️ Sử &amp; Địa</button>
+        <button class="subj-tab" data-subject="tin"   data-key="tin"   aria-current="{{ aTin }}"   onClick="{{ pickSubject }}" style="flex:none;height:38px;padding:0 15px;border:1px solid var(--accent-border);border-radius:var(--r-pill);background:var(--surface);color:var(--accent-ink);font-weight:600;font-size:13px;font-family:inherit;cursor:pointer;">💻 Tin học</button>
+        <button class="subj-tab" data-subject="gdcd"  data-key="gdcd"  aria-current="{{ aGdcd }}"  onClick="{{ pickSubject }}" style="flex:none;height:38px;padding:0 15px;border:1px solid var(--accent-border);border-radius:var(--r-pill);background:var(--surface);color:var(--accent-ink);font-weight:600;font-size:13px;font-family:inherit;cursor:pointer;">⚖️ GDCD</button>
+      </div>
+
+      <!-- chat shell, themed by current subject -->
+      <div data-chatgrid data-subject="{{ chatSubject }}" style="border:1px solid var(--border); border-radius:var(--r-xl); overflow:hidden; box-shadow:var(--sh-3); display:grid; grid-template-columns:230px 1fr; background:var(--bg); min-height:560px;">
+
+        <!-- sidebar -->
+        <aside style="border-right:1px solid var(--border); background:var(--surface); display:flex; flex-direction:column;">
+          <div style="padding:14px;">
+            <button style="width:100%;height:42px;border:none;border-radius:var(--r-md);background:var(--accent);color:#fff;font-weight:700;font-size:13.5px;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 6px 16px var(--accent-glow);">＋ Cuộc trò chuyện mới</button>
+          </div>
+          <div style="padding:2px 14px 8px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3);">Lịch sử</div>
+          <div style="flex:1; overflow-y:auto; padding:0 10px 10px; display:flex; flex-direction:column; gap:3px;">
+            <div style="padding:10px 12px;border-radius:var(--r-md);background:var(--accent-soft);border:1px solid var(--accent-border);font-size:13px;font-weight:600;color:var(--accent-ink);">Phương trình bậc hai</div>
+            <div style="padding:10px 12px;border-radius:var(--r-md);font-size:13px;color:var(--ink-2);">Định lý Pythagore</div>
+            <div style="padding:10px 12px;border-radius:var(--r-md);font-size:13px;color:var(--ink-2);">Rút gọn biểu thức</div>
+            <div style="padding:10px 12px;border-radius:var(--r-md);font-size:13px;color:var(--ink-2);">Ôn tập chương 4</div>
+            <div style="margin-top:6px;padding:6px 12px;font-size:11px;color:var(--ink-3);">Hôm qua</div>
+            <div style="padding:10px 12px;border-radius:var(--r-md);font-size:13px;color:var(--ink-2);">Bất phương trình</div>
+          </div>
+          <div style="padding:12px 14px; border-top:1px solid var(--border); display:flex; align-items:center; gap:9px;">
+            <div style="width:32px;height:32px;border-radius:50%;background:var(--surface-3);display:grid;place-items:center;font-weight:700;color:var(--accent);font-size:13px;">M</div>
+            <div style="min-width:0;"><div style="font-size:13px;font-weight:600;">Minh · Lớp 9</div><div style="font-size:11px;color:var(--ink-3);">Kết nối tri thức</div></div>
+          </div>
+        </aside>
+
+        <!-- conversation -->
+        <div style="display:flex; flex-direction:column; min-width:0;">
+          <!-- chat header -->
+          <div style="display:flex; align-items:center; gap:11px; padding:13px 18px; border-bottom:1px solid var(--border); background:color-mix(in oklab,var(--surface) 88%,transparent); backdrop-filter:blur(6px);">
+            <div style="width:34px;height:34px;border-radius:10px;background:var(--accent-soft);display:grid;place-items:center;font-size:18px;">{{ curIcon }}</div>
+            <div style="min-width:0;"><div style="font-weight:700;font-size:14.5px;font-family:'Baloo 2';">Gia sư {{ curName }}</div><div style="font-size:12px;color:var(--ink-3);">{{ curCats }} · Lớp 9</div></div>
+            <span style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ok);font-weight:600;"><span style="width:7px;height:7px;border-radius:50%;background:var(--ok);"></span>Bám SGK</span>
+          </div>
+
+          <!-- thread -->
+          <div style="flex:1; overflow-y:auto; padding:20px 18px; display:flex; flex-direction:column; gap:16px; background:var(--bg);">
+            <!-- user -->
+            <div style="display:flex; justify-content:flex-end;">
+              <div style="max-width:78%;background:var(--accent);color:var(--on-accent);padding:11px 16px;border-radius:var(--r-lg) var(--r-lg) 6px var(--r-lg);font-size:14.5px;box-shadow:0 4px 12px var(--accent-glow);">Giải giúp em phương trình x² − 5x + 6 = 0 và giải thích từng bước ạ.</div>
+            </div>
+            <!-- AI -->
+            <div style="display:flex; gap:10px; align-items:flex-start;">
+              <div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,var(--brand),var(--brand-strong));display:grid;place-items:center;flex:none;font-family:'Baloo 2';font-weight:700;color:#fff;font-size:14px;">D</div>
+              <div style="max-width:82%; display:flex; flex-direction:column; gap:12px;">
+                <div style="background:var(--surface);border:1px solid var(--border);padding:14px 16px;border-radius:var(--r-lg) var(--r-lg) var(--r-lg) 6px;font-size:14.5px;box-shadow:var(--sh-1);">
+                  <p style="margin:0 0 8px;">Đây là phương trình bậc hai dạng <b>ax² + bx + c = 0</b> với a=1, b=−5, c=6. Ta dùng công thức nghiệm:</p>
+                  <div style="margin:10px 0; padding:12px 16px; background:var(--accent-soft); border:1px solid var(--accent-border); border-radius:var(--r-md); text-align:center; font-family:'Cambria Math',Georgia,serif; font-size:17px; color:var(--accent-ink);">Δ = b² − 4ac = 25 − 24 = 1 &nbsp;→&nbsp; x = (5 ± 1) / 2</div>
+                  <p style="margin:8px 0 0;">Vậy <b>x₁ = 3</b> và <b>x₂ = 2</b>. Em có thể kiểm tra lại bằng định lý Viète: x₁+x₂ = 5, x₁·x₂ = 6. ✔️</p>
+                  <div style="margin-top:12px;">
+                    <button onClick="{{ openBook }}" style="display:inline-flex;align-items:center;gap:9px;height:38px;padding:0 8px 0 14px;border:1px solid var(--accent-border);border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-ink);font-weight:600;font-size:13px;font-family:inherit;cursor:pointer;">📖 Trang 42 · Bài 3<span style="display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--surface);color:var(--accent);">↗</span></button>
+                  </div>
+                </div>
+                <!-- video card -->
+                <button onClick="{{ openVideo }}" style="text-align:left;font-family:inherit;cursor:pointer;display:flex;gap:13px;align-items:center;padding:12px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--sh-1);" style-hover="border-color:var(--accent-border);transform:translateY(-1px);">
+                  <div style="width:78px;height:54px;border-radius:11px;background:linear-gradient(135deg,var(--accent),var(--accent-strong));display:grid;place-items:center;flex:none;"><div style="width:0;height:0;border-left:15px solid #fff;border-top:10px solid transparent;border-bottom:10px solid transparent;margin-left:3px;"></div></div>
+                  <div style="min-width:0;"><div style="font-weight:600;font-size:14px;">🎬 Video minh hoạ: Công thức nghiệm</div><div style="font-size:12px;color:var(--ink-3);">Video AI · 1:24 · bấm để xem</div></div>
+                </button>
+                <!-- quiz card -->
+                <div style="padding:15px;border:1px solid var(--accent-border);border-radius:var(--r-lg);background:var(--accent-soft);">
+                  <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px;"><span style="font-size:17px;">✏️</span><b style="font-size:14.5px;color:var(--accent-ink);">i-Test: Phương trình bậc hai</b></div>
+                  <div style="font-size:13px;color:var(--accent-ink);opacity:.85;margin-bottom:13px;">5 câu trắc nghiệm · chấm điểm ngay · ~4 phút</div>
+                  <button onClick="{{ openQuiz }}" style="height:42px;padding:0 20px;border:none;border-radius:var(--r-pill);background:var(--accent);color:#fff;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer;box-shadow:0 6px 16px var(--accent-glow);">Bắt đầu luyện tập →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- suggestions + input -->
+          <div style="padding:12px 18px 18px; border-top:1px solid var(--border); background:var(--surface);">
+            <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:11px;">
+              <sc-for list="{{ suggestions }}" as="sug" hint-placeholder-count="3">
+                <button style="flex:none;height:34px;padding:0 13px;border:1px solid var(--accent-border);border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-ink);font-weight:600;font-size:12.5px;font-family:inherit;cursor:pointer;white-space:nowrap;">{{ sug }}</button>
+              </sc-for>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; background:var(--bg); border:1.5px solid var(--border); border-radius:var(--r-xl); padding:7px 7px 7px 18px;">
+              <span style="flex:1; color:var(--ink-3); font-size:15px;">Hỏi Gia sư {{ curName }}…</span>
+              <button aria-label="Ghi âm" style="width:44px;height:44px;border:none;border-radius:50%;background:transparent;color:var(--ink-2);font-size:18px;cursor:pointer;flex:none;">🎤</button>
+              <button aria-label="Gửi" style="width:44px;height:44px;border:none;border-radius:50%;background:var(--accent);color:#fff;font-size:18px;cursor:pointer;flex:none;box-shadow:0 6px 16px var(--accent-glow);">↑</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- flexible answer types across subjects -->
+      <h3 style="font-family:'Baloo 2';font-weight:700;font-size:17px;margin:26px 0 4px;">Trả lời linh hoạt theo loại nội dung</h3>
+      <p style="color:var(--ink-2);margin:0 0 16px;font-size:13.5px;max-width:64ch;">Cùng một khung bong bóng, khối trả lời tự đổi theo môn: Toán = công thức, Văn/Sử = đoạn văn + trích nguồn, Anh = hội thoại/từ vựng.</p>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px;">
+        <div data-subject="van" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;box-shadow:var(--sh-1);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;"><span style="width:26px;height:26px;border-radius:8px;background:var(--accent-soft);display:grid;place-items:center;">✒️</span><b style="font-size:13.5px;">Ngữ văn · đoạn văn</b></div>
+          <p style="margin:0 0 10px;font-size:13.5px;">Hình ảnh <i>“trăng”</i> trong bài thơ tượng trưng cho sự tri kỉ, thuỷ chung — gợi nhắc quá khứ nghĩa tình mà nhân vật trữ tình từng lãng quên…</p>
+          <button style="display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border:1px solid var(--accent-border);border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-ink);font-weight:600;font-size:12px;font-family:inherit;cursor:pointer;">📖 Trang 156 · Ánh trăng</button>
+        </div>
+        <div data-subject="anh" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;box-shadow:var(--sh-1);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;"><span style="width:26px;height:26px;border-radius:8px;background:var(--accent-soft);display:grid;place-items:center;">💬</span><b style="font-size:13.5px;">Tiếng Anh · hội thoại</b></div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="align-self:flex-start;background:var(--surface-2);border:1px solid var(--border);padding:7px 12px;border-radius:12px 12px 12px 4px;font-size:13px;">Have you <b>ever been</b> to Huế?</div>
+            <div style="align-self:flex-end;background:var(--accent);color:#fff;padding:7px 12px;border-radius:12px 12px 4px 12px;font-size:13px;">Yes, I <b>have</b>. I went last year.</div>
+          </div>
+          <div style="margin-top:10px;font-size:12px;color:var(--ink-3);">Ngữ pháp: Present Perfect · <b style="color:var(--accent-ink);">ever / never</b></div>
+        </div>
+        <div data-subject="khtn" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;box-shadow:var(--sh-1);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;"><span style="width:26px;height:26px;border-radius:8px;background:var(--accent-soft);display:grid;place-items:center;">🔬</span><b style="font-size:13.5px;">KHTN · sơ đồ + công thức</b></div>
+          <p style="margin:0 0 10px;font-size:13.5px;">Định luật Ôm: cường độ dòng điện tỉ lệ thuận với hiệu điện thế.</p>
+          <div style="padding:10px 14px;background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:var(--r-md);text-align:center;font-family:'Cambria Math',Georgia,serif;font-size:16px;color:var(--accent-ink);">I = U / R</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== TEACHER — EXAM GENERATOR ===== -->
+    <section id="teacher" style="padding:28px 0 8px; scroll-margin-top:84px;" data-subject="toan">
+      <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:6px;">
+        <span style="font-family:'Baloo 2'; font-weight:700; color:var(--accent); font-size:14px;">05</span>
+        <h2 style="font-family:'Baloo 2'; font-weight:700; font-size:26px; margin:0; letter-spacing:-.4px;">Giáo viên — Sinh đề theo ma trận</h2>
+      </div>
+      <p style="color:var(--ink-2); margin:0 0 20px; max-width:66ch;">Giao diện nghiêm túc, dạng bảng, dữ liệu rõ. Chọn học kỳ + số câu mỗi mức độ → đề có nhãn Dễ/TB/Khó, đáp án và lời giải.</p>
+
+      <div data-teachergrid style="display:grid; grid-template-columns:320px 1fr; gap:18px; align-items:start;">
+        <!-- config panel -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:20px; box-shadow:var(--sh-1); position:sticky; top:80px;">
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:16px;">Cấu hình ma trận đề</div>
+          <label style="display:block; font-size:13px; font-weight:600; margin-bottom:6px;">Môn học</label>
+          <div style="display:flex;align-items:center;gap:9px;height:44px;padding:0 14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);font-size:14px;font-weight:600;margin-bottom:14px;">📐 Toán <span style="margin-left:auto;color:var(--ink-3);">▾</span></div>
+          <div style="display:flex; gap:10px; margin-bottom:14px;">
+            <div style="flex:1;"><label style="display:block; font-size:13px; font-weight:600; margin-bottom:6px;">Khối</label><div style="display:flex;align-items:center;height:44px;padding:0 14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);font-size:14px;font-weight:600;">Lớp 9 <span style="margin-left:auto;color:var(--ink-3);">▾</span></div></div>
+            <div style="flex:1;"><label style="display:block; font-size:13px; font-weight:600; margin-bottom:6px;">Học kỳ</label><div style="display:flex;align-items:center;height:44px;padding:0 14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);font-size:14px;font-weight:600;">HK I <span style="margin-left:auto;color:var(--ink-3);">▾</span></div></div>
+          </div>
+          <label style="display:block; font-size:13px; font-weight:600; margin-bottom:8px;">Số câu theo mức độ</label>
+          <div style="display:flex; flex-direction:column; gap:9px; margin-bottom:18px;">
+            <div style="display:flex;align-items:center;gap:10px;"><span style="width:52px;font-size:12.5px;font-weight:700;color:var(--easy);">● Dễ</span><div style="flex:1;height:8px;border-radius:4px;background:var(--surface-3);overflow:hidden;"><div style="width:50%;height:100%;background:var(--easy);"></div></div><span style="width:26px;text-align:right;font-weight:700;font-size:14px;">5</span></div>
+            <div style="display:flex;align-items:center;gap:10px;"><span style="width:52px;font-size:12.5px;font-weight:700;color:var(--mid);">● TB</span><div style="flex:1;height:8px;border-radius:4px;background:var(--surface-3);overflow:hidden;"><div style="width:40%;height:100%;background:var(--mid);"></div></div><span style="width:26px;text-align:right;font-weight:700;font-size:14px;">4</span></div>
+            <div style="display:flex;align-items:center;gap:10px;"><span style="width:52px;font-size:12.5px;font-weight:700;color:var(--hard);">● Khó</span><div style="flex:1;height:8px;border-radius:4px;background:var(--surface-3);overflow:hidden;"><div style="width:20%;height:100%;background:var(--hard);"></div></div><span style="width:26px;text-align:right;font-weight:700;font-size:14px;">2</span></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-radius:var(--r-md);background:var(--accent-soft);border:1px solid var(--accent-border);margin-bottom:16px;"><span style="font-size:13px;font-weight:600;color:var(--accent-ink);">Tổng số câu</span><span style="font-family:'Baloo 2';font-weight:700;font-size:20px;color:var(--accent-ink);">11</span></div>
+          <button style="width:100%;height:48px;border:none;border-radius:var(--r-md);background:var(--accent);color:#fff;font-weight:700;font-size:15px;font-family:inherit;cursor:pointer;box-shadow:0 8px 20px var(--accent-glow);">⚡ Sinh đề</button>
+        </div>
+
+        <!-- generated exam preview -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); box-shadow:var(--sh-1); overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:12px; padding:16px 20px; border-bottom:1px solid var(--border);">
+            <div><div style="font-family:'Baloo 2';font-weight:700;font-size:16px;">Đề kiểm tra Toán 9 · HK I</div><div style="font-size:12px;color:var(--ink-3);">11 câu · tạo lúc 09:24 · 12/07/2026</div></div>
+            <div style="margin-left:auto; display:flex; gap:8px;">
+              <button style="height:38px;padding:0 14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font-weight:600;font-size:13px;color:var(--ink);font-family:inherit;cursor:pointer;">📄 Xuất Word</button>
+              <button style="height:38px;padding:0 14px;border:1px solid var(--accent-border);border-radius:var(--r-md);background:var(--accent-soft);font-weight:600;font-size:13px;color:var(--accent-ink);font-family:inherit;cursor:pointer;">🖨 In / PDF</button>
+            </div>
+          </div>
+          <div style="padding:6px 20px;">
+            <!-- Q1 -->
+            <div style="padding:16px 0; border-bottom:1px solid var(--border);">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;"><b style="font-size:14px;">Câu 1.</b><span style="display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border-radius:var(--r-pill);background:color-mix(in oklab,var(--easy) 15%,var(--surface));color:var(--easy);font-weight:700;font-size:11.5px;">● Dễ</span></div>
+              <p style="margin:0 0 10px; font-size:14.5px;">Nghiệm của phương trình x² − 5x + 6 = 0 là:</p>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
+                <div style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13.5px;">A. x = 1; x = 6</div>
+                <div style="padding:8px 12px;border:1px solid var(--ok);border-radius:var(--r-sm);font-size:13.5px;background:color-mix(in oklab,var(--ok) 10%,var(--surface));font-weight:600;">B. x = 2; x = 3 ✔</div>
+                <div style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13.5px;">C. x = −2; x = −3</div>
+                <div style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13.5px;">D. Vô nghiệm</div>
+              </div>
+              <details style="font-size:13px;"><summary style="cursor:pointer;color:var(--accent-ink);font-weight:600;">Xem lời giải</summary><p style="margin:8px 0 0;color:var(--ink-2);">Δ = 25 − 24 = 1 &gt; 0 → x = (5 ± 1)/2 → x = 3 hoặc x = 2.</p></details>
+            </div>
+            <!-- Q2 -->
+            <div style="padding:16px 0; border-bottom:1px solid var(--border);">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;"><b style="font-size:14px;">Câu 2.</b><span style="display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border-radius:var(--r-pill);background:color-mix(in oklab,var(--mid) 15%,var(--surface));color:var(--mid);font-weight:700;font-size:11.5px;">● TB</span></div>
+              <p style="margin:0 0 10px; font-size:14.5px;">Cho hàm số y = ax². Đồ thị đi qua điểm (2; 8). Giá trị của a là:</p>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
+                <div style="padding:8px 12px;border:1px solid var(--ok);border-radius:var(--r-sm);font-size:13.5px;background:color-mix(in oklab,var(--ok) 10%,var(--surface));font-weight:600;">A. a = 2 ✔</div>
+                <div style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13.5px;">B. a = 4</div>
+                <div style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13.5px;">C. a = 1/2</div>
+                <div style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13.5px;">D. a = 8</div>
+              </div>
+              <details style="font-size:13px;"><summary style="cursor:pointer;color:var(--accent-ink);font-weight:600;">Xem lời giải</summary><p style="margin:8px 0 0;color:var(--ink-2);">Thay (2; 8): 8 = a·2² = 4a → a = 2.</p></details>
+            </div>
+            <!-- Q3 -->
+            <div style="padding:16px 0;">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;"><b style="font-size:14px;">Câu 3.</b><span style="display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border-radius:var(--r-pill);background:color-mix(in oklab,var(--hard) 15%,var(--surface));color:var(--hard);font-weight:700;font-size:11.5px;">● Khó</span></div>
+              <p style="margin:0 0 6px; font-size:14.5px;">Tìm m để phương trình x² − 2(m+1)x + m² = 0 có hai nghiệm phân biệt.</p>
+              <div style="font-size:12.5px;color:var(--ink-3);">… (còn 8 câu)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== AUTH + a11y footer note ===== -->
+    <section style="padding:28px 0;">
+      <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:6px;">
+        <span style="font-family:'Baloo 2'; font-weight:700; color:var(--brand); font-size:14px;">06</span>
+        <h2 style="font-family:'Baloo 2'; font-weight:700; font-size:26px; margin:0; letter-spacing:-.4px;">Đăng nhập · chọn vai trò</h2>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:18px; margin-top:16px;">
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--r-xl); padding:30px; box-shadow:var(--sh-2); text-align:center;">
+          <div style="width:52px;height:52px;margin:0 auto 14px;border-radius:15px;background:linear-gradient(135deg,var(--brand),var(--brand-strong));display:grid;place-items:center;font-family:'Baloo 2';font-weight:700;color:#fff;font-size:24px;">D</div>
+          <h3 style="font-family:'Baloo 2';font-weight:700;font-size:20px;margin:0 0 6px;">Chào mừng đến Gia sư DTP</h3>
+          <p style="color:var(--ink-2);font-size:13.5px;margin:0 0 20px;">Học tốt mọi môn, mọi lúc.</p>
+          <div style="display:flex; flex-direction:column; gap:10px; text-align:left;">
+            <label style="font-size:12.5px;font-weight:600;">Email hoặc số điện thoại</label>
+            <div style="height:46px;border:1.5px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);display:flex;align-items:center;padding:0 14px;color:var(--ink-3);font-size:14px;">minh@example.com</div>
+            <label style="font-size:12.5px;font-weight:600;margin-top:4px;">Mật khẩu</label>
+            <div style="height:46px;border:1.5px solid var(--accent-border);border-radius:var(--r-md);background:var(--surface-2);display:flex;align-items:center;padding:0 14px;color:var(--ink-3);font-size:14px;">••••••••</div>
+            <button style="height:48px;margin-top:8px;border:none;border-radius:var(--r-md);background:var(--brand);color:#fff;font-weight:700;font-size:15px;font-family:inherit;cursor:pointer;box-shadow:0 8px 20px color-mix(in oklab,var(--brand) 32%,transparent);">Đăng nhập</button>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;box-shadow:var(--sh-1);">
+            <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:14px;">Bạn là…</div>
+            <button data-subject="toan" style="width:100%;text-align:left;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:14px;padding:16px;border:1.5px solid var(--accent-border);border-radius:var(--r-lg);background:var(--accent-soft);margin-bottom:10px;">
+              <span style="width:44px;height:44px;border-radius:12px;background:var(--surface);display:grid;place-items:center;font-size:22px;">🎒</span>
+              <span><b style="font-size:15px;color:var(--accent-ink);display:block;">Học sinh</b><span style="font-size:12.5px;color:var(--accent-ink);opacity:.8;">Hỏi bài · video · luyện i-Test</span></span>
+              <span style="margin-left:auto;color:var(--accent);font-size:20px;">→</span>
+            </button>
+            <button style="width:100%;text-align:left;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:14px;padding:16px;border:1.5px solid var(--border);border-radius:var(--r-lg);background:var(--surface);">
+              <span style="width:44px;height:44px;border-radius:12px;background:var(--surface-2);display:grid;place-items:center;font-size:22px;">👩‍🏫</span>
+              <span><b style="font-size:15px;display:block;">Giáo viên</b><span style="font-size:12.5px;color:var(--ink-3);">Sinh đề theo ma trận · ngân hàng câu hỏi</span></span>
+              <span style="margin-left:auto;color:var(--ink-3);font-size:20px;">→</span>
+            </button>
+          </div>
+          <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px;">
+            <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-3); margin-bottom:10px;">Ghi chú a11y (WCAG AA)</div>
+            <ul style="margin:0; padding-left:18px; font-size:13px; color:var(--ink-2); line-height:1.9;">
+              <li>Tương phản chữ ≥ 4.5:1 ở cả sáng &amp; tối (token tự pha lại).</li>
+              <li>Mọi nút chạm ≥ 44×44px; focus ring rõ theo màu môn.</li>
+              <li>Tiếng Việt có dấu đầy đủ; không dựa vào chỉ màu để phân biệt (kèm nhãn ● Dễ/TB/Khó).</li>
+              <li>Tôn trọng <code style="background:var(--surface);padding:1px 5px;border-radius:5px;">prefers-reduced-motion</code>.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <p style="text-align:center;color:var(--ink-3);font-size:12.5px;margin:36px 0 0;">Gia sư DTP · Design System v2 · Be Vietnam Pro + Baloo 2 · biến CSS + prefers-color-scheme + data-theme</p>
+    </section>
+
+  </main>
+
+  <!-- ===== MODALS ===== -->
+  <sc-if value="{{ showBook }}" hint-placeholder-val="{{ false }}">
+    <div data-subject="{{ chatSubject }}" onClick="{{ closeModal }}" style="position:fixed;inset:0;z-index:90;background:rgba(6,12,26,.62);backdrop-filter:blur(4px);display:grid;place-items:center;padding:20px;animation:dtp-fade .2s ease both;">
+      <div onClick="{{ stop }}" style="width:min(560px,100%);max-height:88vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:var(--sh-3);animation:dtp-pop .25s ease both;">
+        <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border);">
+          <span style="font-size:18px;">📖</span><b style="font-family:'Baloo 2';font-size:16px;">SGK · Trang 42 · Bài 3</b>
+          <button onClick="{{ closeModal }}" aria-label="Đóng" style="margin-left:auto;width:38px;height:38px;border-radius:50%;border:1px solid var(--border);background:var(--surface);font-size:16px;cursor:pointer;">✕</button>
+        </div>
+        <div style="padding:20px;">
+          <div style="aspect-ratio:3/4;border-radius:var(--r-md);border:1px solid var(--border);background:repeating-linear-gradient(var(--surface-2),var(--surface-2) 26px,var(--surface) 26px,var(--surface) 27px);padding:26px 28px;box-shadow:var(--sh-1) inset;">
+            <div style="font-family:'Baloo 2';font-weight:700;font-size:18px;color:var(--ink);margin-bottom:14px;">§3. Phương trình bậc hai một ẩn</div>
+            <div style="font-size:13px;color:var(--ink-2);line-height:1.85;">Phương trình bậc hai một ẩn là phương trình có dạng ax² + bx + c = 0 (a ≠ 0). Để giải, ta tính biệt thức Δ = b² − 4ac …</div>
+            <div style="margin-top:16px;padding:12px;background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:var(--r-md);font-family:'Cambria Math',Georgia,serif;text-align:center;color:var(--accent-ink);">x = (−b ± √Δ) / 2a</div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;">
+            <span style="font-size:12.5px;color:var(--ink-3);">Nguồn: Toán 9, Kết nối tri thức · trang 42</span>
+            <div style="display:flex;gap:8px;"><button aria-label="Trang trước" style="width:40px;height:40px;border-radius:50%;border:1px solid var(--border);background:var(--surface);cursor:pointer;">‹</button><button aria-label="Trang sau" style="width:40px;height:40px;border-radius:50%;border:1px solid var(--border);background:var(--surface);cursor:pointer;">›</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ showVideo }}" hint-placeholder-val="{{ false }}">
+    <div data-subject="{{ chatSubject }}" onClick="{{ closeModal }}" style="position:fixed;inset:0;z-index:90;background:rgba(6,12,26,.72);backdrop-filter:blur(4px);display:grid;place-items:center;padding:20px;animation:dtp-fade .2s ease both;">
+      <div onClick="{{ stop }}" style="width:min(680px,100%);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:var(--sh-3);overflow:hidden;animation:dtp-pop .25s ease both;">
+        <div style="position:relative;aspect-ratio:16/9;background:linear-gradient(135deg,var(--accent),var(--accent-strong));display:grid;place-items:center;">
+          <button aria-label="Phát" style="width:74px;height:74px;border-radius:50%;border:none;background:rgba(255,255,255,.92);cursor:pointer;display:grid;place-items:center;box-shadow:var(--sh-3);"><span style="width:0;height:0;border-left:22px solid var(--accent);border-top:14px solid transparent;border-bottom:14px solid transparent;margin-left:5px;"></span></button>
+          <button onClick="{{ closeModal }}" aria-label="Đóng" style="position:absolute;top:14px;right:14px;width:40px;height:40px;border-radius:50%;border:none;background:rgba(0,0,0,.4);color:#fff;font-size:17px;cursor:pointer;">✕</button>
+          <div style="position:absolute;left:0;right:0;bottom:0;height:5px;background:rgba(255,255,255,.25);"><div style="width:32%;height:100%;background:#fff;"></div></div>
+        </div>
+        <div style="padding:16px 20px;">
+          <b style="font-family:'Baloo 2';font-size:16px;">Công thức nghiệm phương trình bậc hai</b>
+          <p style="margin:6px 0 0;font-size:13px;color:var(--ink-2);">Video AI minh hoạ · 1:24 · lồng tiếng Việt. Giải thích trực quan cách tính Δ và suy ra nghiệm.</p>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ showQuiz }}" hint-placeholder-val="{{ false }}">
+    <div data-subject="{{ chatSubject }}" onClick="{{ closeModal }}" style="position:fixed;inset:0;z-index:90;background:rgba(6,12,26,.62);backdrop-filter:blur(4px);display:grid;place-items:center;padding:20px;animation:dtp-fade .2s ease both;">
+      <div onClick="{{ stop }}" style="width:min(540px,100%);max-height:90vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:var(--sh-3);animation:dtp-pop .25s ease both;">
+        <div style="display:flex;align-items:center;gap:11px;padding:16px 20px;border-bottom:1px solid var(--border);">
+          <span style="width:34px;height:34px;border-radius:10px;background:var(--accent-soft);display:grid;place-items:center;font-size:17px;">✏️</span>
+          <div><b style="font-family:'Baloo 2';font-size:15.5px;">i-Test · Phương trình bậc hai</b><div style="font-size:12px;color:var(--ink-3);">Câu 1 / 5</div></div>
+          <button onClick="{{ closeModal }}" aria-label="Đóng" style="margin-left:auto;width:38px;height:38px;border-radius:50%;border:1px solid var(--border);background:var(--surface);font-size:16px;cursor:pointer;">✕</button>
+        </div>
+        <div style="height:6px;background:var(--surface-3);"><div style="width:20%;height:100%;background:var(--accent);"></div></div>
+        <div style="padding:22px 20px;">
+          <p style="margin:0 0 16px;font-size:16px;font-weight:600;">Nghiệm của phương trình x² − 5x + 6 = 0 là?</p>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <sc-for list="{{ quizOptions }}" as="opt" hint-placeholder-count="4">
+              <button data-q="q1" data-opt="{{ opt.id }}" onClick="{{ pickAnswer }}" style="{{ opt.style }}">
+                <span style="width:26px;height:26px;border-radius:8px;border:1.5px solid currentColor;display:grid;place-items:center;font-weight:700;font-size:12.5px;flex:none;">{{ opt.id }}</span>
+                <span style="flex:1;">{{ opt.label }}</span>
+                <span style="font-weight:700;">{{ opt.mark }}</span>
+              </button>
+            </sc-for>
+          </div>
+          <sc-if value="{{ quizDone }}" hint-placeholder-val="{{ false }}">
+            <div style="{{ resultStyle }}">{{ resultText }}</div>
+          </sc-if>
+          <div style="display:flex;gap:10px;margin-top:18px;">
+            <button onClick="{{ closeModal }}" style="flex:none;height:46px;padding:0 18px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font-weight:600;font-size:14px;color:var(--ink-2);font-family:inherit;cursor:pointer;">Thoát</button>
+            <button onClick="{{ submitQuiz }}" style="flex:1;height:46px;border:none;border-radius:var(--r-md);background:var(--accent);color:#fff;font-weight:700;font-size:14.5px;font-family:inherit;cursor:pointer;box-shadow:0 6px 16px var(--accent-glow);">{{ submitLabel }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1180,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = { theme: 'auto', subject: 'toan', modal: null, quiz: {}, quizDone: false, gradeOpen: false };
+
+  get themeAttr() {
+    // null when auto so CSS prefers-color-scheme drives it
+    return this.state.theme === 'auto' ? undefined : this.state.theme;
+  }
+
+  toggleTheme = () => {
+    const order = { auto: 'light', light: 'dark', dark: 'auto' };
+    this.setState(s => ({ theme: order[s.theme] }));
+  };
+
+  SUBJ = {
+    toan:  { name: 'Toán',       icon: '📐', cats: 'Đại số · Hình học',       sugs: ['Định lý Viète là gì?', 'Vẽ đồ thị hàm bậc hai', 'Giải hệ phương trình', 'Ôn tập chương 4'] },
+    van:   { name: 'Ngữ văn',    icon: '✒️', cats: 'Đọc hiểu · Làm văn',      sugs: ['Phân tích bài Ánh trăng', 'Lập dàn ý nghị luận', 'Biện pháp tu từ', 'Tóm tắt Làng'] },
+    anh:   { name: 'Tiếng Anh',  icon: '💬', cats: 'Ngữ pháp · Từ vựng',      sugs: ['Present Perfect dùng khi nào?', 'Từ vựng chủ đề du lịch', 'Viết lại câu', 'Luyện phát âm'] },
+    khtn:  { name: 'KHTN',       icon: '🔬', cats: 'Lý · Hoá · Sinh',          sugs: ['Định luật Ôm', 'Cân bằng phương trình hoá học', 'Cấu tạo tế bào', 'Bài tập điện trở'] },
+    sudia: { name: 'Sử & Địa',   icon: '🗺️', cats: 'Lịch sử · Địa lí',        sugs: ['Cách mạng tháng Tám', 'Đặc điểm khí hậu VN', 'Vẽ biểu đồ dân số', 'Chiến dịch Điện Biên Phủ'] },
+    tin:   { name: 'Tin học',    icon: '💻', cats: 'Thuật toán · Ứng dụng',    sugs: ['Vòng lặp for là gì?', 'Sắp xếp nổi bọt', 'Hàm trong Python', 'Tạo bảng tính'] },
+    gdcd:  { name: 'GDCD',       icon: '⚖️', cats: 'Đạo đức · Pháp luật',      sugs: ['Quyền trẻ em', 'Sống có trách nhiệm', 'Pháp luật là gì?', 'Bảo vệ môi trường'] },
+  };
+
+  pickSubject = (e) => {
+    const key = e.currentTarget.dataset.key;
+    if (key) this.setState({ subject: key });
+  };
+  openBook = () => this.setState({ modal: 'book' });
+  openVideo = () => this.setState({ modal: 'video' });
+  openQuiz = () => this.setState({ modal: 'quiz', quiz: {}, quizDone: false });
+  closeModal = () => this.setState({ modal: null });
+  stop = (e) => e.stopPropagation();
+  pickAnswer = (e) => {
+    const { q, opt } = e.currentTarget.dataset;
+    if (this.state.quizDone) return;
+    this.setState(s => ({ quiz: { ...s.quiz, [q]: opt } }));
+  };
+  submitQuiz = () => this.setState(s => s.quizDone ? { quizDone: false, quiz: {} } : { quizDone: true });
+
+  renderVals() {
+    const t = this.state.theme;
+    const s = this.state.subject;
+    const cur = this.SUBJ[s];
+    const correct = 'B';
+    const picked = this.state.quiz.q1;
+    const done = this.state.quizDone;
+    const rawOpts = [
+      { id: 'A', label: 'x = 1;  x = 6' },
+      { id: 'B', label: 'x = 2;  x = 3' },
+      { id: 'C', label: 'x = −2;  x = −3' },
+      { id: 'D', label: 'Vô nghiệm' },
+    ];
+    const quizOptions = rawOpts.map(o => {
+      const sel = picked === o.id;
+      let bd = 'var(--border)', bg = 'var(--surface)', col = 'var(--ink)', mark = '';
+      if (done && o.id === correct) { bd = 'var(--ok)'; bg = 'color-mix(in oklab,var(--ok) 12%,var(--surface))'; col = 'var(--ok)'; mark = '✔'; }
+      else if (done && sel) { bd = 'var(--err)'; bg = 'color-mix(in oklab,var(--err) 12%,var(--surface))'; col = 'var(--err)'; mark = '✘'; }
+      else if (sel) { bd = 'var(--accent)'; bg = 'var(--accent-soft)'; col = 'var(--accent-ink)'; }
+      return { id: o.id, label: o.label, mark, style: `display:flex;align-items:center;gap:12px;width:100%;text-align:left;font-family:inherit;cursor:${done ? 'default' : 'pointer'};padding:13px 15px;border-radius:var(--r-md);border:1.5px solid ${bd};background:${bg};color:${col};font-size:14.5px;font-weight:500;` };
+    });
+    const isRight = picked === correct;
+    return {
+      quizOptions,
+      submitLabel: done ? 'Làm lại →' : 'Nộp bài',
+      resultText: isRight ? '🎉 Chính xác! x = 2 và x = 3.' : '❌ Chưa đúng. Đáp án là B: x = 2 và x = 3 (Δ = 1).',
+      resultStyle: `margin-top:16px;padding:12px 15px;border-radius:var(--r-md);font-size:13.5px;font-weight:600;background:color-mix(in oklab,var(--${isRight ? 'ok' : 'err'}) 12%,var(--surface));color:var(--${isRight ? 'ok' : 'err'});border:1px solid var(--${isRight ? 'ok' : 'err'});`,
+      themeAttr: this.themeAttr,
+      themeIcon: t === 'light' ? '☀️' : t === 'dark' ? '🌙' : '🌗',
+      themeLabel: t === 'light' ? 'Sáng' : t === 'dark' ? 'Tối' : 'Auto',
+      toggleTheme: this.toggleTheme,
+      chatSubject: s,
+      curName: cur.name, curIcon: cur.icon, curCats: cur.cats,
+      suggestions: cur.sugs,
+      pickSubject: this.pickSubject,
+      aToan: String(s === 'toan'), aVan: String(s === 'van'), aAnh: String(s === 'anh'),
+      aKhtn: String(s === 'khtn'), aSudia: String(s === 'sudia'), aTin: String(s === 'tin'), aGdcd: String(s === 'gdcd'),
+      openBook: this.openBook, openVideo: this.openVideo, openQuiz: this.openQuiz, closeModal: this.closeModal, stop: this.stop,
+      modal: this.state.modal,
+      showBook: this.state.modal === 'book', showVideo: this.state.modal === 'video', showQuiz: this.state.modal === 'quiz',
+      pickAnswer: this.pickAnswer, submitQuiz: this.submitQuiz,
+      quizDone: this.state.quizDone,
+    };
+  }
+}
+</script>
+</body>
+</html>
