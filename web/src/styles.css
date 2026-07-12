@@ -51,8 +51,8 @@
 
 /* Màu từng môn */
 [data-subject="toan"]  { --subject: #1b4fbf; }
-[data-subject="van"]   { --subject: #e0457b; }
-[data-subject="anh"]   { --subject: #7c4dff; }
+[data-subject="van"]   { --subject: #9333ea; }
+[data-subject="anh"]   { --subject: #e5484d; }
 [data-subject="khtn"]  { --subject: #10a596; }
 [data-subject="sudia"] { --subject: #d9820a; }
 [data-subject="tin"]   { --subject: #0e9bc4; }
