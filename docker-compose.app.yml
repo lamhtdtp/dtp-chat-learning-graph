@@ -58,6 +58,9 @@ services:
     volumes:
       # ảnh trang SGK để endpoint /books/pages phục vụ (read-only, không trong image)
       - ./data:/app/data:ro
+      # cache OCR (markdown mỗi trang) — ghi được + giữ lại khi recreate để
+      # ingest lại KHÔNG phải OCR lại từ đầu (xem docs/INGEST-ENGLISH.md).
+      - ./data_processed:/app/data_processed
     depends_on:
       redis: { condition: service_started }
       qdrant: { condition: service_started }
@@ -85,6 +88,7 @@ services:
     volumes:
       # ảnh SGK để OCR (offline) — read-only, không nằm trong image
       - ./data:/app/data:ro
+      - ./data_processed:/app/data_processed  # cache OCR (giữ lại khi recreate)
     depends_on:
       redis: { condition: service_started }
       qdrant: { condition: service_started }
