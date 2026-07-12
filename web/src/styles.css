@@ -215,7 +215,7 @@ img, video { -webkit-user-drag: none; user-select: none; }
 .app-bar .dtp-logo { width: 34px; height: 34px; } .app-bar .dtp-logo span { font-size: 17px; }
 .app-bar .brand-name { font-family: "Baloo 2"; font-weight: 700; font-size: 17px; }
 .app-bar .spacer { flex: 1; }
-.pill-select { height: 38px; padding: 0 12px; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--surface); color: var(--ink); font-weight: 600; font-size: 13px; cursor: pointer; }
+.pill-select { height: 38px; padding: 6px 12px; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--surface); color: var(--ink); font-weight: 600; font-size: 13px; cursor: pointer; }
 .avatar-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--border); background: var(--accent-soft); color: var(--accent-ink); font-weight: 700; cursor: pointer; }
 
 /* Menu người dùng (tên + vai trò + đăng xuất) ở app-bar */
@@ -423,8 +423,8 @@ img, video { -webkit-user-drag: none; user-select: none; }
 .exam-warn { font-size: 13px; color: var(--warn); background: color-mix(in oklab, var(--warn) 10%, var(--surface)); border: 1px solid color-mix(in oklab, var(--warn) 30%, var(--border)); border-radius: var(--r-md); padding: 8px 12px; margin-bottom: 12px; }
 .exam-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--ink-3); min-height: 300px; text-align: center; }
 
-/* Danh mục chủ đề (cột phải khung chat) */
-.chat-frame.with-topics { grid-template-columns: 230px 1fr 300px; }
+/* Danh mục chủ đề (cột phải khung chat) — cột gọn để hiện được trên nhiều màn */
+.chat-frame.with-topics { grid-template-columns: 210px 1fr 270px; }
 .topic-panel { display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--border); background: var(--surface); }
 .tp-head { padding: 16px; border-bottom: 1px solid var(--border); }
 .tp-title { font-family: "Baloo 2"; font-weight: 700; font-size: 16px; color: var(--ink); }
@@ -437,9 +437,10 @@ img, video { -webkit-user-drag: none; user-select: none; }
 .tp-loading { color: var(--ink-3); font-size: 13px; padding: 8px 2px; }
 
 /* ===================== RESPONSIVE ===================== */
-/* Màn vừa: ẩn cột danh mục, khung chat còn 2 cột */
-@media (max-width: 1024px) {
-  .chat-frame.with-topics { grid-template-columns: 230px 1fr; }
+/* Chỉ ẩn cột danh mục khi màn thật sự hẹp (≤820px) — trước để 1024px nên laptop
+   scale 125–150% (viewport ~960–1024) bị ẩn nhầm. */
+@media (max-width: 820px) {
+  .chat-frame.with-topics { grid-template-columns: 210px 1fr; }
   .topic-panel { display: none; }
 }
 @media (max-width: 720px) {
@@ -467,7 +468,10 @@ img, video { -webkit-user-drag: none; user-select: none; }
 .modal-card.quiz-card { width: min(560px, 100%); }
 .quiz-head { display: flex; align-items: center; gap: 12px; padding: 15px 18px; border-bottom: 1px solid var(--border); }
 .quiz-head-info { display: flex; align-items: center; gap: 12px; }
-.quiz-logo { font-family: "Baloo 2"; font-weight: 700; color: var(--accent-ink); background: var(--accent-soft); border: 1px solid var(--accent-border); padding: 4px 10px; border-radius: var(--r-pill); font-size: 13px; }
+.quiz-logo { flex: none; white-space: nowrap; font-family: "Baloo 2"; font-weight: 700; color: var(--accent-ink); background: var(--accent-soft); border: 1px solid var(--accent-border); padding: 4px 10px; border-radius: var(--r-pill); font-size: 13px; }
+.quiz-head-info { min-width: 0; }
+.quiz-head-info > div { min-width: 0; }
+.quiz-title { overflow: hidden; text-overflow: ellipsis; }
 .quiz-title { font-family: "Baloo 2"; font-weight: 700; font-size: 15.5px; }
 .quiz-sub { font-size: 12px; color: var(--ink-3); }
 .quiz-head .modal-close { margin-left: auto; }

@@ -215,13 +215,25 @@ def _q_truefalse(row: dict) -> list[dict]:
 
 
 def _q_fill(row: dict) -> list[dict]:
+    """FB*: điền vào chỗ trống. GỘP mọi chỗ trống của 1 câu thành 1 câu duy nhất
+    (nhiều ô nhập) thay vì tách N câu lặp lại đề. Thay ký hiệu %s% trong đề bằng
+    '[...]' để thấy vị trí chỗ trống (nhiều chỗ -> đánh số [1] [2]… theo thứ tự)."""
     qtext = _clean(row.get("question_text")) or _clean(row.get("question_description")) or "Điền vào chỗ trống:"
     blanks = [_clean(x) for x in str(row.get("correct_answers") or "").split("#") if _clean(x)]
     if not blanks:
         return []
-    if len(blanks) == 1:
-        return [{"type": "fill", "q": qtext, "blanks": blanks}]
-    return [{"type": "fill", "q": f"{qtext} — Chỗ trống {i + 1}", "blanks": [b]} for i, b in enumerate(blanks)]
+    n_slot = qtext.count("%s%")
+    if n_slot > 1:
+        i = 0
+
+        def _mark(_m):
+            nonlocal i
+            i += 1
+            return f"[{i}]"
+        qtext = re.sub(r"%s%", _mark, qtext)
+    else:
+        qtext = qtext.replace("%s%", "[...]")
+    return [{"type": "fill", "q": qtext, "blanks": blanks}]
 
 
 def _q_match(row: dict) -> list[dict]:
