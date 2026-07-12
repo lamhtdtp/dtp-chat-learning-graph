@@ -76,8 +76,8 @@ export function getMe(): Promise<{ id: number; email: string; name: string; role
   return req("/auth/me", { auth: true });
 }
 
-export function generateExam(hoc_ky: string, tong_so_cau: number): Promise<ExamResult> {
-  return post<ExamResult>("/exam/generate", { hoc_ky, tong_so_cau }, true);
+export function generateExam(hoc_ky: string, tong_so_cau: number, mon = "Toán"): Promise<ExamResult> {
+  return post<ExamResult>("/exam/generate", { hoc_ky, tong_so_cau, mon }, true);
 }
 
 // Học sinh: đề NGẮN bám ma trận (như giáo viên), không cần quyền giáo viên.

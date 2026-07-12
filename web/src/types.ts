@@ -94,6 +94,7 @@ export interface ExamQuestion {
 
 export interface ExamResult {
   hoc_ky: string;
+  mon?: string;
   tong_so_cau: number;
   chi_tieu: Record<string, number>;
   ti_le_muc_do: Record<string, number>;

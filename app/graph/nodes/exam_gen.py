@@ -49,7 +49,9 @@ async def exam_gen_node(state: ExamState) -> dict:
         return {}
 
     chunks = await retriever.retrieve(
-        state["mach_noi_dung"], mon="toan", khoi="lop_6", top_k=5, score_threshold=0.4
+        state["mach_noi_dung"],
+        mon=state.get("mon", "toan"), khoi=state.get("khoi", "lop_6"),
+        top_k=5, score_threshold=0.4,
     )
     context = "\n\n".join(f"[{c.nguon}]\n{c.content}" for c in chunks)
 

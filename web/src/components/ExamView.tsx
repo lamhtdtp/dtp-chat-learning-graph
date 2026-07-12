@@ -32,29 +32,38 @@ function QuestionCard({ q, index }: { q: ExamQuestion; index: number }) {
   );
 }
 
+// Môn có ma trận + key theme tương ứng (data-subject trong styles.css).
+const MON_OPTIONS = [
+  { ten: "Toán", key: "toan", icon: "📐" },
+  { ten: "Tiếng Anh", key: "anh", icon: "💬" },
+];
+
 export function ExamView({ teacherName, onBack, onLogout }: { teacherName: string; onBack?: () => void; onLogout: () => void }) {
+  const [mon, setMon] = useState("Toán");
   const [hocKy, setHocKy] = useState("hk1");
   const [soCau, setSoCau] = useState(10);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exam, setExam] = useState<ExamResult | null>(null);
 
+  const monInfo = MON_OPTIONS.find((m) => m.ten === mon) ?? MON_OPTIONS[0];
+
   const run = async () => {
     setError(null); setBusy(true); setExam(null);
-    try { setExam(await generateExam(hocKy, soCau)); }
+    try { setExam(await generateExam(hocKy, soCau, mon)); }
     catch (err) { setError(err instanceof ApiError ? err.message : "Không kết nối được máy chủ"); }
     finally { setBusy(false); }
   };
 
   return (
-    <div className="exam-page" data-subject="toan">
+    <div className="exam-page" data-subject={monInfo.key}>
       <div className="app-bar">
         <div className="brand">
           <div className="dtp-logo"><img src="/dtp-logo.png" alt="DTP" /></div>
           <div className="brand-name">{TUTOR_NAME}</div>
         </div>
         {onBack && <button className="btn" type="button" onClick={onBack}>← Về trang chính</button>}
-        <span className="pill-select" style={{ cursor: "default" }}>📐 Toán · Lớp 6</span>
+        <span className="pill-select" style={{ cursor: "default" }}>{monInfo.icon} {mon} · Lớp 6</span>
         <div className="spacer" />
         <ThemeToggle />
         <UserMenu name={teacherName} role="giao_vien" onLogout={onLogout} />
@@ -63,6 +72,11 @@ export function ExamView({ teacherName, onBack, onLogout }: { teacherName: strin
       <div className="exam-grid">
         <aside className="exam-cfg">
           <div className="exam-cfg-title">📝 Sinh đề theo ma trận</div>
+          <label>Môn
+            <select value={mon} onChange={(e) => { setMon(e.target.value); setExam(null); }}>
+              {MON_OPTIONS.map((m) => <option key={m.key} value={m.ten}>{m.ten}</option>)}
+            </select>
+          </label>
           <label>Học kỳ
             <select value={hocKy} onChange={(e) => setHocKy(e.target.value)}>
               <option value="hk1">Học kỳ 1</option>
@@ -78,7 +92,7 @@ export function ExamView({ teacherName, onBack, onLogout }: { teacherName: strin
             {busy ? "Đang sinh đề…" : "⚡ Sinh đề"}
           </button>
           <p style={{ fontSize: 12, color: "var(--ink-3)", margin: 0 }}>
-            Đề bám ma trận đặc tả Toán 6; số câu mỗi mức độ khớp chính xác.
+            Đề bám ma trận đặc tả {mon} lớp 6; số câu mỗi mức độ khớp chính xác.
           </p>
         </aside>
 

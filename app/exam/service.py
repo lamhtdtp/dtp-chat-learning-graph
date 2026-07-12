@@ -18,6 +18,11 @@ from app.graph.exam_build import build_exam_graph
 # compile 1 lần dùng lại được, không cần Redis.
 _EXAM_GRAPH = build_exam_graph()
 
+# Tên hiển thị (Subject.name/Grade.name để tra blueprint) -> giá trị `mon`/`khoi`
+# trong Qdrant (để exam_gen retrieve ngữ liệu đúng môn). Thêm môn = thêm 1 dòng.
+_MON_QDRANT = {"Toán": "toan", "Tiếng Anh": "tieng_anh"}
+_KHOI_QDRANT = {"Lớp 6": "lop_6"}
+
 
 class BlueprintNotFound(Exception):
     """Chưa nạp ma trận cho (môn, khối, học kỳ) yêu cầu."""
@@ -102,6 +107,9 @@ async def sinh_de(
     result = await _EXAM_GRAPH.ainvoke(
         {
             "mach_noi_dung": "; ".join(mach_list),
+            # exam_gen retrieve theo môn/khối tương ứng (đa môn: Toán, Tiếng Anh…).
+            "mon": _MON_QDRANT.get(mon, "toan"),
+            "khoi": _KHOI_QDRANT.get(khoi, "lop_6"),
             "chi_tieu": chi_tieu,
             "de_thi": [],
             "so_lan_lap": 0,

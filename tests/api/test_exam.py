@@ -73,3 +73,20 @@ async def test_practice_hoc_sinh_sinh_de_ngan_theo_ma_tran(client, mocker):
 async def test_practice_thieu_token_401(client):
     r = await client.post("/exam/practice", json={})
     assert r.status_code == 401
+
+
+async def test_generate_mon_khong_hop_le_400(client, mocker):
+    h = await _auth(client, "giao_vien")
+    r = await client.post("/exam/generate", json={"hoc_ky": "hk1", "tong_so_cau": 10, "mon": "Vật lý"}, headers=h)
+    assert r.status_code == 400
+
+
+async def test_generate_mon_mac_dinh_toan_trong_response(client, mocker):
+    from app.exam.check import CauHoi
+    h = await _auth(client, "giao_vien")
+    mocker.patch.object(service._EXAM_GRAPH, "ainvoke", mocker.AsyncMock(return_value={
+        "de_thi": [CauHoi(muc_do="de", noi_dung="1+1=?", dap_an="2", loi_giai="c")],
+        "canh_bao": None, "so_lan_lap": 1,
+    }))
+    body = (await client.post("/exam/generate", json={"hoc_ky": "hk1", "tong_so_cau": 10}, headers=h)).json()
+    assert body["mon"] == "Toán"
