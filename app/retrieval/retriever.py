@@ -8,10 +8,17 @@ hỏng retrieval.
 
 from pydantic import BaseModel
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import FieldCondition, Filter, MatchValue
+from qdrant_client.models import FieldCondition, Filter, MatchAny, MatchValue
 
 from app.config import settings
 from app.llm import gateway
+
+# Alias `mon`: dữ liệu OCR/ingest có thể gắn "tieng_anh" HOẶC "anh" (lịch sử ingest
+# không nhất quán). Filter theo CẢ NHÓM để retrieve không lệch chỉ vì tên môn.
+_MON_ALIASES: dict[str, list[str]] = {
+    "tieng_anh": ["tieng_anh", "anh"],
+    "anh": ["tieng_anh", "anh"],
+}
 
 
 class RetrievedChunk(BaseModel):
@@ -37,8 +44,14 @@ def _build_filter(
     chuong_so: int | None = None,
     loai_noi_dung: str | None = None,
 ) -> Filter:
+    aliases = _MON_ALIASES.get(mon)
+    mon_cond = (
+        FieldCondition(key="mon", match=MatchAny(any=aliases))
+        if aliases
+        else FieldCondition(key="mon", match=MatchValue(value=mon))
+    )
     conditions = [
-        FieldCondition(key="mon", match=MatchValue(value=mon)),
+        mon_cond,
         FieldCondition(key="khoi", match=MatchValue(value=khoi)),
     ]
     if sach is not None:
