@@ -73,6 +73,7 @@ export function App() {
       name={session.name}
       role={session.role}
       onBackToHub={() => setSubject(null)}
+      onOpenExam={isTeacher ? () => setShowExam(true) : undefined}
       onLogout={handleLogout}
     />
   );

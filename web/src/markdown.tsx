@@ -18,8 +18,12 @@ function renderMath(latex: string, key: string, display: boolean): ReactNode {
 // Render inline: $$công thức$$, $công thức$, **đậm** (đệ quy: đậm VẪN render công
 // thức/trích dẫn bên trong), và [tr.N] -> chip trích dẫn bấm được.
 function renderInline(text: string, keyBase: string, cites: CiteMap, onCite: OnCite): ReactNode[] {
-  // $$...$$ đặt TRƯỚC $...$ để khớp công thức căn giữa; **...** khớp trước để đệ quy.
-  const parts = text.split(/(\$\$[^$]+\$\$|\$[^$]+\$|\*\*[^*]+\*\*|\[tr\.\d+\])/g);
+  // $$...$$ trước $...$ (công thức căn giữa); **đậm** trước *gạch chân* (một sao,
+  // ôm sát chữ) để không nuốt nhau; <u>…</u> là cú pháp gạch chân model ưu tiên
+  // (bài phát âm: "*s*ister" -> gạch chân chữ s).
+  const parts = text.split(
+    /(\$\$[^$]+\$\$|\$[^$]+\$|\*\*[^*]+\*\*|<u>[\s\S]*?<\/u>|\*[^*\s][^*]*\*|\[tr\.\d+\])/g,
+  );
   const nodes: ReactNode[] = [];
   parts.forEach((part, i) => {
     const key = `${keyBase}-${i}`;
@@ -37,6 +41,15 @@ function renderInline(text: string, keyBase: string, cites: CiteMap, onCite: OnC
       // Đệ quy: công thức/trích dẫn trong nhãn đậm cũng được render (trước đây
       // hiện literal "$\mathbb{Z}$" vì lấy text thô).
       nodes.push(<strong key={key}>{renderInline(part.slice(2, -2), key, cites, onCite)}</strong>);
+      return;
+    }
+    if (part.startsWith("<u>") && part.endsWith("</u>") && part.length > 7) {
+      nodes.push(<u key={key} className="md-u">{renderInline(part.slice(3, -4), key, cites, onCite)}</u>);
+      return;
+    }
+    // *x* (một sao, ôm sát chữ) = gạch chân phần phát âm (không phải in nghiêng).
+    if (part.startsWith("*") && !part.startsWith("**") && part.endsWith("*") && part.length > 2) {
+      nodes.push(<u key={key} className="md-u">{renderInline(part.slice(1, -1), key, cites, onCite)}</u>);
       return;
     }
     const citeMatch = part.match(/^\[tr\.(\d+)\]$/);

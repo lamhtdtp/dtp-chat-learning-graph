@@ -27,7 +27,7 @@ export function SubjectHub({
         <button className="pill-select" type="button">🎒 Lớp 6 ▾</button>
         <div className="spacer" />
         <ThemeToggle />
-        <UserMenu name={name} role={role} onLogout={onLogout} />
+        <UserMenu name={name} role={role} onOpenExam={onOpenExam} onLogout={onLogout} />
       </div>
 
       <div className="hub-body">

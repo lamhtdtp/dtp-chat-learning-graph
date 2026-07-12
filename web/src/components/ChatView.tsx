@@ -14,12 +14,13 @@ import { TopicPanel } from "./TopicPanel";
 import { UserMenu } from "./UserMenu";
 
 export function ChatView({
-  initialSubject, name, role, onBackToHub, onLogout,
+  initialSubject, name, role, onBackToHub, onOpenExam, onLogout,
 }: {
   initialSubject: string;
   name: string;
   role: Role;
   onBackToHub: () => void;
+  onOpenExam?: () => void;
   onLogout: () => void;
 }) {
   const [subject, setSubject] = useState(initialSubject);
@@ -109,7 +110,7 @@ export function ChatView({
         </div>
         <div className="spacer" />
         <ThemeToggle />
-        <UserMenu name={name} role={role} onLogout={onLogout} />
+        <UserMenu name={name} role={role} onOpenExam={onOpenExam} onLogout={onLogout} />
       </div>
 
       {/* Subject switcher — đổi tab là RE-THEME toàn khung chat */}

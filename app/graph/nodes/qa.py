@@ -16,6 +16,10 @@ _SYSTEM = (
     "từ đoạn nào, CHÈN ngay [tr.N] tương ứng vào cuối câu/ý đó (ví dụ: "
     "'...số nguyên tố chỉ có hai ước [tr.45].'). Chỉ dùng số trang có trong "
     "ngữ cảnh, không bịa số trang.\n"
+    "Khi cần GẠCH CHÂN một phần chữ (ví dụ âm/chữ cái được gạch chân trong bài "
+    "phát âm tiếng Anh), bọc phần đó trong <u>...</u>. TUYỆT ĐỐI KHÔNG dùng dấu "
+    "sao * cho gạch chân (dấu sao là in đậm, không phải gạch chân). "
+    "Ví dụ đúng: '<u>s</u>ister | hi<u>s</u> | <u>p</u>olice'.\n"
     + _MATH_FORMAT
 )
 
