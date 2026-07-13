@@ -447,6 +447,9 @@ img, video { -webkit-user-drag: none; user-select: none; }
 .tp-items { display: flex; flex-wrap: wrap; gap: 8px; }
 .tp-chip { padding: 8px 12px; border: 1px solid var(--accent-border); background: var(--accent-soft); color: var(--accent-ink); font-size: 12.5px; font-weight: 500; cursor: pointer; text-align: left; transition: background .12s, transform .12s; }
 .tp-chip:hover { background: var(--accent-soft-2); transform: translateY(-1px); }
+/* Chủ đề CÓ video minh hoạ (đẩy lên đầu) — viền đậm hơn + nhãn ▶. */
+.tp-chip.has-video { display: inline-flex; align-items: center; gap: 6px; border-color: var(--accent); font-weight: 600; }
+.tp-chip-vid { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: 8px; line-height: 1; flex: none; }
 .tp-loading { color: var(--ink-3); font-size: 13px; padding: 8px 2px; }
 
 /* ===================== RESPONSIVE ===================== */

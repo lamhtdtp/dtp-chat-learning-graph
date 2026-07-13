@@ -121,7 +121,10 @@ export function getBookPageUrl(tap: number, page: number, mon = "toan"): Promise
 }
 
 // Danh mục chương trình (panel chủ đề trong chat) — lấy từ taxonomy backend.
-export function getTopics(mon = "Toán"): Promise<{ mach_noi_dung: string; items: string[] }[]> {
+export interface TopicItem { ten: string; co_video: boolean }
+export interface TopicGroupRow { mach_noi_dung: string; items: TopicItem[]; co_video: boolean }
+
+export function getTopics(mon = "Toán"): Promise<TopicGroupRow[]> {
   return req(`/books/topics?mon=${encodeURIComponent(mon)}`, { auth: true });
 }
 

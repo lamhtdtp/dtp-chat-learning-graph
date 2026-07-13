@@ -6,7 +6,8 @@ import { TOPIC_GROUPS } from "../data";
 // gom theo mạch nội dung. Lỗi/rỗng -> fallback danh mục tĩnh (data.ts) để không
 // trống. Bấm 1 chủ đề -> gửi vào chat để bắt đầu học.
 
-interface Group { title: string; emoji: string; items: string[] }
+interface Item { ten: string; co_video: boolean }
+interface Group { title: string; emoji: string; items: Item[] }
 
 // curriculum_topics không có emoji -> gán theo từ khoá mạch nội dung (đa môn).
 function emojiFor(mach: string): string {
@@ -29,7 +30,9 @@ function emojiFor(mach: string): string {
 
 // Fallback tĩnh CHỈ dùng cho Toán (data.ts là danh mục Toán). Môn khác không có
 // fallback tĩnh -> rỗng thì báo "chưa có" thay vì hiện nhầm danh mục Toán.
-const MATH_FALLBACK: Group[] = TOPIC_GROUPS.map((g) => ({ title: g.title, emoji: g.emoji, items: g.items }));
+const MATH_FALLBACK: Group[] = TOPIC_GROUPS.map((g) => ({
+  title: g.title, emoji: g.emoji, items: g.items.map((ten) => ({ ten, co_video: false })),
+}));
 
 export function TopicPanel({ mon, subjectName, onPick }: { mon: string; subjectName: string; onPick: (topic: string) => void }) {
   const [groups, setGroups] = useState<Group[] | null>(null);
@@ -42,6 +45,7 @@ export function TopicPanel({ mon, subjectName, onPick }: { mon: string; subjectN
       .then((rows) => {
         if (!alive) return;
         const mapped = rows.map((r) => ({ title: r.mach_noi_dung, emoji: emojiFor(r.mach_noi_dung), items: r.items }));
+        // backend đã sắp item/nhóm có video lên đầu; giữ nguyên thứ tự đó.
         setGroups(mapped.length ? mapped : fallback);
       })
       .catch(() => alive && setGroups(fallback));
@@ -67,8 +71,10 @@ export function TopicPanel({ mon, subjectName, onPick }: { mon: string; subjectN
               </div>
               <div className="tp-items">
                 {g.items.map((it) => (
-                  <button key={it} type="button" className="tp-chip" onClick={() => onPick(it)}>
-                    {it}
+                  <button key={it.ten} type="button" className={"tp-chip" + (it.co_video ? " has-video" : "")}
+                    onClick={() => onPick(it.ten)} title={it.co_video ? "Có video minh hoạ" : undefined}>
+                    {it.co_video && <span className="tp-chip-vid" aria-label="Có video">▶</span>}
+                    {it.ten}
                   </button>
                 ))}
               </div>

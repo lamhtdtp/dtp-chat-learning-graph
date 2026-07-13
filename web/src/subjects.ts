@@ -16,7 +16,9 @@ export interface Subject {
 export const SUBJECTS: Subject[] = [
   { key: "toan", name: "Toán", short: "Toán", icon: "📐", cats: 6, unlocked: true,
     suggestions: ["Số nguyên tố là gì?", "Ước chung lớn nhất và bội chung nhỏ nhất", "Cách viết một tập hợp?", "Ôn tập chương Số tự nhiên"] },
-  { key: "anh", name: "Tiếng Anh", short: "Tiếng Anh", icon: "💬", cats: 5, unlocked: true,
+  // TẠM ẨN Tiếng Anh trên UI (unlocked:false) — bật lại = đổi về true. Backend
+  // (chat/exam/ma trận) vẫn hoạt động, chỉ ẩn lối vào ở giao diện.
+  { key: "anh", name: "Tiếng Anh", short: "Tiếng Anh", icon: "💬", cats: 5, unlocked: false,
     suggestions: ["Present Perfect dùng khi nào?", "Từ vựng chủ đề du lịch", "Viết lại câu", "Luyện phát âm"] },
   { key: "van", name: "Ngữ văn", short: "Ngữ văn", icon: "✒️", cats: 5, unlocked: false,
     suggestions: ["Phân tích bài Ánh trăng", "Lập dàn ý nghị luận", "Biện pháp tu từ", "Tóm tắt Làng"] },

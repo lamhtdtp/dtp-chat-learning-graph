@@ -20,10 +20,10 @@ const SYMBOLS = [
   { s: "Aa", style: { bottom: "26%", right: "18%", fontSize: 72 }, r: "8deg", dur: "7.6s" },
 ];
 
-// Môn đang có (đồng bộ với subjects.ts: hiện Toán + Tiếng Anh).
+// Môn đang có (đồng bộ với subjects.ts). TẠM ẨN Tiếng Anh — bật lại = bỏ comment.
 const SUBJECTS_HERO = [
   { icon: "📐", name: "Toán" },
-  { icon: "💬", name: "Tiếng Anh" },
+  // { icon: "💬", name: "Tiếng Anh" },
 ];
 
 const FEATS = [

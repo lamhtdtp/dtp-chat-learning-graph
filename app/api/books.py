@@ -19,8 +19,12 @@ from app.api import security
 from app.api.deps import get_current_user
 from app.db.models import CurriculumTopic, Grade, Subject, User
 from app.db.session import get_session
+from app.video.concept import detect_concept
 
 router = APIRouter(prefix="/books", tags=["books"])
+
+# Tên môn (Subject.name) -> giá trị mon dùng nhận diện khái niệm video (concept.py).
+_MON_CONCEPT = {"Toán": "toan", "Tiếng Anh": "tieng_anh"}
 
 # Ảnh trang theo MÔN — không hard-code Toán nữa (citation môn Anh phải mở đúng
 # sách Anh). `mon` nhận cả key frontend ("toan"/"anh") lẫn giá trị Qdrant
@@ -58,7 +62,11 @@ async def get_topics(
 ) -> list[dict]:
     """Danh mục chương trình cho panel chủ đề trong chat — lấy từ taxonomy thật
     `curriculum_topics` (không hard-code frontend). Gom theo mạch nội dung, giữ
-    thứ tự order_index, khử trùng đơn vị kiến thức."""
+    thứ tự order_index, khử trùng đơn vị kiến thức.
+
+    Mỗi đơn vị kiến thức có cờ `co_video` = có khớp KHÁI NIỆM video cố định không
+    (concept.py) -> chat sẽ đính được video cho chủ đề đó. Item/nhóm có video được
+    đẩy LÊN ĐẦU (giữ nguyên thứ tự tương đối còn lại) để học sinh thấy trước."""
     subject = await session.scalar(select(Subject).filter_by(name=mon))
     grade = await session.scalar(select(Grade).filter_by(name=khoi))
     if subject is None or grade is None:
@@ -73,6 +81,7 @@ async def get_topics(
     def norm(s: str) -> str:
         return re.sub(r"\s+", " ", (s or "").strip())
 
+    mon_cc = _MON_CONCEPT.get(mon, "toan")
     groups: list[dict] = []
     index: dict[str, dict] = {}
     for t in rows:
@@ -85,9 +94,14 @@ async def get_topics(
             groups.append(g)
         if dv and dv.lower() not in g["_seen"]:
             g["_seen"].add(dv.lower())
-            g["items"].append(dv)
+            g["items"].append({"ten": dv, "co_video": detect_concept(dv, mon_cc) is not None})
     for g in groups:
         g.pop("_seen", None)
+        # item có video lên đầu (stable: giữ thứ tự order_index trong mỗi nhóm)
+        g["items"].sort(key=lambda it: not it["co_video"])
+        g["co_video"] = any(it["co_video"] for it in g["items"])
+    # nhóm có video lên đầu (stable)
+    groups.sort(key=lambda gr: not gr["co_video"])
     return groups
 
 

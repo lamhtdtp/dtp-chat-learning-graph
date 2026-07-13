@@ -33,9 +33,10 @@ function QuestionCard({ q, index }: { q: ExamQuestion; index: number }) {
 }
 
 // Môn có ma trận + key theme tương ứng (data-subject trong styles.css).
+// TẠM ẨN Tiếng Anh — bật lại = bỏ comment dòng dưới.
 const MON_OPTIONS = [
   { ten: "Toán", key: "toan", icon: "📐" },
-  { ten: "Tiếng Anh", key: "anh", icon: "💬" },
+  // { ten: "Tiếng Anh", key: "anh", icon: "💬" },
 ];
 
 export function ExamView({ teacherName, onBack, onLogout }: { teacherName: string; onBack?: () => void; onLogout: () => void }) {
