@@ -41,7 +41,7 @@ class Settings(BaseSettings):
 
     # Chống lạm dụng / kiểm soát chi phí LLM (mỗi lượt chat tốn tiền model).
     chat_daily_limit: int = 20   # số lượt chat / user / ngày (0 = không giới hạn); admin miễn
-    chat_max_chars: int = 500    # độ dài tối đa 1 câu hỏi (chặn input rác/quá dài gây treo + tốn token)
+    chat_max_chars: int = 200    # độ dài tối đa 1 câu hỏi (chặn input rác/quá dài gây treo + tốn token)
 
     # Video AI ngắn (Epic-09). Media sinh async, không chặn chat.
     # sgk_version nằm trong concept_key: đổi sách -> cache miss, làm mới video.
