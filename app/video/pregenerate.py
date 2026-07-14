@@ -6,6 +6,8 @@ của học sinh về sau là CACHE HIT, hiện video ngay, không phải chờ.
 Dùng:
     # enqueue tất cả cho worker video (host) dựng nền — KHÔNG chặn:
     python -m app.video.pregenerate
+    # chỉ 1 môn (vd chỉ Toán, bỏ Tiếng Anh):
+    python -m app.video.pregenerate --mon toan
     # hoặc dựng ngay tại chỗ (đồng bộ, không cần worker/broker):
     python -m app.video.pregenerate --inline
 """
@@ -19,17 +21,22 @@ from app.config import settings
 from app.db.models import VideoJob
 from app.db.session import async_session_factory
 from app.video import cache
-from app.video.concept import CONCEPT_QUERY
+from app.video.concept import CONCEPT_MON, CONCEPT_QUERY
 from app.video.pipeline import build_video_for_job
 
 
-async def _enqueue_all() -> int:
-    """Tạo job (idempotent) + đẩy hàng đợi cho mọi khái niệm. Trả số job đã đẩy."""
+def _slugs(mon: str | None) -> list[str]:
+    """Danh sách slug cần sinh; lọc theo môn nếu có (`toan`/`tieng_anh`)."""
+    return [s for s in CONCEPT_QUERY if mon is None or CONCEPT_MON.get(s) == mon]
+
+
+async def _enqueue_all(mon: str | None = None) -> int:
+    """Tạo job (idempotent) + đẩy hàng đợi cho khái niệm (đã lọc môn). Trả số job."""
     from app.ingestion.celery_app import render_video_task
 
     pushed = 0
     async with async_session_factory() as session:
-        for slug in CONCEPT_QUERY:
+        for slug in _slugs(mon):
             ck = f"{slug}::{settings.sgk_version}"
             job, created = await cache.get_or_create_job(session, ck, settings.sgk_version)
             await session.commit()
@@ -43,9 +50,9 @@ async def _enqueue_all() -> int:
     return pushed
 
 
-async def _inline_all() -> None:
-    """Dựng ngay tại chỗ (tuần tự) — dùng khi không chạy worker/broker."""
-    for slug in CONCEPT_QUERY:
+async def _inline_all(mon: str | None = None) -> None:
+    """Dựng ngay tại chỗ (tuần tự, đã lọc môn) — khi không chạy worker/broker."""
+    for slug in _slugs(mon):
         ck = f"{slug}::{settings.sgk_version}"
         async with async_session_factory() as session:
             done = await cache.get_done_video(session, ck, settings.sgk_version)
@@ -66,8 +73,10 @@ async def _inline_all() -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--inline", action="store_true", help="dựng ngay, không qua hàng đợi")
+    ap.add_argument("--mon", choices=["toan", "tieng_anh"], default=None,
+                    help="chỉ sinh cho môn này (mặc định: tất cả)")
     args = ap.parse_args()
-    asyncio.run(_inline_all() if args.inline else _enqueue_all())
+    asyncio.run(_inline_all(args.mon) if args.inline else _enqueue_all(args.mon))
 
 
 if __name__ == "__main__":

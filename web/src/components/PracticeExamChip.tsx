@@ -32,7 +32,11 @@ function QCard({ q, i }: { q: ExamQuestion; i: number }) {
   );
 }
 
-export function PracticeExamChip({ label }: { label: string }) {
+// Dùng ở 2 chỗ: chip gợi ý dưới câu trả lời (mặc định) và nút trên header của
+// học sinh (className="btn accent…" + icon) — song song nút "Sinh đề" của GV.
+export function PracticeExamChip({ label, className = "chip", icon }: {
+  label: string; className?: string; icon?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -54,8 +58,8 @@ export function PracticeExamChip({ label }: { label: string }) {
 
   return (
     <>
-      <button className="chip" type="button" onClick={run}>
-        <span className="chip-arrow">→</span> {label}
+      <button className={className} type="button" onClick={run}>
+        {icon ? <span aria-hidden>{icon}</span> : <span className="chip-arrow">→</span>} {label}
       </button>
 
       {open && (

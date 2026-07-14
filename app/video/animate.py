@@ -14,13 +14,17 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from app.video import illustrations, tts
+from app.video import illustrations, shapes, tts
 from app.video.fonts import FONT_PATH as _FONT  # macOS/Linux tự chọn font phù hợp
 from app.video.render import katex_validate, latex_to_unicode
 from app.video.script import Slide, Storyboard
 
 _W, _H, _FPS = 1280, 720, 25
 _SEC_PER_SLIDE = 5.0
+
+# Vùng đặt vật thể 3D minh hoạ (góc dưới-trái bảng; cô giáo ở phải). Khi có hình
+# 3D, chữ bị giới hạn phía trên vùng này để không đè.
+_SHAPE_ZX0, _SHAPE_ZY0, _SHAPE_ZW, _SHAPE_ZH = 72, 372, 420, 268
 
 # Logo DTP đóng dấu góc trên-trái mọi frame (thương hiệu). Tải + resize 1 lần.
 _LOGO_PATH = Path(__file__).resolve().parents[2] / "web" / "public" / "dtp-logo.png"
@@ -114,10 +118,18 @@ def _subtitle(d, text: str, alpha: float) -> None:
 
 
 def _slide_frame(slide, local_frame, total_frames, index, total,
-                 bg: Image.Image, has_scene: bool, global_prog: float) -> Image.Image:
+                 bg: Image.Image, has_scene: bool, global_prog: float,
+                 shape_frame: Image.Image | None = None) -> Image.Image:
     prog = local_frame / max(1, total_frames)
     base = _zoom(bg, global_prog) if has_scene else bg.copy()
     img = base.convert("RGBA")
+    # Vật thể 3D minh hoạ (góc dưới-trái) — ghép trước, chữ vẽ đè lên sau.
+    if shape_frame is not None:
+        sx = _SHAPE_ZX0 + (_SHAPE_ZW - shape_frame.width) // 2
+        sy = _SHAPE_ZY0 + (_SHAPE_ZH - shape_frame.height) // 2
+        img.alpha_composite(shape_frame, (max(0, sx), max(0, sy)))
+    # Chữ giới hạn phía trên vùng 3D (nếu có) để không đè.
+    text_bottom = (_SHAPE_ZY0 - 16) if shape_frame is not None else _BOARD_Y1
     layer = Image.new("RGBA", (_W, _H), (0, 0, 0, 0))
     d = ImageDraw.Draw(layer)
 
@@ -151,7 +163,7 @@ def _slide_frame(slide, local_frame, total_frames, index, total,
     text_w = _BOARD_X1 - x
     bullets = slide.y_chinh[:3]
     for i, bullet in enumerate(bullets):
-        if y > _BOARD_Y1 - 40:
+        if y > text_bottom - 40:
             break
         start = 0.12 + 0.5 * (i / max(1, len(bullets)))
         a = _ease((prog - start) / 0.18) if prog > start else 0.0
@@ -167,7 +179,7 @@ def _slide_frame(slide, local_frame, total_frames, index, total,
     # Công thức: bút dạ xanh lớn + gạch nền nhạt (không phải hộp đục)
     for ct in slide.cong_thuc[:1]:
         a = _ease((prog - 0.4) / 0.2) if prog > 0.4 else 0.0
-        if a <= 0 or y + 60 > _BOARD_Y1:
+        if a <= 0 or y + 60 > text_bottom:
             continue
         al = int(255 * a)
         uni = latex_to_unicode(ct)
@@ -285,6 +297,9 @@ def render_storyboard(storyboard: Storyboard, out_mp4: str | Path,
 
     has_scene = background is not None
     bg = background if has_scene else _GRADIENT
+    # Vật thể 3D minh hoạ theo khái niệm (None nếu không có clip) — lặp qua các
+    # frame để tạo chuyển động xoay.
+    shape_frames = shapes.load_frames(concept_slug, _SHAPE_ZW, _SHAPE_ZH) if concept_slug else None
 
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
@@ -308,7 +323,8 @@ def render_storyboard(storyboard: Storyboard, out_mp4: str | Path,
                 n = frame_counts[idx]
                 for f in range(n):
                     gp = done / max(1, total_frames_all)
-                    frame = _slide_frame(slide, f, n, idx, total, bg, has_scene, gp)
+                    sf = shape_frames[done % len(shape_frames)] if shape_frames else None
+                    frame = _slide_frame(slide, f, n, idx, total, bg, has_scene, gp, sf)
                     proc.stdin.write(frame.tobytes())
                     done += 1
         finally:

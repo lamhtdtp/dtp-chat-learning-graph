@@ -8,6 +8,7 @@ import { useSpeech } from "../hooks/useSpeech";
 import type { ChatMessage, Citation, Role, SessionRow } from "../types";
 import { BookPageModal } from "./BookPageModal";
 import { MessageBubble } from "./MessageBubble";
+import { PracticeExamChip } from "./PracticeExamChip";
 import { ChatSidebar } from "./Sidebar";
 import { ThemeToggle } from "./ThemeToggle";
 import { TopicPanel } from "./TopicPanel";
@@ -109,11 +110,15 @@ export function ChatView({
           <div className="brand-name">{TUTOR_NAME}</div>
         </div>
         <div className="spacer" />
-        {onOpenExam && (
+        {/* GV: nút "Sinh đề" (đề đầy đủ). HS: nút "Đề luyện tập" (đề ngắn theo ma
+            trận) — luôn hiện trên header, không phải chờ chip theo ngữ cảnh. */}
+        {onOpenExam ? (
           <button className="btn accent hdr-exam-btn" type="button" onClick={onOpenExam} title="Sinh đề kiểm tra theo ma trận">
             📝 Sinh đề
           </button>
-        )}
+        ) : (subj.unlocked && subject === "toan" && (
+          <PracticeExamChip label="Đề luyện tập" className="btn accent hdr-exam-btn" icon="📝" />
+        ))}
         <ThemeToggle />
         <UserMenu name={name} role={role} onLogout={onLogout} />
       </div>
