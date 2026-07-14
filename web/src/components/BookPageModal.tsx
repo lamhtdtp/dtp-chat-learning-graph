@@ -41,6 +41,7 @@ export function BookPageModal({ cite, mon = "toan", onClose }: { cite: Citation;
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <span>📖 {label}</span>
+          <div className="spacer" />
           <button className="modal-close" onClick={onClose} type="button" aria-label="Đóng">✕</button>
         </div>
         <div className="modal-body">
