@@ -363,7 +363,7 @@ img, video { -webkit-user-drag: none; user-select: none; }
 .modal-card.wide { width: min(680px, 100%); }
 .modal-head { display: flex; align-items: center; gap: 10px; padding: 15px 18px; border-bottom: 1px solid var(--border); font-family: "Baloo 2"; font-weight: 700; }
 .modal-head .spacer { flex: 1; }
-.modal-close { border: 0; background: var(--surface-2); color: var(--ink-2); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 14px; }
+.modal-close { margin-left: auto; border: 0; background: var(--surface-2); color: var(--ink-2); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 14px; flex: none; }
 /* flex:1 + min-height:0 để body co trong .modal-card (flex column, max-height 88vh)
    -> tạo vùng CUỘN thật; thiếu min-height:0 thì body không co, nội dung tràn/cắt. */
 .modal-body { padding: 18px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }

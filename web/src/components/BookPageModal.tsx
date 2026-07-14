@@ -41,18 +41,17 @@ export function BookPageModal({ cite, mon = "toan", onClose }: { cite: Citation;
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <span>📖 {label}</span>
-          <div className="spacer" />
           <button className="modal-close" onClick={onClose} type="button" aria-label="Đóng">✕</button>
         </div>
         <div className="modal-body">
-          {summary !== null && (
-            <div className="book-summary">
-              <div className="book-summary-head">📝 Tóm tắt trang</div>
-              {summary === "loading"
-                ? <div className="book-summary-loading">Đang tóm tắt…</div>
-                : <p>{summary}</p>}
-            </div>
-          )}
+          <div className="book-summary">
+            <div className="book-summary-head">📝 Tóm tắt trang</div>
+            {summary === "loading"
+              ? <div className="book-summary-loading">Đang tóm tắt…</div>
+              : summary
+                ? <p>{summary}</p>
+                : <div className="book-summary-loading">Chưa có tóm tắt cho trang này.</div>}
+          </div>
           {err ? (
             <div className="book-msg">Không tải được ảnh trang.</div>
           ) : src ? (
