@@ -17,8 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import security
 from app.api.deps import get_current_user
+from app.config import settings
 from app.db.models import CurriculumTopic, Grade, Subject, User
 from app.db.session import get_session
+from app.llm import cache, gateway
 from app.video.concept import detect_concept
 
 router = APIRouter(prefix="/books", tags=["books"])
@@ -39,6 +41,24 @@ _MON_FOLDER = {
 
 def _book_root(mon: str) -> Path:
     return (_BOOK_BASE / _MON_FOLDER.get(mon, "maths") / _KHOI_DIR).resolve()
+
+
+# Markdown OCR mỗi trang (đã sinh sẵn lúc ingest) — nguồn để tóm tắt trang.
+# Bố cục khớp app/ingestion/tasks.py: data_processed/<folder>/tap{tap}/{page}.md
+_PROCESSED_BASE = Path("data_processed").resolve()
+_SUMMARY_MAX_CHARS = 6000  # chặn token: trang dài chỉ lấy phần đầu
+_SUMMARY_TTL = 30 * 24 * 3600
+_SUMMARY_PROMPT = (
+    "Tóm tắt trang sách giáo khoa sau thành 2–4 câu tiếng Việt ngắn gọn, dễ hiểu "
+    "cho học sinh lớp 6. Chỉ nêu Ý CHÍNH (khái niệm/quy tắc/ví dụ tiêu biểu), KHÔNG "
+    "liệt kê bài tập, không thêm thông tin ngoài trang. Nội dung trang:\n\n"
+)
+
+
+def _md_path(mon: str, tap: int, page: int) -> Path | None:
+    folder = _MON_FOLDER.get(mon, "maths")
+    p = (_PROCESSED_BASE / folder / f"tap{tap}" / f"{page}.md").resolve()
+    return p if _PROCESSED_BASE in p.parents and p.is_file() else None
 
 
 def _page_path(mon: str, tap: int, page: int) -> Path | None:
@@ -128,3 +148,37 @@ async def get_page_image(
     if path is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy trang")
     return FileResponse(path, media_type="image/png")
+
+
+@router.get("/summary/{mon}/{tap}/{page}")
+async def get_page_summary(
+    mon: str, tap: int, page: int, user: User = Depends(get_current_user)
+) -> dict:
+    """Tóm tắt nội dung 1 trang SGK cho modal xem trang (lazy + cache Redis).
+    Nguồn = markdown OCR sẵn có của trang; sinh tóm tắt tầng rẻ khi mở lần đầu,
+    cache theo (sgk_version, môn, tập, trang). Trang chưa OCR -> summary=None.
+    Tóm tắt là PHỤ: lỗi sinh tóm tắt không được làm hỏng việc xem ảnh trang."""
+    if mon not in _MON_FOLDER or tap not in (1, 2) or page < 1:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Trang không hợp lệ")
+
+    key = f"booksum:{settings.sgk_version}:{_MON_FOLDER[mon]}:{tap}:{page}"
+    cached = await cache.get(key)
+    if cached is not None:
+        return {"summary": cached}
+
+    md_path = _md_path(mon, tap, page)
+    if md_path is None:
+        return {"summary": None}  # trang chưa có OCR -> không tóm tắt được
+    try:
+        content = md_path.read_text(encoding="utf-8").strip()[:_SUMMARY_MAX_CHARS]
+        if not content:
+            return {"summary": None}
+        summary = (await gateway.complete(
+            task="summarize_page",
+            messages=[{"role": "user", "content": _SUMMARY_PROMPT + content}],
+        )).strip()
+    except Exception:  # noqa: BLE001 - tóm tắt là phụ, không làm hỏng modal
+        return {"summary": None}
+
+    await cache.set(key, summary, ttl=_SUMMARY_TTL)
+    return {"summary": summary}

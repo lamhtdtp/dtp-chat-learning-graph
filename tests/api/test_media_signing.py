@@ -65,3 +65,42 @@ async def test_book_pages_url_can_auth_va_tra_link_ky(client):
     assert url.startswith("/books/pages/anh/1/6?") and "sig=" in url
     # môn không hợp lệ -> 404
     assert (await client.get("/books/pages-url/xyz/1/6", headers=h)).status_code == 404
+
+
+# ── Tóm tắt trang SGK (lazy + cache Redis) ──
+async def test_book_summary_can_auth(client):
+    assert (await client.get("/books/summary/toan/1/6")).status_code == 401
+
+
+async def test_book_summary_sinh_va_cache(client, mocker, tmp_path):
+    h = await _auth(client)
+    md = tmp_path / "6.md"; md.write_text("Số nguyên tố chỉ có hai ước.", encoding="utf-8")
+    mocker.patch("app.api.books._md_path", return_value=md)
+    mocker.patch("app.api.books.cache.get", mocker.AsyncMock(return_value=None))  # miss
+    cset = mocker.patch("app.api.books.cache.set", mocker.AsyncMock())
+    llm = mocker.patch("app.api.books.gateway.complete",
+                       mocker.AsyncMock(return_value="Trang giới thiệu số nguyên tố."))
+
+    r = await client.get("/books/summary/toan/1/6", headers=h)
+    assert r.status_code == 200
+    assert r.json()["summary"] == "Trang giới thiệu số nguyên tố."
+    llm.assert_awaited_once()
+    cset.assert_awaited_once()  # đã ghi cache
+
+
+async def test_book_summary_cache_hit_khong_goi_llm(client, mocker):
+    h = await _auth(client)
+    mocker.patch("app.api.books.cache.get", mocker.AsyncMock(return_value="Tóm tắt cũ."))
+    llm = mocker.patch("app.api.books.gateway.complete", mocker.AsyncMock())
+
+    r = await client.get("/books/summary/toan/1/6", headers=h)
+    assert r.json()["summary"] == "Tóm tắt cũ."
+    llm.assert_not_awaited()  # cache hit -> không gọi LLM
+
+
+async def test_book_summary_chua_ocr_tra_none(client, mocker):
+    h = await _auth(client)
+    mocker.patch("app.api.books.cache.get", mocker.AsyncMock(return_value=None))
+    mocker.patch("app.api.books._md_path", return_value=None)  # chưa OCR
+    r = await client.get("/books/summary/toan/1/6", headers=h)
+    assert r.json()["summary"] is None

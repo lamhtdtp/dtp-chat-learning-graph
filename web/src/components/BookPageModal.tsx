@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { API_BASE } from "../config";
-import { getBookPageUrl } from "../api";
+import { getBookPageSummary, getBookPageUrl } from "../api";
 import { Portal } from "./Portal";
 import type { Citation } from "../types";
 
@@ -9,6 +9,8 @@ import type { Citation } from "../types";
 export function BookPageModal({ cite, mon = "toan", onClose }: { cite: Citation; mon?: string; onClose: () => void }) {
   const [src, setSrc] = useState<string | null>(null);
   const [err, setErr] = useState(false);
+  // Tóm tắt trang (lazy): "loading" -> chuỗi tóm tắt | null (không có).
+  const [summary, setSummary] = useState<string | null | "loading">("loading");
 
   const label =
     `Trang ${cite.page_no}` +
@@ -24,6 +26,10 @@ export function BookPageModal({ cite, mon = "toan", onClose }: { cite: Citation;
     getBookPageUrl(cite.tap, cite.page_no, mon)
       .then((r) => alive && setSrc(`${API_BASE}${r.url}`))
       .catch(() => alive && setErr(true));
+    setSummary("loading");
+    getBookPageSummary(cite.tap, cite.page_no, mon)
+      .then((r) => alive && setSummary(r.summary))
+      .catch(() => alive && setSummary(null));
     return () => {
       alive = false;
     };
@@ -38,6 +44,14 @@ export function BookPageModal({ cite, mon = "toan", onClose }: { cite: Citation;
           <button className="modal-close" onClick={onClose} type="button" aria-label="Đóng">✕</button>
         </div>
         <div className="modal-body">
+          {summary !== null && (
+            <div className="book-summary">
+              <div className="book-summary-head">📝 Tóm tắt trang</div>
+              {summary === "loading"
+                ? <div className="book-summary-loading">Đang tóm tắt…</div>
+                : <p>{summary}</p>}
+            </div>
+          )}
           {err ? (
             <div className="book-msg">Không tải được ảnh trang.</div>
           ) : src ? (
