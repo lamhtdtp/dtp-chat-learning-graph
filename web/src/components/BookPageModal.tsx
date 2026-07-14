@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { API_BASE } from "../config";
 import { getBookPageSummary, getBookPageUrl } from "../api";
+import { renderRich } from "../markdown";
 import { Portal } from "./Portal";
 import type { Citation } from "../types";
+
+const EMPTY_CITES = new Map();  // tóm tắt không có chip trích dẫn
 
 // Modal xem ảnh trang SGK gốc khi bấm chip trích dẫn. Ảnh được bảo vệ bằng URL
 // KÝ có hạn: xin link ký (Bearer) khi mở modal rồi mới gán vào <img>.
@@ -49,7 +52,7 @@ export function BookPageModal({ cite, mon = "toan", onClose }: { cite: Citation;
             {summary === "loading"
               ? <div className="book-summary-loading">Đang tóm tắt…</div>
               : summary
-                ? <p>{summary}</p>
+                ? <div className="bubble-text">{renderRich(summary, EMPTY_CITES, () => {})}</div>
                 : <div className="book-summary-loading">Chưa có tóm tắt cho trang này.</div>}
           </div>
           {err ? (

@@ -50,10 +50,14 @@ def _book_root(mon: str) -> Path:
 _PROCESSED_BASE = Path("data_processed").resolve()
 _SUMMARY_MAX_CHARS = 6000  # chặn token: trang dài chỉ lấy phần đầu
 _SUMMARY_TTL = 30 * 24 * 3600
+_SUMMARY_VER = "v2"  # bump khi đổi prompt -> tự làm mới cache cũ
 _SUMMARY_PROMPT = (
     "Tóm tắt trang sách giáo khoa sau thành 2–4 câu tiếng Việt ngắn gọn, dễ hiểu "
     "cho học sinh lớp 6. Chỉ nêu Ý CHÍNH (khái niệm/quy tắc/ví dụ tiêu biểu), KHÔNG "
-    "liệt kê bài tập, không thêm thông tin ngoài trang. Nội dung trang:\n\n"
+    "liệt kê bài tập, không thêm thông tin ngoài trang. "
+    "MỌI kí hiệu/công thức toán PHẢI viết bằng LaTeX đặt trong dấu $...$ "
+    "(ví dụ $<$, $>$, $\\le$, $\\ge$, $\\dfrac{1}{2}$); TUYỆT ĐỐI không để LaTeX "
+    "trần ngoài dấu $. Nội dung trang:\n\n"
 )
 
 
@@ -163,7 +167,7 @@ async def get_page_summary(
     if mon not in _MON_FOLDER or tap not in (1, 2) or page < 1:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Trang không hợp lệ")
 
-    key = f"booksum:{settings.sgk_version}:{_MON_FOLDER[mon]}:{tap}:{page}"
+    key = f"booksum:{_SUMMARY_VER}:{settings.sgk_version}:{_MON_FOLDER[mon]}:{tap}:{page}"
     cached = await cache.get(key)
     if cached is not None:
         return {"summary": cached}

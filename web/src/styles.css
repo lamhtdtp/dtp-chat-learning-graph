@@ -498,7 +498,9 @@ img, video { -webkit-user-drag: none; user-select: none; }
 /* Tóm tắt trang SGK (modal xem trang) — khối accent nhẹ trên ảnh trang. */
 .book-summary { background: var(--accent-soft); border: 1px solid var(--accent-border); border-radius: var(--r-md); padding: 12px 14px; margin-bottom: 14px; }
 .book-summary-head { font-family: "Baloo 2", cursive; font-weight: 700; font-size: 14px; color: var(--accent-ink); margin-bottom: 6px; }
-.book-summary p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink); }
+.book-summary .bubble-text { font-size: 14px; line-height: 1.6; color: var(--ink); }
+.book-summary .bubble-text .md-p:first-child { margin-top: 0; }
+.book-summary .bubble-text .md-p:last-child { margin-bottom: 0; }
 .book-summary-loading { font-size: 14px; color: var(--ink-2); }
 /* Popup đề ngắn luyện tập (PracticeExamChip) — tái dùng .exam-q/.exam-chip */
 .exam-modal-body { display: flex; flex-direction: column; gap: 12px; }
