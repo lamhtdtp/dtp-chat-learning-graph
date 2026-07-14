@@ -8,6 +8,7 @@ lấy link ký, rồi gán vào <img>. GET /books/pages/... chỉ phục vụ kh
 lệ + chưa hết hạn -> không tải được bằng URL đoán mò. Vẫn chặn path traversal.
 """
 
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -23,6 +24,7 @@ from app.db.session import get_session
 from app.llm import cache, gateway
 from app.video.concept import detect_concept
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/books", tags=["books"])
 
 # Tên môn (Subject.name) -> giá trị mon dùng nhận diện khái niệm video (concept.py).
@@ -168,16 +170,19 @@ async def get_page_summary(
 
     md_path = _md_path(mon, tap, page)
     if md_path is None:
+        logger.warning("book summary: thiếu OCR md cho %s tap%s trang%s", mon, tap, page)
         return {"summary": None}  # trang chưa có OCR -> không tóm tắt được
     try:
         content = md_path.read_text(encoding="utf-8").strip()[:_SUMMARY_MAX_CHARS]
         if not content:
+            logger.warning("book summary: md rỗng %s", md_path)
             return {"summary": None}
         summary = (await gateway.complete(
             task="summarize_page",
             messages=[{"role": "user", "content": _SUMMARY_PROMPT + content}],
         )).strip()
     except Exception:  # noqa: BLE001 - tóm tắt là phụ, không làm hỏng modal
+        logger.exception("book summary: lỗi sinh tóm tắt %s tap%s trang%s", mon, tap, page)
         return {"summary": None}
 
     await cache.set(key, summary, ttl=_SUMMARY_TTL)
