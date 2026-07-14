@@ -8,6 +8,8 @@ Dùng:
     python -m app.video.pregenerate
     # chỉ 1 môn (vd chỉ Toán, bỏ Tiếng Anh):
     python -m app.video.pregenerate --mon toan
+    # RENDER ĐÈ cả video đã DONE (vd làm mới sau khi thêm hình 3D):
+    python -m app.video.pregenerate --mon toan --force
     # hoặc dựng ngay tại chỗ (đồng bộ, không cần worker/broker):
     python -m app.video.pregenerate --inline
 """
@@ -30,8 +32,16 @@ def _slugs(mon: str | None) -> list[str]:
     return [s for s in CONCEPT_QUERY if mon is None or CONCEPT_MON.get(s) == mon]
 
 
-async def _enqueue_all(mon: str | None = None) -> int:
-    """Tạo job (idempotent) + đẩy hàng đợi cho khái niệm (đã lọc môn). Trả số job."""
+def _reset(job) -> None:
+    """Đưa job về QUEUED để render ĐÈ (xoá video/lỗi cũ) — dùng khi --force."""
+    job.status = cache.QUEUED
+    job.error = None
+    job.video_url = None
+
+
+async def _enqueue_all(mon: str | None = None, force: bool = False) -> int:
+    """Tạo job + đẩy hàng đợi cho khái niệm (đã lọc môn). force=True: render ĐÈ
+    cả job đã DONE. Trả số job đã đẩy."""
     from app.ingestion.celery_app import render_video_task
 
     pushed = 0
@@ -39,27 +49,31 @@ async def _enqueue_all(mon: str | None = None) -> int:
         for slug in _slugs(mon):
             ck = f"{slug}::{settings.sgk_version}"
             job, created = await cache.get_or_create_job(session, ck, settings.sgk_version)
+            if not created and force:  # đã có -> ép về QUEUED để dựng lại
+                _reset(job)
+                created = True
             await session.commit()
-            if created:  # bỏ qua khái niệm đã có/đang dựng -> không render trùng
+            if created:
                 render_video_task.delay(job_id=job.id)
                 pushed += 1
-                print(f"  enqueue {slug} (job {job.id})")
+                print(f"  enqueue {slug} (job {job.id})" + (" [render đè]" if force else ""))
             else:
                 print(f"  bỏ qua {slug} (đã có job {job.id}, {job.status})")
     print(f"Đã đẩy {pushed} job video.")
     return pushed
 
 
-async def _inline_all(mon: str | None = None) -> None:
-    """Dựng ngay tại chỗ (tuần tự, đã lọc môn) — khi không chạy worker/broker."""
+async def _inline_all(mon: str | None = None, force: bool = False) -> None:
+    """Dựng ngay tại chỗ (tuần tự, đã lọc môn). force=True: dựng lại cả job DONE."""
     for slug in _slugs(mon):
         ck = f"{slug}::{settings.sgk_version}"
         async with async_session_factory() as session:
-            done = await cache.get_done_video(session, ck, settings.sgk_version)
-            if done is not None:
+            if not force and await cache.get_done_video(session, ck, settings.sgk_version) is not None:
                 print(f"  {slug}: đã có (bỏ qua)")
                 continue
             job, _ = await cache.get_or_create_job(session, ck, settings.sgk_version)
+            if force:
+                _reset(job)
             await session.commit()
             jid = job.id
         async with async_session_factory() as session:
@@ -75,8 +89,11 @@ def main() -> None:
     ap.add_argument("--inline", action="store_true", help="dựng ngay, không qua hàng đợi")
     ap.add_argument("--mon", choices=["toan", "tieng_anh"], default=None,
                     help="chỉ sinh cho môn này (mặc định: tất cả)")
+    ap.add_argument("--force", action="store_true",
+                    help="render ĐÈ cả video đã DONE (làm mới, vd sau khi thêm 3D)")
     args = ap.parse_args()
-    asyncio.run(_inline_all(args.mon) if args.inline else _enqueue_all(args.mon))
+    asyncio.run(_inline_all(args.mon, args.force) if args.inline
+                else _enqueue_all(args.mon, args.force))
 
 
 if __name__ == "__main__":
