@@ -1,5 +1,7 @@
 import { API_BASE } from "./config";
 import type {
+  AdminMessage,
+  AdminUser,
   AuthResult,
   ChatResponse,
   ExamResult,
@@ -130,6 +132,22 @@ export interface TopicGroupRow { mach_noi_dung: string; items: TopicItem[]; co_v
 
 export function getTopics(mon = "Toán"): Promise<TopicGroupRow[]> {
   return req(`/books/topics?mon=${encodeURIComponent(mon)}`, { auth: true });
+}
+
+// ── Admin ──
+export function adminListUsers(): Promise<AdminUser[]> {
+  return req("/admin/users", { auth: true });
+}
+export function adminUserMessages(id: number): Promise<AdminMessage[]> {
+  return req(`/admin/users/${id}/messages`, { auth: true });
+}
+export function adminSetActive(id: number, active: boolean): Promise<{ is_active: boolean }> {
+  return req(`/admin/users/${id}/active`, { auth: true, body: { active } });
+}
+export function adminSetSettings(
+  id: number, patch: { role?: Role; daily_limit?: number | null; clear_limit?: boolean },
+): Promise<{ role: Role; daily_limit_override: number | null }> {
+  return req(`/admin/users/${id}/settings`, { auth: true, body: patch });
 }
 
 export { ApiError };

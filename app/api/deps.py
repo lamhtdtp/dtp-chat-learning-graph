@@ -25,4 +25,6 @@ async def get_current_user(
     user = await session.scalar(select(User).where(User.id == user_id))
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Người dùng không tồn tại")
+    if not user.is_active:  # admin khoá -> chặn mọi endpoint
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Tài khoản đã bị khoá.")
     return user

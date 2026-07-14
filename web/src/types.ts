@@ -1,4 +1,23 @@
-export type Role = "hoc_sinh" | "giao_vien";
+export type Role = "hoc_sinh" | "giao_vien" | "admin";
+
+export interface AdminUser {
+  id: number;
+  email: string;
+  name: string;
+  role: Role;
+  is_active: boolean;
+  daily_limit_override: number | null;
+  created_at: string;
+  sessions: number;
+  questions: number;
+  today: number;
+}
+
+export interface AdminMessage {
+  content: string;
+  created_at: string;
+  subject: string;
+}
 
 export interface Citation {
   nguon: string;

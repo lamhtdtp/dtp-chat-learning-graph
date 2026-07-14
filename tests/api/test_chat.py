@@ -254,3 +254,43 @@ async def test_chat_mon_khac_toan_khong_kem_tinh_nang_toan(client, mocker):
     assert body["video"] is None
     assert body["itest"] is None
     assert body["suggestions"] == []
+
+
+# ── Chống lạm dụng LLM: giới hạn ký tự + lượt/ngày ──
+async def test_chat_cau_hoi_qua_dai_bi_400(client, mocker):
+    h = await _auth(client)
+    _fake_graph(mocker)
+    r = await client.post("/chat", json={"message": "a" * 501}, headers=h)
+    assert r.status_code == 400
+    assert "quá dài" in r.json()["detail"].lower()
+
+
+async def test_chat_vuot_han_muc_ngay_bi_429(client, mocker):
+    h = await _auth(client)
+    _fake_graph(mocker)
+    # burst OK (nhỏ), nhưng đếm NGÀY vượt hạn (chat_daily_limit=20 mặc định)
+    async def fake(key, ttl):
+        return 21 if key.startswith("chatquota") else 1
+    mocker.patch("app.api.chat.llm_cache.incr_quota", side_effect=fake)
+    r = await client.post("/chat", json={"message": "Số nguyên tố là gì?"}, headers=h)
+    assert r.status_code == 429
+    assert "hết" in r.json()["detail"].lower()
+
+
+async def test_chat_gui_don_dap_bi_chan_burst(client, mocker):
+    h = await _auth(client)
+    _fake_graph(mocker)
+    # burst counter vượt ngưỡng -> chặn "thao tác quá nhanh" (DoS guard)
+    mocker.patch("app.api.chat.llm_cache.incr_quota",
+                 side_effect=lambda key, ttl: 99 if key.startswith("burst") else 1)
+    r = await client.post("/chat", json={"message": "Số nguyên tố là gì?"}, headers=h)
+    assert r.status_code == 429
+    assert "quá nhanh" in r.json()["detail"].lower()
+
+
+async def test_chat_trong_han_muc_van_chat_duoc(client, mocker):
+    h = await _auth(client)
+    _fake_graph(mocker, answer="Số nguyên tố là...", intent="hoi_dap")
+    mocker.patch("app.api.chat.llm_cache.incr_quota", side_effect=lambda key, ttl: 3)
+    r = await client.post("/chat", json={"message": "Số nguyên tố là gì?"}, headers=h)
+    assert r.status_code == 200

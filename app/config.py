@@ -39,6 +39,10 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173,http://localhost:8080,http://127.0.0.1:5173,http://127.0.0.1:8080"
 
+    # Chống lạm dụng / kiểm soát chi phí LLM (mỗi lượt chat tốn tiền model).
+    chat_daily_limit: int = 20   # số lượt chat / user / ngày (0 = không giới hạn); admin miễn
+    chat_max_chars: int = 500    # độ dài tối đa 1 câu hỏi (chặn input rác/quá dài gây treo + tốn token)
+
     # Video AI ngắn (Epic-09). Media sinh async, không chặn chat.
     # sgk_version nằm trong concept_key: đổi sách -> cache miss, làm mới video.
     sgk_version: str = "cung_kham_pha_2024"

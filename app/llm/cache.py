@@ -63,3 +63,13 @@ async def get(key: str) -> str | None:
 
 async def set(key: str, value: str, ttl: int = _TTL_SECONDS) -> None:
     await _redis().set(key, value, ex=ttl)
+
+
+async def incr_quota(key: str, ttl: int) -> int:
+    """Tăng bộ đếm hạn mức (vd lượt chat/ngày) và trả giá trị mới. Đặt TTL ở lần
+    đầu để key tự hết hạn (dọn rác). Atomic qua Redis INCR."""
+    r = _redis()
+    n = await r.incr(key)
+    if n == 1:
+        await r.expire(key, ttl)
+    return n

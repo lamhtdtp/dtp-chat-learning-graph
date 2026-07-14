@@ -7,6 +7,8 @@ app/api/sessions.py). session_id là ID phiên trong DB; bỏ trống -> tạo p
 """
 
 import json
+import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -20,12 +22,14 @@ from app.db.models import ChatSession, Message, User
 from app.db.session import get_session
 from app.api import security
 from app.graph.grounding import KHONG_TIM_THAY
+from app.llm import cache as llm_cache
 from app.llm.gateway import LLMUnavailable
 from app.video import cache as video_cache
 from app.video.concept import (
     concept_key, free_concept_key, is_video_request, topic_from_request,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["chat"])
 
 # Chỉ đính video cho câu hỏi khái niệm/ôn tập CÓ grounding — không sinh cho câu
@@ -153,6 +157,43 @@ def _title_from(text: str) -> str:
     return t[:60] + ("…" if len(t) > 60 else "")
 
 
+_BURST_MAX = 8       # tối đa 8 lượt chat trong _BURST_WINDOW giây (chống gọi dồn/DoS)
+_BURST_WINDOW = 10
+
+
+async def _enforce_limits(user: User) -> None:
+    """Chặn lạm dụng LLM (đếm bằng Redis, atomic INCR + TTL; fail-open nếu Redis
+    lỗi): (1) chống gọi dồn/DoS trong cửa sổ ngắn — mọi vai trò; (2) hạn mức
+    lượt/ngày — admin miễn, dùng `daily_limit_override` của user nếu có."""
+    # (1) Burst guard — chống gửi dồn dập (script/DoS)
+    try:
+        b = await llm_cache.incr_quota(f"burst:{user.id}", ttl=_BURST_WINDOW)
+    except Exception:  # noqa: BLE001
+        b = 0
+    if b > _BURST_MAX:
+        logger.warning("Nghi DoS: user %s gửi %s lượt trong %ss", user.id, b, _BURST_WINDOW)
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Bạn thao tác quá nhanh. Chờ vài giây rồi thử lại nhé.",
+        )
+
+    # (2) Hạn mức theo ngày
+    limit = user.daily_limit_override if user.daily_limit_override is not None else settings.chat_daily_limit
+    if limit <= 0 or user.role == "admin":
+        return
+    key = f"chatquota:{user.id}:{datetime.now(timezone.utc):%Y%m%d}"
+    try:
+        n = await llm_cache.incr_quota(key, ttl=2 * 24 * 3600)
+    except Exception:  # noqa: BLE001 - best-effort: Redis lỗi -> cho qua
+        logger.warning("chat quota: Redis lỗi, bỏ qua giới hạn cho user %s", user.id)
+        return
+    if n > limit:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            f"Bạn đã dùng hết {limit} lượt hỏi trong hôm nay. Hẹn gặp lại vào ngày mai nhé!",
+        )
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
     body: ChatRequest,
@@ -160,6 +201,17 @@ async def chat(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> ChatResponse:
+    # Chặn input rác/quá dài (tránh treo + tốn token) và giới hạn lượt/ngày.
+    msg = body.message.strip()
+    if not msg:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Câu hỏi trống.")
+    if len(msg) > settings.chat_max_chars:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Câu hỏi quá dài (tối đa {settings.chat_max_chars} ký tự). Bạn rút gọn lại nhé!",
+        )
+    await _enforce_limits(user)
+
     # Lấy/ tạo phiên (kiểm quyền sở hữu nếu client gửi session_id).
     if body.session_id is None:
         chat_session = ChatSession(user_id=user.id, subject=body.subject, title=_title_from(body.message))

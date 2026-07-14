@@ -9,20 +9,29 @@ from app.main import app
 
 
 @pytest_asyncio.fixture
-async def client():
-    """AsyncClient gọi app; get_session bị override sang 1 connection chạy trong
-    transaction rồi rollback ở cuối — không để lại dữ liệu trong Postgres thật."""
+async def session():
+    """1 connection chạy trong transaction rồi rollback ở cuối — không để lại dữ
+    liệu trong Postgres thật. Test có thể dùng trực tiếp để dựng dữ liệu (vd tạo
+    admin)."""
     try:
         connection = await engine.connect()
     except OperationalError as exc:
         pytest.skip(f"Cần Postgres tại DATABASE_URL: {exc}")
-
     # begin() mở transaction ngoài; session dùng SAVEPOINT nên endpoint gọi
-    # commit() chỉ release savepoint, transaction ngoài vẫn mở và bị rollback
-    # ở cuối -> không dữ liệu nào lọt vào Postgres thật.
+    # commit() chỉ release savepoint, transaction ngoài vẫn mở và bị rollback.
     trans = await connection.begin()
-    session = AsyncSession(bind=connection, join_transaction_mode="create_savepoint")
+    sess = AsyncSession(bind=connection, join_transaction_mode="create_savepoint")
+    try:
+        yield sess
+    finally:
+        await sess.close()
+        await trans.rollback()
+        await connection.close()
 
+
+@pytest_asyncio.fixture
+async def client(session):
+    """AsyncClient gọi app; get_session override sang cùng `session` của test."""
     async def _override():
         yield session
 
@@ -33,6 +42,3 @@ async def client():
             yield c
     finally:
         app.dependency_overrides.clear()
-        await session.close()
-        await trans.rollback()
-        await connection.close()

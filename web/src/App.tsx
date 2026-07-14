@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getMe, tokenStore } from "./api";
 import { LoginView } from "./components/LoginView";
+import { AdminView } from "./components/AdminView";
 import { ChatView } from "./components/ChatView";
 import { ExamView } from "./components/ExamView";
 import { SubjectHub } from "./components/SubjectHub";
@@ -47,6 +48,11 @@ export function App() {
 
   if (!ready) return null;
   if (!session) return <LoginView onAuthed={() => restore()} />;
+
+  // Quản trị viên: màn quản lý user (không qua Hub/Chat).
+  if (session.role === "admin") {
+    return <AdminView name={session.name} onLogout={handleLogout} />;
+  }
 
   const isTeacher = session.role === "giao_vien";
 

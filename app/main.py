@@ -3,7 +3,7 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, books, chat, exam, itest, sessions, video
+from app.api import admin, auth, books, chat, exam, itest, sessions, video
 from app.config import settings
 from app.graph.build import build_graph_with_redis
 
@@ -33,6 +33,7 @@ app.include_router(books.router)
 app.include_router(exam.router)
 app.include_router(video.router)
 app.include_router(itest.router)
+app.include_router(admin.router)
 
 
 @app.get("/health")

@@ -191,7 +191,7 @@ export function ChatView({
             )}
             <div className="composer">
               <textarea
-                ref={taRef} value={input} rows={1} disabled={locked}
+                ref={taRef} value={input} rows={1} disabled={locked} maxLength={500}
                 onChange={(e) => { setInput(e.target.value); autosize(e.target); }}
                 onKeyDown={onKey}
                 placeholder={locked ? "Môn này sắp ra mắt…" : `Hỏi gia sư ${subj.short}…`}

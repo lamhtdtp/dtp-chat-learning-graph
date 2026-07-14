@@ -502,6 +502,26 @@ img, video { -webkit-user-drag: none; user-select: none; }
 .book-summary .bubble-text .md-p:first-child { margin-top: 0; }
 .book-summary .bubble-text .md-p:last-child { margin-bottom: 0; }
 .book-summary-loading { font-size: 14px; color: var(--ink-2); }
+
+/* ===================== ADMIN — quản lý user ===================== */
+.admin-table-wrap { margin-top: 18px; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }
+.admin-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 720px; }
+.admin-table th, .admin-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+.admin-table th { font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-2); background: var(--surface-2); }
+.admin-table th.num, .admin-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.admin-table tr:last-child td { border-bottom: 0; }
+.admin-table tr.locked { opacity: .55; }
+.au-name { font-weight: 600; }
+.au-email { font-size: 12px; color: var(--ink-3); }
+.admin-table select, .au-limit { border: 1px solid var(--border); background: var(--surface); color: var(--ink); border-radius: var(--r-sm); padding: 5px 8px; font: inherit; font-size: 13px; }
+.au-limit { width: 90px; }
+.au-pill { border: 1px solid var(--border); border-radius: var(--r-pill); padding: 4px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; background: var(--surface); }
+.au-pill.on { background: color-mix(in oklab, var(--ok) 14%, var(--surface)); color: var(--ok); border-color: color-mix(in oklab, var(--ok) 40%, var(--border)); }
+.au-pill.off { background: color-mix(in oklab, var(--err) 12%, var(--surface)); color: var(--err); border-color: color-mix(in oklab, var(--err) 40%, var(--border)); }
+.admin-qs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.admin-qs li { border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 12px; background: var(--surface-2); }
+.admin-qs .q-meta { font-size: 12px; color: var(--ink-3); margin-bottom: 3px; }
+.admin-qs .q-text { font-size: 14px; color: var(--ink); }
 /* Popup đề ngắn luyện tập (PracticeExamChip) — tái dùng .exam-q/.exam-chip */
 .exam-modal-body { display: flex; flex-direction: column; gap: 12px; }
 .exam-sub { font-family: "Baloo 2", cursive; font-weight: 700; font-size: 15px; color: var(--ink); }

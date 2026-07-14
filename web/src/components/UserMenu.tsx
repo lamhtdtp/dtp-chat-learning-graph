@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 // Menu người dùng ở góc phải app-bar: hiện TÊN + vai trò, bấm mở dropdown có nút
 // Đăng xuất. Thay cho avatar bấm-là-thoát-ngay (dễ bấm nhầm, không thấy tên).
-const ROLE_LABEL: Record<string, string> = { hoc_sinh: "Học sinh", giao_vien: "Giáo viên" };
+const ROLE_LABEL: Record<string, string> = { hoc_sinh: "Học sinh", giao_vien: "Giáo viên", admin: "Quản trị" };
 
 export function UserMenu({ name, role, onLogout }: { name: string; role?: string; onLogout: () => void }) {
   const [open, setOpen] = useState(false);

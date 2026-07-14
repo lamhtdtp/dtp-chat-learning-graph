@@ -4,7 +4,7 @@ Qdrant, xem app/ingestion/matrix_parser.py và specs/full-system-spec.md mục 4
 
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Text, UniqueConstraint
+from sqlalchemy import ForeignKey, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -97,7 +97,10 @@ class User(Base):
     email: Mapped[str] = mapped_column(unique=True, index=True)
     password_hash: Mapped[str]
     name: Mapped[str]
-    role: Mapped[str]  # "hoc_sinh" | "giao_vien"
+    role: Mapped[str]  # "hoc_sinh" | "giao_vien" | "admin"
+    # Quản trị: khoá/mở tài khoản; hạn mức chat/ngày riêng (None = dùng mặc định).
+    is_active: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
+    daily_limit_override: Mapped[int | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
