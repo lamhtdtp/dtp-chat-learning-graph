@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
-  ApiError, deleteSession, getSessionMessages, getSessions, sendChat, tokenStore,
+  ApiError, deleteSession, getChatQuota, getSessionMessages, getSessions, sendChat, tokenStore,
 } from "../api";
 import { TUTOR_NAME } from "../config";
 import { SUBJECTS, SUBJECT_MAP } from "../subjects";
 import { useSpeech } from "../hooks/useSpeech";
-import type { ChatMessage, Citation, Role, SessionRow } from "../types";
+import type { ChatMessage, Citation, Quota, Role, SessionRow } from "../types";
 import { BookPageModal } from "./BookPageModal";
 import { MessageBubble } from "./MessageBubble";
 import { PracticeExamChip } from "./PracticeExamChip";
@@ -32,6 +32,7 @@ export function ChatView({
   const [activeId, setActiveId] = useState<number | null>(null);
   const [drawer, setDrawer] = useState(false);
   const [pageModal, setPageModal] = useState<Citation | null>(null);
+  const [quota, setQuota] = useState<Quota | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
@@ -45,6 +46,8 @@ export function ChatView({
   };
   // Lịch sử theo MÔN: đổi môn -> tải lại danh sách phiên của môn đó.
   useEffect(() => { refreshSessions(); }, [subject]);
+  // Số lượt hỏi còn lại trong ngày (hiện cạnh ô nhập) — tải 1 lần khi mở.
+  useEffect(() => { getChatQuota().then(setQuota).catch(() => { /* phụ, bỏ qua */ }); }, []);
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
@@ -64,6 +67,7 @@ export function ChatView({
     try {
       const res = await sendChat(q, activeId, subject);
       setActiveId(res.session_id);
+      if (res.quota) setQuota(res.quota);
       setMessages((m) => [...m.slice(0, -1), {
         who: "bot", text: res.reply, citations: res.citations,
         video: res.video ?? undefined, itest: res.itest ?? undefined, chips: res.suggestions,
@@ -208,7 +212,16 @@ export function ChatView({
               )}
               <button type="button" className="send" onClick={() => ask(input)} disabled={busy || locked || !input.trim()} aria-label="Gửi">↑</button>
             </div>
-            <div className="foot-note">Trợ lý có thể nhầm — bạn nhớ kiểm tra lại các bước quan trọng nhé.</div>
+            <div className="foot-note">
+              <span>Trợ lý có thể nhầm — bạn nhớ kiểm tra lại các bước quan trọng nhé.</span>
+              {quota && quota.limit != null && quota.remaining != null && (
+                <span className={"quota-chip" + (quota.remaining === 0 ? " out" : quota.remaining <= 3 ? " low" : "")}>
+                  {quota.remaining > 0
+                    ? `Còn ${quota.remaining}/${quota.limit} lượt hôm nay`
+                    : "Hết lượt hỏi hôm nay"}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

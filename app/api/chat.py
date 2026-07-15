@@ -85,6 +85,12 @@ class Suggestion(BaseModel):
     action: str = "ask"
 
 
+class QuotaInfo(BaseModel):
+    limit: int | None      # None = không giới hạn (admin/tắt)
+    used: int
+    remaining: int | None  # None = không giới hạn
+
+
 class ChatResponse(BaseModel):
     reply: str
     intent: str | None
@@ -93,6 +99,7 @@ class ChatResponse(BaseModel):
     video: VideoInfo | None = None  # None nếu câu này không thể đính video
     itest: ItestOffer | None = None  # đề nghị luyện tập i-Test (None nếu không phù hợp)
     suggestions: list[Suggestion] = []  # chip gợi ý bước tiếp theo
+    quota: QuotaInfo | None = None      # số lượt hỏi còn lại trong ngày
 
 
 async def _maybe_video(
@@ -161,10 +168,27 @@ _BURST_MAX = 8       # tối đa 8 lượt chat trong _BURST_WINDOW giây (chố
 _BURST_WINDOW = 10
 
 
-async def _enforce_limits(user: User) -> None:
+def _daily_limit(user: User) -> int:
+    return user.daily_limit_override if user.daily_limit_override is not None else settings.chat_daily_limit
+
+
+def _quota_key(user_id: int) -> str:
+    return f"chatquota:{user_id}:{datetime.now(timezone.utc):%Y%m%d}"
+
+
+def _quota_from(user: User, used: int | None) -> QuotaInfo:
+    """QuotaInfo cho response. used=None -> không giới hạn (admin/tắt/Redis lỗi)."""
+    limit = _daily_limit(user)
+    if used is None or limit <= 0 or user.role == "admin":
+        return QuotaInfo(limit=None, used=used or 0, remaining=None)
+    return QuotaInfo(limit=limit, used=used, remaining=max(0, limit - used))
+
+
+async def _enforce_limits(user: User) -> int | None:
     """Chặn lạm dụng LLM (đếm bằng Redis, atomic INCR + TTL; fail-open nếu Redis
     lỗi): (1) chống gọi dồn/DoS trong cửa sổ ngắn — mọi vai trò; (2) hạn mức
-    lượt/ngày — admin miễn, dùng `daily_limit_override` của user nếu có."""
+    lượt/ngày — admin miễn, dùng `daily_limit_override` của user nếu có. Trả về
+    SỐ LƯỢT ĐÃ DÙNG hôm nay (sau khi tăng), hoặc None nếu không giới hạn."""
     # (1) Burst guard — chống gửi dồn dập (script/DoS)
     try:
         b = await llm_cache.incr_quota(f"burst:{user.id}", ttl=_BURST_WINDOW)
@@ -178,20 +202,20 @@ async def _enforce_limits(user: User) -> None:
         )
 
     # (2) Hạn mức theo ngày
-    limit = user.daily_limit_override if user.daily_limit_override is not None else settings.chat_daily_limit
+    limit = _daily_limit(user)
     if limit <= 0 or user.role == "admin":
-        return
-    key = f"chatquota:{user.id}:{datetime.now(timezone.utc):%Y%m%d}"
+        return None
     try:
-        n = await llm_cache.incr_quota(key, ttl=2 * 24 * 3600)
+        n = await llm_cache.incr_quota(_quota_key(user.id), ttl=2 * 24 * 3600)
     except Exception:  # noqa: BLE001 - best-effort: Redis lỗi -> cho qua
         logger.warning("chat quota: Redis lỗi, bỏ qua giới hạn cho user %s", user.id)
-        return
+        return None
     if n > limit:
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS,
             f"Bạn đã dùng hết {limit} lượt hỏi trong hôm nay. Hẹn gặp lại vào ngày mai nhé!",
         )
+    return n
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -210,7 +234,7 @@ async def chat(
             status.HTTP_400_BAD_REQUEST,
             f"Câu hỏi quá dài (tối đa {settings.chat_max_chars} ký tự). Bạn rút gọn lại nhé!",
         )
-    await _enforce_limits(user)
+    used = await _enforce_limits(user)
 
     # Lấy/ tạo phiên (kiểm quyền sở hữu nếu client gửi session_id).
     if body.session_id is None:
@@ -285,4 +309,18 @@ async def chat(
         video=video,
         itest=itest,
         suggestions=_suggestions(intent) if is_toan else [],
+        quota=_quota_from(user, used),
     )
+
+
+@router.get("/chat/quota", response_model=QuotaInfo)
+async def chat_quota(user: User = Depends(get_current_user)) -> QuotaInfo:
+    """Số lượt hỏi còn lại hôm nay (CHỈ đọc, không tăng) — để UI hiện lúc mở chat."""
+    limit = _daily_limit(user)
+    if limit <= 0 or user.role == "admin":
+        return QuotaInfo(limit=None, used=0, remaining=None)
+    try:
+        used = int(await llm_cache.get(_quota_key(user.id)) or 0)
+    except Exception:  # noqa: BLE001
+        used = 0
+    return QuotaInfo(limit=limit, used=used, remaining=max(0, limit - used))

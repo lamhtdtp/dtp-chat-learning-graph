@@ -2,10 +2,12 @@ import { API_BASE } from "./config";
 import type {
   AdminMessage,
   AdminUser,
+  DailyStat,
   AuthResult,
   ChatResponse,
   ExamResult,
   MessageRow,
+  Quota,
   QuizData,
   Role,
   SessionRow,
@@ -91,6 +93,10 @@ export function sendChat(message: string, sessionId: number | null, subject = "t
   return post<ChatResponse>("/chat", { message, session_id: sessionId, subject }, true);
 }
 
+export function getChatQuota(): Promise<Quota> {
+  return req("/chat/quota", { auth: true });
+}
+
 export function getSessions(subject?: string): Promise<SessionRow[]> {
   const q = subject ? `?subject=${encodeURIComponent(subject)}` : "";
   return req<SessionRow[]>(`/sessions${q}`, { auth: true });
@@ -140,6 +146,9 @@ export function adminListUsers(): Promise<AdminUser[]> {
 }
 export function adminUserMessages(id: number): Promise<AdminMessage[]> {
   return req(`/admin/users/${id}/messages`, { auth: true });
+}
+export function adminDailyStats(days = 14): Promise<DailyStat[]> {
+  return req(`/admin/stats/daily?days=${days}`, { auth: true });
 }
 export function adminSetActive(id: number, active: boolean): Promise<{ is_active: boolean }> {
   return req(`/admin/users/${id}/active`, { auth: true, body: { active } });

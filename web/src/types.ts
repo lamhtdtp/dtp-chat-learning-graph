@@ -19,6 +19,11 @@ export interface AdminMessage {
   subject: string;
 }
 
+export interface DailyStat {
+  date: string;   // YYYY-MM-DD
+  count: number;
+}
+
 export interface Citation {
   nguon: string;
   page_no: number;
@@ -64,6 +69,12 @@ export interface QuizData {
   questions: QuizQuestion[];
 }
 
+export interface Quota {
+  limit: number | null;      // null = không giới hạn
+  used: number;
+  remaining: number | null;
+}
+
 export interface ChatResponse {
   reply: string;
   intent: string | null;
@@ -72,6 +83,7 @@ export interface ChatResponse {
   video: VideoInfo | null;
   itest: ItestOffer | null;
   suggestions: Suggestion[];
+  quota: Quota | null;
 }
 
 export interface SessionRow {

@@ -67,3 +67,20 @@ async def test_admin_tracking_cau_hoi_cua_user(client, session, mocker):
 
     msgs = (await client.get(f"/admin/users/{uid}/messages", headers=h)).json()
     assert any(m["content"] == "Số nguyên tố là gì?" for m in msgs)
+
+
+async def test_admin_bieu_do_luot_hoi_theo_ngay(client, session, mocker):
+    from datetime import datetime, timezone
+    h, _ = await _make_admin(client, session)
+    _, hu = await _reg(client)
+    app.state.graph = SimpleNamespace(ainvoke=mocker.AsyncMock(
+        return_value={"answer": "A", "intent": "hoi_dap", "retrieved": []}))
+    mocker.patch("app.api.chat.llm_cache.incr_quota", side_effect=lambda key, ttl: 1)
+    await client.post("/chat", json={"message": "Câu hỏi hôm nay"}, headers=hu)
+
+    today = datetime.now(timezone.utc).date().isoformat()
+    stats = (await client.get("/admin/stats/daily?days=7", headers=h)).json()
+    assert any(s["date"] == today and s["count"] >= 1 for s in stats)
+    # yêu cầu quyền admin
+    _, hs = await _reg(client)
+    assert (await client.get("/admin/stats/daily", headers=hs)).status_code == 403

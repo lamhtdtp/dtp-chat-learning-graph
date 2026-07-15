@@ -348,7 +348,12 @@ img, video { -webkit-user-drag: none; user-select: none; }
 .composer .mic.on { background: var(--accent-soft); color: var(--accent-ink); }
 .composer .send { background: var(--accent); color: var(--on-accent); font-size: 18px; }
 .composer .send:disabled { opacity: .5; }
-.foot-note { text-align: center; font-size: 11px; color: var(--ink-3); }
+.foot-note { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; text-align: center; font-size: 11px; color: var(--ink-3); }
+/* Chip số lượt hỏi còn lại trong ngày (cạnh foot-note). */
+.quota-chip { flex: none; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: var(--r-pill);
+  background: var(--accent-soft); color: var(--accent-ink); border: 1px solid var(--accent-border); }
+.quota-chip.low { background: color-mix(in oklab, var(--warn) 14%, var(--surface)); color: var(--warn); border-color: color-mix(in oklab, var(--warn) 40%, var(--border)); }
+.quota-chip.out { background: color-mix(in oklab, var(--err) 14%, var(--surface)); color: var(--err); border-color: color-mix(in oklab, var(--err) 40%, var(--border)); }
 
 /* typing + trạng thái */
 .pending .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); margin: 0 2px; animation: dtp-blink 1.2s infinite; }

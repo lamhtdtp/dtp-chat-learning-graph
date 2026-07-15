@@ -8,7 +8,7 @@
 Admin tạo bằng CLI `python -m app.create_admin` (đăng ký thường KHÔNG chọn được
 admin — chống tự nâng quyền).
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -68,6 +68,26 @@ async def list_users(
             "today": await _today_quota(u.id),
         })
     return out
+
+
+@router.get("/stats/daily")
+async def daily_stats(
+    days: int = 14,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    """Số lượt hỏi (Message role=user) theo NGÀY trong `days` ngày gần nhất — cho
+    biểu đồ. Chỉ trả ngày CÓ dữ liệu; frontend tự bù ngày trống = 0."""
+    _require_admin(user)
+    days = max(1, min(days, 90))
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days - 1)).date()
+    d = func.date(Message.created_at)
+    rows = await session.execute(
+        select(d.label("d"), func.count().label("n"))
+        .where(Message.role == "user", d >= cutoff)
+        .group_by(d).order_by(d)
+    )
+    return [{"date": r.d.isoformat(), "count": r.n} for r in rows.all()]
 
 
 @router.get("/users/{user_id}/messages")

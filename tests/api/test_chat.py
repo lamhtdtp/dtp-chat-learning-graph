@@ -294,3 +294,18 @@ async def test_chat_trong_han_muc_van_chat_duoc(client, mocker):
     mocker.patch("app.api.chat.llm_cache.incr_quota", side_effect=lambda key, ttl: 3)
     r = await client.post("/chat", json={"message": "Số nguyên tố là gì?"}, headers=h)
     assert r.status_code == 200
+
+
+async def test_chat_tra_so_luot_con_lai(client, mocker):
+    h = await _auth(client)
+    _fake_graph(mocker, answer="A", intent="hoi_dap")
+    mocker.patch("app.api.chat.llm_cache.incr_quota", side_effect=lambda key, ttl: 5)
+    body = (await client.post("/chat", json={"message": "Số nguyên tố là gì?"}, headers=h)).json()
+    assert body["quota"] == {"limit": 20, "used": 5, "remaining": 15}
+
+
+async def test_chat_quota_endpoint_chi_doc(client, mocker):
+    h = await _auth(client)
+    mocker.patch("app.api.chat.llm_cache.get", mocker.AsyncMock(return_value="7"))
+    q = (await client.get("/chat/quota", headers=h)).json()
+    assert q == {"limit": 20, "used": 7, "remaining": 13}

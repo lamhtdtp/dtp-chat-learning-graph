@@ -5,6 +5,13 @@ import react from "@vitejs/plugin-react";
 // duyệt, tránh CORS lúc dev). Production build đọc VITE_API_URL.
 export default defineConfig({
   plugins: [react()],
+  // Multi-page: app học sinh/giáo viên (index.html) + app QUẢN TRỊ riêng
+  // (admin.html) -> 2 bundle riêng. Admin phục vụ tại /admin (xem nginx.conf).
+  build: {
+    rollupOptions: {
+      input: { main: "index.html", admin: "admin.html" },
+    },
+  },
   server: {
     port: 5173,
     proxy: {
@@ -15,6 +22,10 @@ export default defineConfig({
       "/exam": "http://localhost:8000",
       "/video": "http://localhost:8000",
       "/itest": "http://localhost:8000",
+      // Chỉ proxy API admin (/admin/users, /admin/stats...) sang backend —
+      // KHÔNG đụng trang /admin.html do Vite phục vụ.
+      "/admin/users": "http://localhost:8000",
+      "/admin/stats": "http://localhost:8000",
       "/health": "http://localhost:8000",
     },
   },
