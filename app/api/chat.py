@@ -235,6 +235,7 @@ async def chat(
             f"Câu hỏi quá dài (tối đa {settings.chat_max_chars} ký tự). Bạn rút gọn lại nhé!",
         )
     used = await _enforce_limits(user)
+    quota = _quota_from(user, used)  # tính TRƯỚC commit (sau commit ORM user bị expire)
 
     # Lấy/ tạo phiên (kiểm quyền sở hữu nếu client gửi session_id).
     if body.session_id is None:
@@ -309,7 +310,7 @@ async def chat(
         video=video,
         itest=itest,
         suggestions=_suggestions(intent) if is_toan else [],
-        quota=_quota_from(user, used),
+        quota=quota,
     )
 
 
