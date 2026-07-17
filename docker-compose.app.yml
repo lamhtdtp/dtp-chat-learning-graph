@@ -104,6 +104,18 @@ services:
     ports:
       - "8080:80"
 
+  # Khu QUẢN TRỊ — container React (Vite) RIÊNG, tách khỏi web học sinh/giáo viên.
+  web-admin:
+    build:
+      context: .
+      dockerfile: infra/frontend-admin.Dockerfile
+      args:
+        VITE_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+    depends_on:
+      - api
+    ports:
+      - "8081:80"
+
 volumes:
   redisdata:
   qdrantdata:

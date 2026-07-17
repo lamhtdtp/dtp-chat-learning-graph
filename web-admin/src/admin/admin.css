@@ -1,0 +1,75 @@
+/* Khu quản trị — DÙNG CHUNG shell với web: app-bar (.app-bar), tab
+   (.subject-switcher), token màu, nút, bảng (.admin-table ở styles.css).
+   File này chỉ thêm phần RIÊNG của trang quản trị. */
+
+.admin-page { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; background: var(--bg); }
+
+/* Nhãn "Quản trị" cạnh brand trên app-bar */
+.app-bar .adm-badge {
+  margin-left: 8px; padding: 3px 10px; border-radius: var(--r-pill); font-size: 12px; font-weight: 700;
+  background: var(--accent-soft); color: var(--accent-ink); border: 1px solid var(--accent-border);
+}
+
+/* Vùng nội dung căn giữa, giống bề rộng thoáng của web */
+.adm-wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 22px; }
+
+/* Cards thống kê — theo phong cách thẻ của web */
+.adm-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+.adm-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 18px 18px 16px; border-left: 4px solid var(--border-strong); box-shadow: var(--sh-1); }
+.adm-card-v { font-family: "Baloo 2"; font-weight: 700; font-size: 34px; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.adm-card-l { margin-top: 6px; font-size: 13px; color: var(--ink-2); }
+.adm-card.a-brand { border-left-color: var(--brand); }
+.adm-card.a-user  { border-left-color: var(--accent); }
+.adm-card.a-data  { border-left-color: var(--ok); }
+.adm-card.a-err   { border-left-color: var(--err); }
+.adm-card.a-err .adm-card-v { color: var(--err); }
+
+/* Panel biểu đồ */
+.adm-panel { margin-top: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px 18px; box-shadow: var(--sh-1); }
+.adm-panel-h { font-family: "Baloo 2"; font-weight: 700; font-size: 15px; color: var(--ink); margin-bottom: 10px; }
+.adm-chart { display: block; overflow: visible; }
+
+/* Thanh công cụ bảng người dùng: tìm kiếm + lọc vai trò */
+.adm-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.adm-search { flex: 1; min-width: 220px; max-width: 360px; border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+  border-radius: var(--r-pill); padding: 9px 15px; font: inherit; font-size: 14px; }
+.adm-search:focus { border-color: var(--accent); outline: none; }
+.adm-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.adm-chip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--ink-2); border-radius: var(--r-pill); padding: 7px 13px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s; }
+.adm-chip:hover { background: var(--surface-2); }
+.adm-chip.on { background: var(--accent); color: var(--on-accent); border-color: transparent; box-shadow: 0 4px 12px var(--accent-glow); }
+.adm-chip-n { display: inline-grid; place-items: center; min-width: 20px; height: 18px; padding: 0 5px; border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--ink-3) 18%, transparent); color: inherit; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.adm-chip.on .adm-chip-n { background: color-mix(in oklab, #fff 26%, transparent); }
+
+/* Ô người dùng: avatar + tên/email (giống avatar trong UserMenu của web) */
+.au-cell { display: flex; align-items: center; gap: 10px; }
+.au-avatar { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent-ink); font-weight: 700; font-size: 14px; }
+.au-role { min-width: 116px; }
+
+.adm-pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 14px; font-size: 14px; color: var(--ink-2); }
+
+/* Login khu quản trị */
+.adm-login { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; background: var(--bg); padding: 20px; }
+.adm-login-card { width: min(400px, 100%); background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-xl); box-shadow: var(--sh-3); padding: 28px; display: flex; flex-direction: column; gap: 14px; }
+.adm-login-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.adm-login-brand .dtp-logo { width: 46px; height: 46px; }
+.adm-login-title { font-family: "Baloo 2"; font-weight: 700; font-size: 18px; }
+.adm-login-sub { font-size: 13px; color: var(--ink-3); }
+.adm-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.adm-field input { border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+  border-radius: var(--r-md); padding: 11px 13px; font: inherit; font-size: 15px; }
+.adm-field input:focus { border-color: var(--accent); outline: none; }
+.adm-login-err { background: color-mix(in oklab, var(--err) 12%, var(--surface)); color: var(--err);
+  border: 1px solid color-mix(in oklab, var(--err) 35%, var(--border)); border-radius: var(--r-md); padding: 9px 12px; font-size: 13.5px; }
+.adm-login-card .btn.accent { margin-top: 4px; padding: 12px; }
+
+@media (max-width: 560px) {
+  .adm-wrap { padding: 16px; }
+  .adm-filters { margin-left: 0; }
+}
