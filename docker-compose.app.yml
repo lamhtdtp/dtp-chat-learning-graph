@@ -111,6 +111,8 @@ services:
       dockerfile: infra/frontend-admin.Dockerfile
       args:
         VITE_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+        # Subpath khi chạy chung 1 domain (vd /quan-tri/). Mặc định "/".
+        ADMIN_BASE: ${ADMIN_BASE:-/}
     depends_on:
       - api
     ports:
