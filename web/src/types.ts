@@ -110,6 +110,22 @@ export interface ChatMessage {
   chips?: Suggestion[];
 }
 
+// ── Bài học có cấu trúc (theo meeting note): mỗi Đơn vị kiến thức = 4 phần cố
+// định, KHÔNG trích dẫn số trang. Dữ liệu do chuyên gia biên soạn (nhiều nguồn).
+export interface LessonMedia { loai: "video" | "image"; url: string; caption?: string }
+export interface LessonExample { de_bai: string; loi_giai: string }
+export interface LessonQuickCheck {
+  cau_hoi: string; lua_chon: string[]; dap_an: number; muc_do?: "de" | "trung_binh" | "kho";
+}
+export interface LessonContent {
+  mach_noi_dung: string;
+  don_vi_kien_thuc: string;
+  khai_niem: string;            // (1) thuần text/markdown
+  minh_hoa: LessonMedia[];      // (2) video hoặc hình ảnh
+  vi_du: LessonExample[];       // (3) ví dụ
+  kiem_tra_nhanh: LessonQuickCheck[];  // (4) bài kiểm tra nhanh
+}
+
 export interface AuthResult {
   token: string;
   role: Role;

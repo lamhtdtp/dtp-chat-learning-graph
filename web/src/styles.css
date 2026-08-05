@@ -455,6 +455,49 @@ img, video { -webkit-user-drag: none; user-select: none; }
 /* Chủ đề CÓ video minh hoạ (đẩy lên đầu) — viền đậm hơn + nhãn ▶. */
 .tp-chip.has-video { display: inline-flex; align-items: center; gap: 6px; border-color: var(--accent); font-weight: 600; }
 .tp-chip-vid { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: 8px; line-height: 1; flex: none; }
+
+/* ===================== BÀI HỌC theo mục lục (LessonView) ===================== */
+.lesson-page { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: var(--bg); }
+.lesson-crumb { display: flex; flex-direction: column; line-height: 1.2; margin-left: 4px; }
+.lesson-crumb .lesson-mach { font-size: 12px; color: var(--ink-3); font-weight: 600; }
+.lesson-crumb .lesson-dv { font-family: "Baloo 2"; font-weight: 700; font-size: 16px; color: var(--ink); }
+.lesson-scroll { flex: 1; overflow-y: auto; }
+.lesson-wrap { max-width: 820px; margin: 0 auto; padding: 22px; display: flex; flex-direction: column; gap: 18px; }
+
+.lesson-sec { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--sh-1); overflow: hidden; }
+.lesson-sec-h { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border);
+  background: var(--accent-soft); color: var(--accent-ink); font-family: "Baloo 2"; font-weight: 700; font-size: 15px; }
+.lesson-sec-n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: 12px; flex: none; }
+.lesson-sec-body { padding: 16px; }
+.lesson-empty { color: var(--ink-3); font-size: 14px; }
+
+/* Minh họa */
+.lesson-media { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.lesson-media-item { margin: 0; }
+.lesson-media-item img, .lesson-media-item video { width: 100%; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface-2); }
+.lesson-media-ph { display: grid; place-items: center; height: 150px; border-radius: var(--r-md); border: 1px dashed var(--accent-border);
+  background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+.lesson-media-item figcaption { margin-top: 6px; font-size: 12.5px; color: var(--ink-3); }
+
+/* Ví dụ */
+.lesson-vd { border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px 14px; margin-bottom: 12px; }
+.lesson-vd:last-child { margin-bottom: 0; }
+.lesson-vd-h { font-weight: 700; color: var(--accent-ink); font-size: 14px; margin-bottom: 6px; }
+.lesson-vd-giai { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+
+/* Kiểm tra nhanh */
+.lesson-qc-q { margin-bottom: 16px; }
+.lesson-qc-cau { font-weight: 600; margin-bottom: 8px; }
+.lesson-qc-opts { display: flex; flex-direction: column; gap: 8px; }
+.lesson-opt { display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid var(--border); background: var(--surface);
+  color: var(--ink); border-radius: var(--r-md); padding: 9px 12px; font: inherit; font-size: 14px; cursor: pointer; transition: background .12s, border-color .12s; }
+.lesson-opt:hover:not(:disabled) { background: var(--surface-2); }
+.lesson-opt.picked { border-color: var(--accent); background: var(--accent-soft); }
+.lesson-opt.correct { border-color: var(--ok); background: color-mix(in oklab, var(--ok) 14%, var(--surface)); color: var(--ok); }
+.lesson-opt.wrong { border-color: var(--err); background: color-mix(in oklab, var(--err) 12%, var(--surface)); color: var(--err); }
+.lesson-opt:disabled { cursor: default; }
+.lesson-opt-k { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-3); font-weight: 700; font-size: 12px; flex: none; }
+.lesson-qc-result { margin-top: 6px; font-size: 15px; }
 .tp-loading { color: var(--ink-3); font-size: 13px; padding: 8px 2px; }
 
 /* ===================== RESPONSIVE ===================== */

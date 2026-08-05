@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CMS chuyên gia · Mockup Gia sư DTP</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>📘</text></svg>" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body class="cms">
+<header class="bar">
+  <div class="logo">DTP</div>
+  <div><div class="brand-t">CMS — Chuyên gia biên soạn</div><div class="brand-s">Nhập nội dung theo Mạch → Đơn vị kiến thức</div></div>
+  <div class="spacer"></div>
+  <a class="btn" href="index.html">← Bản tổng hợp</a>
+  <button class="icon-btn" id="theme" title="Đổi giao diện" aria-label="Đổi giao diện">◐</button>
+</header>
+
+<div class="shell">
+  <aside class="side cms-side">
+    <div class="side-h">Mục lục — Toán 6 · HK1</div>
+    <div id="toc"></div>
+  </aside>
+  <main class="main">
+    <div class="tabs" id="tabs"></div>
+    <div class="scroll"><div class="wrap" id="editor"></div></div>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="assets/data.js"></script>
+<script src="assets/views.js"></script>
+<script src="assets/cms.js"></script>
+</body>
+</html>

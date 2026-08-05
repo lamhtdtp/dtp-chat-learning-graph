@@ -7,6 +7,8 @@ import { SUBJECTS, SUBJECT_MAP } from "../subjects";
 import { useSpeech } from "../hooks/useSpeech";
 import type { ChatMessage, Citation, Quota, Role, SessionRow } from "../types";
 import { BookPageModal } from "./BookPageModal";
+import { LessonView } from "./LessonView";
+import { getMockLesson } from "../data/mockLesson";
 import { MessageBubble } from "./MessageBubble";
 import { PracticeExamChip } from "./PracticeExamChip";
 import { ChatSidebar } from "./Sidebar";
@@ -32,6 +34,8 @@ export function ChatView({
   const [activeId, setActiveId] = useState<number | null>(null);
   const [drawer, setDrawer] = useState(false);
   const [pageModal, setPageModal] = useState<Citation | null>(null);
+  // Bài học theo mục lục (P1, data giả) — bấm 1 đơn vị kiến thức để mở.
+  const [lesson, setLesson] = useState<{ donVi: string; mach: string } | null>(null);
   const [quota, setQuota] = useState<Quota | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -225,10 +229,16 @@ export function ChatView({
           </div>
         </div>
 
-        {subj.unlocked && <TopicPanel mon={subj.name} subjectName={subj.short} onPick={ask} />}
+        {subj.unlocked && (
+          <TopicPanel mon={subj.name} subjectName={subj.short} onPick={ask}
+            onOpenLesson={(donVi, mach) => setLesson({ donVi, mach })} />
+        )}
       </div>
 
       {pageModal && <BookPageModal cite={pageModal} mon={subject} onClose={() => setPageModal(null)} />}
+      {lesson && (
+        <LessonView content={getMockLesson(lesson.donVi, lesson.mach)} onBack={() => setLesson(null)} />
+      )}
     </div>
   );
 }

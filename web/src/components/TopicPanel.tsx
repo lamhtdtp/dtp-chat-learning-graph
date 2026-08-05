@@ -34,7 +34,10 @@ const MATH_FALLBACK: Group[] = TOPIC_GROUPS.map((g) => ({
   title: g.title, emoji: g.emoji, items: g.items.map((ten) => ({ ten, co_video: false })),
 }));
 
-export function TopicPanel({ mon, subjectName, onPick }: { mon: string; subjectName: string; onPick: (topic: string) => void }) {
+export function TopicPanel({ mon, subjectName, onPick, onOpenLesson }: {
+  mon: string; subjectName: string; onPick: (topic: string) => void;
+  onOpenLesson?: (donVi: string, mach: string) => void;
+}) {
   const [groups, setGroups] = useState<Group[] | null>(null);
   const fallback = mon === "Toán" ? MATH_FALLBACK : [];
 
@@ -72,7 +75,8 @@ export function TopicPanel({ mon, subjectName, onPick }: { mon: string; subjectN
               <div className="tp-items">
                 {g.items.map((it) => (
                   <button key={it.ten} type="button" className={"tp-chip" + (it.co_video ? " has-video" : "")}
-                    onClick={() => onPick(it.ten)} title={it.co_video ? "Có video minh hoạ" : undefined}>
+                    onClick={() => (onOpenLesson ? onOpenLesson(it.ten, g.title) : onPick(it.ten))}
+                    title={it.co_video ? "Có video minh hoạ" : undefined}>
                     {it.co_video && <span className="tp-chip-vid" aria-label="Có video">▶</span>}
                     {it.ten}
                   </button>

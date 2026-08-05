@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Slide giảng dạy (GV) · Mockup Gia sư DTP</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>📘</text></svg>" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<header class="bar">
+  <div class="logo">DTP</div>
+  <div><div class="brand-t">Slide giảng dạy</div><div class="brand-s">Render tự động từ data đã input · dùng ← → để chuyển</div></div>
+  <div class="spacer"></div>
+  <a class="btn" href="index.html">← Bản tổng hợp</a>
+  <button class="icon-btn" id="theme" title="Đổi giao diện" aria-label="Đổi giao diện">◐</button>
+</header>
+<div class="scroll"><div class="wrap" id="view"></div></div>
+
+<script src="assets/data.js"></script>
+<script src="assets/views.js"></script>
+<script>
+"use strict";
+initTheme(document.querySelector("#theme"));
+renderSlides(document.querySelector("#view"), 0, 2);
+</script>
+</body>
+</html>

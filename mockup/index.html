@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mockup giải pháp · Gia sư DTP Lớp 6</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>📘</text></svg>" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<header class="bar">
+  <div class="logo">DTP</div>
+  <div>
+    <div class="brand-t">Gia sư DTP · Lớp 6</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="seg" id="role">
+    <button data-role="hs" aria-pressed="true">🎒 Học sinh</button>
+    <button data-role="gv" aria-pressed="false">👩‍🏫 Giáo viên</button>
+  </div>
+  <a class="btn" href="cms.html" title="CMS cho chuyên gia biên soạn">🧑‍🔬 CMS</a>
+  <button class="icon-btn" id="theme" title="Đổi giao diện" aria-label="Đổi giao diện">◐</button>
+</header>
+
+<div class="shell">
+  <aside class="side">
+    <div class="side-h">Mục lục — Toán 6 · HK1</div>
+    <div id="toc"></div>
+  </aside>
+  <main class="main">
+    <div class="tabs" id="tabs"></div>
+    <div class="scroll"><div class="wrap" id="view"></div></div>
+  </main>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/views.js"></script>
+<script>
+"use strict";
+var role="hs", tab="lesson", cur={mi:0,di:2};
+var $=function(s){return document.querySelector(s);};
+
+function renderToc(){
+  var toc=$("#toc"); toc.innerHTML="";
+  CURRICULUM.forEach(function(m,mi){
+    var wrap=el("div","mach"+(mi===cur.mi?" open":""));
+    var b=el("button","mach-b",'<span class="mach-em">'+m.em+'</span> '+m.mach+'<span class="chev">›</span>');
+    b.onclick=function(){wrap.classList.toggle("open");};
+    var list=el("div","dv-list");
+    m.dv.forEach(function(d,di){
+      var active=(mi===cur.mi&&di===cur.di);
+      var db=el("button","dv-b"+(active?" active":""),'<span class="dot '+ST[d.st][0]+'"></span>'+d.t);
+      db.onclick=function(){cur={mi:mi,di:di};tab="lesson";render();};
+      list.appendChild(db);
+    });
+    wrap.appendChild(b);wrap.appendChild(list);toc.appendChild(wrap);
+  });
+}
+function renderTabs(){
+  var t=$("#tabs");t.innerHTML="";
+  var defs=role==="hs"
+    ?[["lesson","📘 Bài học"],["progress","📈 Tiến độ"]]
+    :[["lesson","📘 Bài học"],["slide","🖥️ Slide giảng dạy"]];
+  if(!defs.some(function(d){return d[0]===tab;}))tab=defs[0][0];
+  defs.forEach(function(d){
+    var b=el("button","tab",d[1]);
+    b.setAttribute("aria-selected",tab===d[0]);
+    b.onclick=function(){tab=d[0];render();};
+    t.appendChild(b);
+  });
+}
+function render(){
+  renderToc();renderTabs();
+  var v=$("#view");
+  if(role==="gv"&&tab==="slide")renderSlides(v,cur.mi,cur.di);
+  else if(role==="hs"&&tab==="progress")renderProgress(v);
+  else renderLesson(v,cur.mi,cur.di,role==="gv");   // GV: bài học kèm hướng dẫn dạy
+
+}
+$("#role").addEventListener("click",function(e){
+  var b=e.target.closest("button"); if(!b)return;
+  role=b.dataset.role;
+  Array.prototype.forEach.call($("#role").children,function(x){x.setAttribute("aria-pressed",x===b);});
+  render();
+});
+initTheme($("#theme"));
+render();
+</script>
+</body>
+</html>
