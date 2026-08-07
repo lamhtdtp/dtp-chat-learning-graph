@@ -41,7 +41,11 @@ class Settings(BaseSettings):
 
     # Chống lạm dụng / kiểm soát chi phí LLM (mỗi lượt chat tốn tiền model).
     chat_daily_limit: int = 20   # số lượt chat / user / ngày (0 = không giới hạn); admin miễn
-    chat_max_chars: int = 200    # độ dài tối đa 1 câu hỏi (chặn input rác/quá dài gây treo + tốn token)
+    # Độ dài tối đa 1 câu hỏi (chặn input rác/quá dài gây treo + tốn token). 500 chứ
+    # không phải 200: đề Toán dán từ sách ("Cho tam giác ABC có AB = 3cm…, tính…")
+    # vượt 200 rất dễ, mà 500 ký tự ≈ 150 token — không đáng kể về chi phí.
+    # Frontend đọc lại con số này qua GET /tutor/limits, không hardcode.
+    chat_max_chars: int = 500
 
     # Video AI ngắn (Epic-09). Media sinh async, không chặn chat.
     # sgk_version nằm trong concept_key: đổi sách -> cache miss, làm mới video.

@@ -99,5 +99,9 @@ export function submitQuiz(topicId: number, answers: number[]): Promise<QuizResu
 export function askTutor(question: string, mon = "Toán", context?: string): Promise<TutorAnswer> {
   return req("/tutor/ask", { auth: true, body: { question, mon, context } });
 }
+/** Giới hạn ô nhập chat (đọc từ server — settings.chat_max_chars override được bằng env). */
+export function getTutorLimits(): Promise<{ max_chars: number }> {
+  return req("/tutor/limits", { auth: true });
+}
 
 export { ApiError };

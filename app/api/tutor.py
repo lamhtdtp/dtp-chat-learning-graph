@@ -29,6 +29,20 @@ router = APIRouter(prefix="/tutor", tags=["tutor"])
 _MON_QDRANT = {"Toán": "toan", "Tiếng Anh": "tieng_anh"}
 
 
+class Limits(BaseModel):
+    max_chars: int
+
+
+@router.get("/limits", response_model=Limits)
+async def limits(user: User = Depends(get_current_user)) -> Limits:
+    """Giới hạn ô nhập cho client biết TRƯỚC khi gửi.
+
+    Có endpoint riêng vì `chat_max_chars` override được bằng env: frontend
+    hardcode con số sẽ lệch âm thầm với backend, và HS chỉ biết mình viết quá dài
+    sau khi đã mất một vòng request."""
+    return Limits(max_chars=settings.chat_max_chars)
+
+
 class AskRequest(BaseModel):
     question: str = Field(min_length=1)
     mon: str = "Toán"

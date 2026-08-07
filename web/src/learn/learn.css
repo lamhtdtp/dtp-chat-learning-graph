@@ -244,6 +244,9 @@
 .learn .typing i:nth-child(2){animation-delay:.2s}.learn .typing i:nth-child(3){animation-delay:.4s}
 @keyframes learn-blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
 .learn .chat-quota{font-size:11px;color:var(--ink-3);text-align:center;padding:0 14px 10px}
+/* Bộ đếm ký tự ô nhập chat — chỉ hiện khi gần hết hạn mức (xem HIEN_DEM_TU) */
+.learn .chat-dem{align-self:flex-end;padding-bottom:13px;font-size:11px;font-variant-numeric:tabular-nums;color:var(--ink-3);white-space:nowrap}
+.learn .chat-dem.het{color:var(--warn);font-weight:700}
 
 @media (max-width:1180px){
   .learn{grid-template-columns:1fr;grid-template-areas:"nav" "main" "chat";height:auto;min-height:100vh;overflow:visible}
