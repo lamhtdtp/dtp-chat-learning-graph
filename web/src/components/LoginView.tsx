@@ -1,41 +1,27 @@
 import { useState } from "react";
 import { ApiError, login, register } from "../api";
 import { TUTOR_NAME } from "../config";
-import { ThemeToggle } from "./ThemeToggle";
+import { useTheme } from "../hooks/useTheme";
 import type { Role } from "../types";
+import "./login.css";
 
 const ROLES: { value: Role; icon: string; title: string; desc: string }[] = [
-  { value: "hoc_sinh", icon: "🎒", title: "Học sinh", desc: "Hỏi bài · xem video · luyện i-Test" },
-  { value: "giao_vien", icon: "👩‍🏫", title: "Giáo viên", desc: "Sinh đề theo ma trận · ngân hàng câu hỏi" },
+  { value: "hoc_sinh", icon: "🎒", title: "Học sinh", desc: "Học theo mục lục · kiểm tra nhanh · trợ lý AI" },
+  { value: "giao_vien", icon: "👩‍🏫", title: "Giáo viên", desc: "Slide giảng dạy · hướng dẫn dạy từng bài" },
 ];
 
-// Ký hiệu học thuật bay ở hero — ĐA MÔN: Toán (÷ × √ π) + Tiếng Anh/ngôn ngữ
-// (ABC, Aa, chữ). Không còn chỉ toàn ký hiệu Toán.
-const SYMBOLS = [
-  { s: "÷", style: { top: "9%", right: "14%", fontSize: 104 }, r: "-8deg", dur: "7s" },
-  { s: "ABC", style: { top: "20%", left: "9%", fontSize: 64 }, r: "-5deg", dur: "6.4s" },
-  { s: "×", style: { bottom: "16%", left: "7%", fontSize: 120 }, r: "10deg", dur: "9s" },
-  { s: "√", style: { top: "46%", right: "9%", fontSize: 80 }, r: "6deg", dur: "8s" },
-  { s: "π", style: { bottom: "34%", left: "22%", fontSize: 68 }, r: "-6deg", dur: "7.2s" },
-  { s: "Aa", style: { bottom: "26%", right: "18%", fontSize: 72 }, r: "8deg", dur: "7.6s" },
-];
-
-// Môn đang có (đồng bộ với subjects.ts). TẠM ẨN Tiếng Anh — bật lại = bỏ comment.
-const SUBJECTS_HERO = [
-  { icon: "📐", name: "Toán" },
-  // { icon: "💬", name: "Tiếng Anh" },
-];
-
+// Tính năng THẬT của bản giáo trình (bỏ i-Test/video/trích trang cũ).
 const FEATS = [
-  { ic: "📚", t: "Bám sát SGK" },
-  { ic: "✏️", t: "Giải thích từng bước" },
-  { ic: "🎬", t: "Video minh hoạ" },
-  { ic: "📝", t: "Luyện tập i-Test" },
+  { ic: "📚", t: "Bài học bám chương trình, 4 phần rõ ràng" },
+  { ic: "✅", t: "Kiểm tra nhanh sau mỗi đơn vị kiến thức" },
+  { ic: "💬", t: "Trợ lý hỏi–đáp trả lời bám sách giáo khoa" },
+  { ic: "🔥", t: "Theo dõi tiến độ, chuỗi ngày học & điểm XP" },
 ];
 
-// Trang đăng nhập kiểu hero split-screen (tham chiếu bản home cũ) — nền gradient
-// + form bên phải; đa môn, theo token mới, sáng/tối, responsive (≤900px ẩn hero).
+// Trang đăng nhập split-screen: hero gradient (trái) + form (phải). Đồng bộ design
+// bên trong (tím/cam/teal, serif), sáng/tối theo data-theme, ≤900px ẩn hero.
 export function LoginView({ onAuthed }: { onAuthed: (role: Role) => void }) {
+  const { cycle, icon, label } = useTheme();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -60,98 +46,72 @@ export function LoginView({ onAuthed }: { onAuthed: (role: Role) => void }) {
     }
   };
 
-  const onRoleKey = (e: React.KeyboardEvent) => {
-    const keys = ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"];
-    if (!keys.includes(e.key)) return;
-    e.preventDefault();
-    const idx = ROLES.findIndex((r) => r.value === role);
-    const fwd = e.key === "ArrowDown" || e.key === "ArrowRight";
-    setRole(ROLES[(idx + (fwd ? 1 : ROLES.length - 1)) % ROLES.length].value);
-  };
-
   return (
-    <div className="auth-screen" data-subject="toan">
-      <aside className="auth-hero">
-        {SYMBOLS.map((x, i) => (
-          <span key={i} className="hero-sym"
-            style={{ ...x.style, ["--r" as string]: x.r, animationDuration: x.dur }}>
-            {x.s}
-          </span>
-        ))}
-        <div className="hero-top">
-          <div className="dtp-logo"><img src="/dtp-logo.png" alt="DTP" /></div>
-          <div>
-            <div className="name">{TUTOR_NAME}</div>
-            <div className="sub">Học đa môn cùng gia sư AI</div>
-          </div>
+    <div className="login">
+      <aside className="login-hero">
+        <div className="login-brand">
+          <div className="logo"><img src="/dtp-logo.png" alt="DTP" /></div>
+          <div><b>{TUTOR_NAME}</b><span>Nền tảng học Toán 6 có lộ trình</span></div>
         </div>
-        <div className="hero-center">
-          <div className="hero-badge" aria-hidden>🎓</div>
-          <div className="hero-title">Học thông minh<br />cùng {TUTOR_NAME}</div>
-          <div className="hero-desc">
-            Gia sư ảo đa môn bám sát sách giáo khoa — giải thích từng bước, trích
-            dẫn đúng trang sách, video minh hoạ và luyện tập mỗi ngày.
+        <div className="login-hero-center">
+          <span className="login-eyebrow">🎓 Học có lộ trình</span>
+          <h1>Học thông minh<br />cùng {TUTOR_NAME}</h1>
+          <div className="lead">
+            Đi theo mục lục chương trình, học từng đơn vị kiến thức với ví dụ minh hoạ,
+            làm bài kiểm tra nhanh và hỏi trợ lý bất cứ khi nào chưa rõ.
           </div>
-          <div className="hero-subjects" aria-label="Các môn đang có">
-            {SUBJECTS_HERO.map((s) => (
-              <span className="hero-subj" key={s.name}><span aria-hidden>{s.icon}</span> {s.name}</span>
+          <div className="login-feats">
+            {FEATS.map((f, i) => (
+              <div className="login-feat" key={i}><span className="fic" aria-hidden>{f.ic}</span> {f.t}</div>
             ))}
           </div>
         </div>
-        <div className="hero-feats">
-          {FEATS.map((f, i) => (
-            <div className="feat" key={i}><span className="ic" aria-hidden>{f.ic}</span> {f.t}</div>
-          ))}
-        </div>
+        <div className="login-hero-foot">Trợ lý trả lời bám sách giáo khoa — không có trong SGK thì báo, không bịa.</div>
       </aside>
 
-      <main className="auth-panel">
-        <div className="auth-panel-top"><ThemeToggle /></div>
-        <div className="auth-mobilebrand">
-          <div className="dtp-logo"><img src="/dtp-logo.png" alt="DTP" /></div>
-          <span className="t">{TUTOR_NAME}</span>
+      <main className="login-main">
+        <div className="login-top">
+          <button className="login-icon-btn" type="button" onClick={cycle} title={`Giao diện: ${label}`} aria-label="Đổi giao diện">{icon}</button>
+        </div>
+        <div className="login-mobilebrand">
+          <div className="logo"><img src="/dtp-logo.png" alt="DTP" /></div>
+          <b>{TUTOR_NAME}</b>
         </div>
 
-        <div className="auth-card">
+        <div className="login-card">
           <div>
-            <div className="auth-hi">Xin chào! 👋</div>
-            <div className="auth-hi-sub">
+            <div className="login-hi">Xin chào! 👋</div>
+            <div className="login-hi-sub">
               {mode === "login" ? `Đăng nhập để tiếp tục học cùng ${TUTOR_NAME}.` : "Tạo tài khoản để bắt đầu học."}
             </div>
           </div>
 
-          <div className="auth-tabs">
+          <div className="login-tabs">
             <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Đăng nhập</button>
             <button type="button" className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>Đăng ký</button>
           </div>
 
-          {error && <div className="auth-error">{error}</div>}
+          {error && <div className="login-err">⚠️ {error}</div>}
 
-          <form onSubmit={submit}>
+          <form className="login-form" onSubmit={submit}>
             {mode === "register" && (
               <>
                 <label>Họ và tên
                   <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nguyễn Minh An" required />
                 </label>
-                <div className="role-field">
-                  <div className="role-field-label">Bạn là ai?</div>
-                  <div className="role-grid" role="radiogroup" aria-label="Vai trò tài khoản" onKeyDown={onRoleKey}>
-                    {ROLES.map((r) => {
-                      const sel = role === r.value;
-                      return (
-                        <button key={r.value} type="button" role="radio" aria-checked={sel}
-                          tabIndex={sel ? 0 : -1} className={"role-btn" + (sel ? " sel" : "")}
-                          onClick={() => setRole(r.value)}>
-                          <span className="role-ic" aria-hidden>{r.icon}</span>
-                          <span className="role-txt">
-                            <span className="role-name">{r.title}</span>
-                            <span className="role-desc">{r.desc}</span>
-                          </span>
-                          <span className="role-check" aria-hidden>✓</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div className="login-roles">
+                  <div className="login-role-label">Bạn là ai?</div>
+                  {ROLES.map((r) => (
+                    <button key={r.value} type="button" className={"login-role" + (role === r.value ? " sel" : "")}
+                      aria-pressed={role === r.value} onClick={() => setRole(r.value)}>
+                      <span className="ric" aria-hidden>{r.icon}</span>
+                      <span>
+                        <span className="rname" style={{ display: "block" }}>{r.title}</span>
+                        <span className="rdesc">{r.desc}</span>
+                      </span>
+                      <span className="rcheck" aria-hidden>✓</span>
+                    </button>
+                  ))}
                 </div>
               </>
             )}
@@ -161,19 +121,19 @@ export function LoginView({ onAuthed }: { onAuthed: (role: Role) => void }) {
             <label>Mật khẩu
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
             </label>
-            <button className="auth-submit" type="submit" disabled={busy}>
+            <button className="login-submit" type="submit" disabled={busy}>
               {busy ? "Đang xử lý…" : mode === "login" ? "Đăng nhập" : "Tạo tài khoản"}
             </button>
           </form>
 
-          <div className="auth-foot">
+          <div className="login-foot">
             {mode === "login" ? (
               <>Chưa có tài khoản?{" "}
-                <button type="button" className="auth-link" onClick={() => setMode("register")}>Đăng ký ngay</button>
+                <button type="button" className="login-link" onClick={() => setMode("register")}>Đăng ký ngay</button>
               </>
             ) : (
               <>Đã có tài khoản?{" "}
-                <button type="button" className="auth-link" onClick={() => setMode("login")}>Đăng nhập</button>
+                <button type="button" className="login-link" onClick={() => setMode("login")}>Đăng nhập</button>
               </>
             )}
           </div>
