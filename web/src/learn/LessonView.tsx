@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Lesson, MinhHoa, QuizResult } from "../types";
+import { renderMath } from "../mathHtml";
 import { QuizView } from "./QuizView";
 
 function Media({ m }: { m: MinhHoa }) {
@@ -65,9 +66,9 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded, onAsk }:
       </span>
       <h1>{lesson.dv}</h1>
 
-      {/* ① Khái niệm (HTML chuyên gia; blockquote -> callout) */}
+      {/* ① Khái niệm (HTML chuyên gia; blockquote -> callout; $…$ -> KaTeX) */}
       {lesson.khai_niem
-        ? <div dangerouslySetInnerHTML={{ __html: lesson.khai_niem }} />
+        ? <div dangerouslySetInnerHTML={{ __html: renderMath(lesson.khai_niem) }} />
         : <p className="lead">Chưa có nội dung khái niệm.</p>}
 
       {/* Hướng dẫn giảng dạy (GV) */}
@@ -95,8 +96,8 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded, onAsk }:
           <h3><span className="hi">✏️</span> Ví dụ</h3>
           {lesson.vi_du.map((e, i) => (
             <div className="vd" key={i}>
-              <div className="q" dangerouslySetInnerHTML={{ __html: e.de }} />
-              <div className="a" dangerouslySetInnerHTML={{ __html: e.giai }} />
+              <div className="q" dangerouslySetInnerHTML={{ __html: renderMath(e.de) }} />
+              <div className="a" dangerouslySetInnerHTML={{ __html: renderMath(e.giai) }} />
             </div>
           ))}
           {gy.vi_du && <div className="media-note">🎓 {gy.vi_du}</div>}

@@ -3,6 +3,8 @@ import {
   ApiError, cmsAiIngest, cmsGenerateQuiz, cmsGetTopic, cmsSaveTopic, cmsUploadVideo, tokenStore,
 } from "../api";
 import type { CmsMedia, CmsQuiz, CmsTopic, CmsViDu } from "../types";
+import { HtmlMathEditor } from "../components/HtmlMathEditor";
+import { renderMath } from "../mathHtml";
 
 const STATUS: [string, string][] = [["draft", "● Nháp"], ["review", "● Chờ duyệt"], ["published", "● Đã xuất bản"]];
 const LV: Record<string, string> = { de: "Dễ", trung_binh: "TB", kho: "Khó" };
@@ -135,8 +137,8 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
                       ✨ {busy === "ai" ? "Đang soạn…" : "Gợi ý AI"}
                     </button>
                   </div>
-                  <textarea value={d.khai_niem} placeholder="Nhập khái niệm (HTML thuần: <p>, <b>…)"
-                    onChange={(e) => patch({ khai_niem: e.target.value })} />
+                  <HtmlMathEditor value={d.khai_niem} placeholder="Nhập khái niệm (HTML thuần: <p>, <b>… — công thức đặt trong $…$)"
+                    onChange={(v) => patch({ khai_niem: v })} />
                   <label className="lbl" style={{ marginTop: 8 }}>Tư liệu nguồn cho AI (tuỳ chọn)</label>
                   <input type="text" value={d.nguon} placeholder="Dán trích đoạn SGK…" onChange={(e) => patch({ nguon: e.target.value })} />
                 </div>
@@ -168,8 +170,8 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
                   {d.vi_du.map((e, i) => (
                     <div className="mini-item" key={i}>
                       <div className="mh">Ví dụ {i + 1}<button className="rm" type="button" onClick={() => rmVd(i)}>×</button></div>
-                      <textarea value={e.de} placeholder="Đề bài" style={{ minHeight: 52 }} onChange={(ev) => setVd(i, { de: ev.target.value })} />
-                      <textarea value={e.giai} placeholder="Lời giải" style={{ minHeight: 52, marginTop: 7 }} onChange={(ev) => setVd(i, { giai: ev.target.value })} />
+                      <HtmlMathEditor value={e.de} placeholder="Đề bài" minHeight={52} onChange={(v) => setVd(i, { de: v })} />
+                      <HtmlMathEditor value={e.giai} placeholder="Lời giải" minHeight={52} style={{ marginTop: 7 }} onChange={(v) => setVd(i, { giai: v })} />
                     </div>
                   ))}
                   <button className="add-b" type="button" onClick={addVd}>＋ Thêm ví dụ</button>
@@ -180,8 +182,13 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
                   <div className="locked"><span className="lk">🔒</span><div><b>Sinh tự động theo ma trận đặc tả.</b><br /><span style={{ fontSize: 12 }}>Bám yêu cầu cần đạt + mức độ — không nhập tay.</span></div></div>
                   {quiz.map((q, i) => (
                     <div className="quiz-mini" key={i}>
-                      <div className="qc">Câu {i + 1}. {q.q} <span className="badge-ai">{LV[q.lv] ?? "?"}</span></div>
-                      <ol>{q.o.map((op, oi) => <li key={oi} className={oi === q.a ? "ok" : ""}>{op}</li>)}</ol>
+                      <div className="qc">
+                        <span dangerouslySetInnerHTML={{ __html: `Câu ${i + 1}. ${renderMath(q.q)}` }} />{" "}
+                        <span className="badge-ai">{LV[q.lv] ?? "?"}</span>
+                      </div>
+                      <ol>{q.o.map((op, oi) => (
+                        <li key={oi} className={oi === q.a ? "ok" : ""} dangerouslySetInnerHTML={{ __html: renderMath(op) }} />
+                      ))}</ol>
                     </div>
                   ))}
                   <button className="add-b" type="button" disabled={busy === "quiz"} onClick={genQuiz} style={{ marginTop: 7 }}>
@@ -200,11 +207,18 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
               <div className="pv">
                 <div className="pv-crumb">{topic.mach} › đơn vị kiến thức</div>
                 <div className="pv-title">{topic.dv}</div>
-                <div className="pv-sec"><h4>📖 Khái niệm</h4><div className="bd" dangerouslySetInnerHTML={{ __html: d.khai_niem || "(chưa có nội dung)" }} /></div>
+                <div className="pv-sec"><h4>📖 Khái niệm</h4><div className="bd" dangerouslySetInnerHTML={{ __html: d.khai_niem ? renderMath(d.khai_niem) : "(chưa có nội dung)" }} /></div>
                 <div className="pv-sec"><h4>🎬 Minh họa</h4><div className="pv-media">
                   {d.minh_hoa.length ? d.minh_hoa.map((m, i) => <div className="pv-chip" key={i}>{m.type === "video" ? "🎬 " : "🖼️ "}{m.caption || "(media)"}</div>) : <div className="pv-chip">(chưa có)</div>}
                 </div></div>
-                <div className="pv-sec"><h4>✏️ Ví dụ</h4><div className="bd">{d.vi_du.length ? d.vi_du.map((e, i) => `Ví dụ ${i + 1}. ${e.de}${e.giai ? "\n→ " + e.giai : ""}`).join("\n\n") : "(chưa có)"}</div></div>
+                <div className="pv-sec"><h4>✏️ Ví dụ</h4><div className="bd">
+                  {d.vi_du.length ? d.vi_du.map((e, i) => (
+                    <div key={i} style={{ marginBottom: i < d.vi_du.length - 1 ? 12 : 0 }}>
+                      <div dangerouslySetInnerHTML={{ __html: `<b>Ví dụ ${i + 1}.</b> ${renderMath(e.de)}` }} />
+                      {e.giai && <div dangerouslySetInnerHTML={{ __html: `→ ${renderMath(e.giai)}` }} />}
+                    </div>
+                  )) : "(chưa có)"}
+                </div></div>
                 <div className="pv-sec"><h4>✅ Kiểm tra nhanh</h4><div className="bd">{quiz.length ? `${quiz.length} câu trắc nghiệm (sinh theo ma trận)` : "(chưa sinh)"}</div></div>
               </div>
             )}

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ApiError, submitQuiz } from "../api";
 import type { QuizQuestion, QuizResult } from "../types";
+import { renderMath } from "../mathHtml";
 
 const LV: Record<string, string> = { de: "Dễ", trung_binh: "Trung bình", kho: "Khó" };
 
@@ -37,7 +38,7 @@ export function QuizView({ topicId, quiz, onGraded }: {
             <div className="ex-head">
               <span className={"ex-type " + q.lv}>{LV[q.lv] ?? "Câu hỏi"}</span>
             </div>
-            <div className="ex-q" dangerouslySetInnerHTML={{ __html: `Câu ${qi + 1}. ${q.q}` }} />
+            <div className="ex-q" dangerouslySetInnerHTML={{ __html: `Câu ${qi + 1}. ${renderMath(q.q)}` }} />
             <div className="opts">
               {q.o.map((op, oi) => {
                 const picked = answers[qi] === oi;
@@ -51,12 +52,12 @@ export function QuizView({ topicId, quiz, onGraded }: {
                   <button key={oi} type="button" className={cls.join(" ")} disabled={!!res}
                     onClick={() => pick(qi, oi)}>
                     <span className="k">{String.fromCharCode(65 + oi)}</span>
-                    <span dangerouslySetInnerHTML={{ __html: op }} />
+                    <span dangerouslySetInnerHTML={{ __html: renderMath(op) }} />
                   </button>
                 );
               })}
             </div>
-            {res && rk?.giai && <div className="ex-giai" dangerouslySetInnerHTML={{ __html: rk.giai }} />}
+            {res && rk?.giai && <div className="ex-giai" dangerouslySetInnerHTML={{ __html: renderMath(rk.giai) }} />}
           </div>
         );
       })}

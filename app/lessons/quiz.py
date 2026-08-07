@@ -21,20 +21,22 @@ from app.llm import gateway
 _LV = {"de", "trung_binh", "kho"}
 _LV_TEN = {"de": "dễ", "trung_binh": "trung bình", "kho": "khó"}
 # Số câu mặc định cho 1 bài kiểm tra nhanh (ngắn, cuối bài).
-_SO_CAU_MAC_DINH = 4
+_SO_CAU_MAC_DINH = 8
 
 
 def _phan_bo_muc_do(cells: list[BlueprintCell], so_cau: int) -> dict[str, int]:
     """Phân bổ số câu theo mức độ dựa trên các yêu cầu cần đạt của đơn vị.
 
     Ưu tiên phủ đủ các mức xuất hiện trong ma trận (mỗi mức ≥ 1 câu), phần dư
-    chia theo tần suất mức. Không có cell -> mặc định thiên 'dễ' (bài ôn nhanh)."""
+    chia theo tần suất mức. Không có cell -> tỉ lệ 1/2 dễ, 1/4 trung bình, 1/4 khó
+    (so_cau=8 -> 4 dễ + 2 trung bình + 2 khó); phần dư dồn vào 'dễ' cho bài ôn nhanh."""
     freq: dict[str, int] = {}
     for c in cells:
         md = c.muc_do if c.muc_do in _LV else "de"
         freq[md] = freq.get(md, 0) + 1
     if not freq:
-        return {"de": max(1, so_cau - 1), "trung_binh": 1} if so_cau > 1 else {"de": 1}
+        mac_dinh = {"de": so_cau - 2 * (so_cau // 4), "trung_binh": so_cau // 4, "kho": so_cau // 4}
+        return {m: n for m, n in mac_dinh.items() if n > 0}
 
     muc = sorted(freq, key=lambda m: (-freq[m], m))
     out = {m: 1 for m in muc}  # mỗi mức ít nhất 1 câu

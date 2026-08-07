@@ -1,25 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import katex from "katex";
 import { ApiError, askTutor, tokenStore } from "../api";
+import { renderMath } from "../mathHtml";
 
 type Msg = { role: "me" | "bot"; html: string; error?: boolean };
 
-function _tex(m: string, display: boolean): string {
-  try {
-    return katex.renderToString(m, { displayMode: display, throwOnError: false });
-  } catch {
-    return m;
-  }
-}
-
 // Chuẩn hoá câu trả lời trợ lý -> HTML: render công thức LaTeX ($…$, $$…$$) bằng
-// KaTeX (không còn hiện ký tự $), bỏ trích trang sách [tr.N], markdown nhẹ.
+// KaTeX (không còn hiện ký tự $ — dùng chung renderMath với trang bài học), bỏ
+// trích trang sách [tr.N], markdown nhẹ.
 function toHtml(answer: string): string {
-  return answer
-    .replace(/\s*\[tr\.?\s*\d+\s*\]/gi, "")          // bỏ suggest trang sách [tr.45]
-    .replace(/\$\$([^$]+?)\$\$/g, (_, m) => _tex(m, true))
-    .replace(/\$([^$\n]+?)\$/g, (_, m) => _tex(m, false))
-    .replace(/\\\((.+?)\\\)/g, (_, m) => _tex(m, false))  // \( … \) cũng là công thức
+  return renderMath(answer.replace(/\s*\[tr\.?\s*\d+\s*\]/gi, ""))   // bỏ suggest trang sách [tr.45]
     .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
     .replace(/(^|\n)\s*[*•-]\s+/g, "$1• ")
     .replace(/\s+([.,;!?])/g, "$1")                   // dọn khoảng trắng thừa trước dấu câu
