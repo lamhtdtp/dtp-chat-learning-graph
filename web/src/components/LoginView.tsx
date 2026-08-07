@@ -66,7 +66,7 @@ export function LoginView({ onAuthed }: { onAuthed: (role: Role) => void }) {
             ))}
           </div>
         </div>
-        <div className="login-hero-foot">Trợ lý trả lời bám sách giáo khoa — không có trong SGK thì báo, không bịa.</div>
+    
       </aside>
 
       <main className="login-main">

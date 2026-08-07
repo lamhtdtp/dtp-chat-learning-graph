@@ -242,17 +242,35 @@ function OverviewBar({ flat }: { flat: Flat[] }) {
   );
 }
 
+const PAGE_SIZE = 10;
+
+function Pager({ page, pages, onPage }: { page: number; pages: number; onPage: (p: number) => void }) {
+  if (pages <= 1) return null;
+  return (
+    <div className="pager">
+      <button className="btn-ghost" type="button" disabled={page <= 1} onClick={() => onPage(page - 1)}>← Trước</button>
+      <span className="pager-n">Trang {page}/{pages}</span>
+      <button className="btn-ghost" type="button" disabled={page >= pages} onClick={() => onPage(page + 1)}>Sau →</button>
+    </div>
+  );
+}
+
 function ContentTable({ flat, filter, search, onEdit, onPreview }: {
   flat: Flat[]; filter: string; search: string; onEdit: (id: number) => void; onPreview: (id: number) => void;
 }) {
   const q = search.trim().toLowerCase();
   const rows = flat.filter((u) => (filter === "all" || u.trang_thai === filter) && (!q || u.ten.toLowerCase().includes(q)));
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [filter, search, flat.length]);
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pageSafe = Math.min(page, pages);
+  const shown = rows.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
   return (
     <div style={{ overflowX: "auto" }}>
       <table>
         <thead><tr><th>Đơn vị kiến thức</th><th>Nguồn</th><th>Hoàn thành</th><th>Trạng thái</th><th></th></tr></thead>
         <tbody>
-          {rows.map((u) => {
+          {shown.map((u) => {
             const [cls, label] = PILL[u.trang_thai] ?? PILL.chua_bien_soan;
             const pct = Math.round(u.completeness.done / u.completeness.total * 100);
             return (
@@ -277,6 +295,7 @@ function ContentTable({ flat, filter, search, onEdit, onPreview }: {
           {rows.length === 0 && <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--ink-3)", padding: 28 }}>Không có đơn vị khớp bộ lọc.</td></tr>}
         </tbody>
       </table>
+      <Pager page={pageSafe} pages={pages} onPage={setPage} />
     </div>
   );
 }
@@ -334,15 +353,20 @@ function UsersView({ users, search, onPatch }: {
 }) {
   const q = search.trim().toLowerCase();
   const rows = users.filter((u) => !q || (u.name + " " + u.email).toLowerCase().includes(q));
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [search, users.length]);
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pageSafe = Math.min(page, pages);
+  const shown = rows.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
   return (
     <>
-      <div className="page-head"><div><h1>Người dùng</h1><div className="ps">Quản lý tài khoản + theo dõi tiến độ học</div></div></div>
+      <div className="page-head"><div><h1>Người dùng</h1><div className="ps">Quản lý tài khoản + theo dõi tiến độ học ({rows.length})</div></div></div>
       <div className="panel">
         <div style={{ overflowX: "auto" }}>
           <table>
             <thead><tr><th>Người dùng</th><th>Vai trò</th><th>Trạng thái</th><th>Hạn mức/ngày</th><th className="tnum">Đạt</th><th className="tnum">Đang</th></tr></thead>
             <tbody>
-              {rows.map((u) => (
+              {shown.map((u) => (
                 <tr key={u.id}>
                   <td><div className="u-name">{u.name}</div><div className="u-email">{u.email}</div></td>
                   <td>
@@ -363,6 +387,7 @@ function UsersView({ users, search, onPatch }: {
             </tbody>
           </table>
         </div>
+        <Pager page={pageSafe} pages={pages} onPage={setPage} />
       </div>
     </>
   );

@@ -136,6 +136,11 @@
 .admin .au-pill.off{color:var(--slate);background:var(--slate-weak)}
 .admin .au-limit{width:92px;border:1px solid var(--border);background:var(--surface-2);color:var(--ink);border-radius:var(--r-xs);padding:6px 9px;font:inherit;font-size:12.5px}
 
+/* Phân trang bảng */
+.admin .pager{display:flex;align-items:center;justify-content:center;gap:14px;padding:12px 18px;border-top:1px solid var(--border)}
+.admin .pager-n{font-size:13px;font-weight:700;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.admin .pager .btn-ghost:disabled{opacity:.5;cursor:default}
+
 /* Ingest */
 .admin .grid2{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
 @media (max-width:1000px){.admin .grid2{grid-template-columns:1fr}}
