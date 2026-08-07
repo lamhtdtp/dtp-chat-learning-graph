@@ -38,9 +38,21 @@ export interface CmsGroup {
 }
 export interface CmsMedia {
   type: string;                       // image | video
-  url?: string;
+  url?: string | null;                // null = video AI đặt hàng, đang render
   caption?: string;
   source?: string;                    // ai | expert
+  concept_key?: string;               // video AI: khoá tra job render (điền url khi DONE)
+  /** URL đã ký, CHỈ để xem trong trình soạn. Không gửi lên khi lưu (server lược). */
+  url_xem?: string;
+}
+/** Nháp AI trả về: nội dung bám SGK + minh hoạ đã sinh thật. */
+export interface CmsAiDraft {
+  khai_niem: string;
+  vi_du: CmsViDu[];
+  minh_hoa: CmsMedia[];
+  trang_sgk: number[];                // số trang SGK đã dùng làm ngữ liệu
+  thieu_sgk: boolean;                 // true = KHÔNG bám được SGK, phải rà kỹ
+  loi_media: string[];                // lý do ảnh/video nào không sinh được
 }
 export interface CmsViDu { de: string; giai: string }
 export interface CmsQuiz { q: string; o: string[]; a: number; lv: string; giai?: string }

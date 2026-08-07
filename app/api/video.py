@@ -83,11 +83,13 @@ async def get_job(job_id: int, session: AsyncSession = Depends(get_session)) -> 
 async def get_file(name: str, exp: str | None = None, sig: str | None = None) -> FileResponse:
     # Chỉ phục vụ khi có chữ ký hợp lệ (chống tải trực tiếp bằng URL đoán được).
     if not security.verify_media(f"/video/files/{name}", exp, sig):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Link video không hợp lệ hoặc đã hết hạn")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Link media không hợp lệ hoặc đã hết hạn")
     path = storage.resolve_url(f"/video/files/{name}")
     if path is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Video không tồn tại")
-    return FileResponse(path, media_type="video/mp4")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Media không tồn tại")
+    # Storage này giữ cả mp4 lẫn ảnh minh hoạ AI -> content-type theo đuôi file,
+    # không cứng video/mp4 (trả sai type làm <img> không hiện).
+    return FileResponse(path, media_type=storage.media_type_for(name))
 
 
 @router.websocket("/ws/{job_id}")

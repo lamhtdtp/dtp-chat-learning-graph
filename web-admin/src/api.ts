@@ -2,6 +2,7 @@ import { API_BASE } from "./config";
 import type {
   AdminUser,
   AuthResult,
+  CmsAiDraft,
   CmsGroup,
   CmsMedia,
   CmsTopic,
@@ -102,8 +103,9 @@ export function cmsSaveTopic(topicId: number, body: {
 }): Promise<{ topic_id: number; trang_thai: string; completeness: CmsTopic["completeness"] }> {
   return req(`/cms/topics/${topicId}`, { method: "PUT", auth: true, body });
 }
-export function cmsAiIngest(topicId: number, nguon = ""): Promise<{ khai_niem: string; vi_du: CmsViDu[] }> {
-  return req(`/cms/topics/${topicId}/ai-ingest`, { auth: true, body: { nguon } });
+/** Nháp AI bám SGK. `media=false` để chỉ soạn chữ (không tốn lần gọi sinh ảnh). */
+export function cmsAiIngest(topicId: number, nguon = "", media = true): Promise<CmsAiDraft> {
+  return req(`/cms/topics/${topicId}/ai-ingest`, { auth: true, body: { nguon, media } });
 }
 export function cmsGenerateQuiz(topicId: number): Promise<{ topic_id: number; quiz: CmsQuiz[]; so_cau: number }> {
   return req(`/cms/topics/${topicId}/quiz/generate`, { auth: true, body: {} });

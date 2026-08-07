@@ -20,6 +20,7 @@ from app.api import security
 from app.api.deps import get_current_user
 from app.db.models import CurriculumTopic, Grade, StudentProgress, Subject, TopicContent, User
 from app.db.session import get_session
+from app.lessons import media as media_svc
 from app.lessons import quiz as quiz_svc
 from app.lessons import stats as stats_svc
 from app.llm.gateway import LLMUnavailable
@@ -145,7 +146,11 @@ async def get_lesson(
     return {
         **base,
         "khai_niem": c.khai_niem,
-        "minh_hoa": _sign_media(json.loads(c.minh_hoa_json or "[]")),
+        # fill_video_urls TRƯỚC khi ký: video AI đặt hàng lúc biên soạn có url=None
+        # tới khi job render xong, không có bước này thì HS mãi thấy poster rỗng.
+        "minh_hoa": _sign_media(
+            await media_svc.fill_video_urls(session, json.loads(c.minh_hoa_json or "[]"))
+        ),
         "vi_du": json.loads(c.vi_du_json or "[]"),
         # HS KHÔNG nhận đáp án/lời giải (chấm ở server) — chỉ đề + phương án.
         "quiz": quiz if author else [{"q": x["q"], "o": x["o"], "lv": x.get("lv", "de")} for x in quiz],

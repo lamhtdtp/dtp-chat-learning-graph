@@ -21,10 +21,12 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api import security
 from app.api.deps import get_current_user
 from app.db.models import BlueprintCell, CurriculumTopic, Grade, Subject, TopicContent, User
 from app.db.session import get_session
 from app.lessons import ingest as ingest_svc
+from app.lessons import media as media_svc
 from app.lessons import quiz as quiz_svc
 from app.llm.gateway import LLMUnavailable
 from app.video import storage
@@ -39,6 +41,28 @@ _VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
 def _require_author(user: User) -> None:
     if user.role not in {"giao_vien", "admin"}:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Chỉ giáo viên/quản trị được vào CMS")
+
+
+# Khoá được phép lưu trong 1 item minh hoạ. Chốt danh sách để trường chỉ-để-xem
+# (url_xem — URL có chữ ký, hết hạn) KHÔNG bị client gửi ngược lên rồi ghi vào DB.
+_MEDIA_KEYS = ("type", "url", "caption", "source", "concept_key")
+
+
+def _media_for_view(items: list[dict]) -> list[dict]:
+    """Thêm `url_xem` = URL đã ký cho media nội bộ, để trình soạn xem được ảnh/video.
+
+    Giữ `url` THÔ: đó là giá trị lưu DB, ký vào đấy thì link hết hạn nằm luôn
+    trong nội dung. Cặp url (lưu) / url_xem (hiển thị) tách hẳn nhau."""
+    out = []
+    for m in items:
+        url = m.get("url") or ""
+        out.append({**m, "url_xem": security.sign_media(url)} if url.startswith("/video/files/") else m)
+    return out
+
+
+def _media_for_save(items: list[dict]) -> list[dict]:
+    """Lược item minh hoạ về đúng các khoá được lưu (bỏ url_xem và khoá lạ)."""
+    return [{k: m[k] for k in _MEDIA_KEYS if k in m} for m in items]
 
 
 def _completeness(c: TopicContent | None) -> dict:
@@ -172,7 +196,10 @@ async def cms_get_topic(
     return {
         **base,
         "khai_niem": c.khai_niem,
-        "minh_hoa": json.loads(c.minh_hoa_json or "[]"),
+        # Video AI lưu lúc chưa render xong có url=None -> tra job DONE để hiện được.
+        "minh_hoa": _media_for_view(
+            await media_svc.fill_video_urls(session, json.loads(c.minh_hoa_json or "[]"))
+        ),
         "vi_du": json.loads(c.vi_du_json or "[]"),
         "quiz": json.loads(c.quiz_json or "[]"),
         "day": json.loads(c.day_json) if c.day_json else None,
@@ -214,7 +241,7 @@ async def cms_save_topic(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy đơn vị kiến thức")
     c = await _get_or_create(session, topic_id)
     c.khai_niem = body.khai_niem
-    c.minh_hoa_json = json.dumps(body.minh_hoa, ensure_ascii=False)
+    c.minh_hoa_json = json.dumps(_media_for_save(body.minh_hoa), ensure_ascii=False)
     c.vi_du_json = json.dumps(body.vi_du, ensure_ascii=False)
     c.day_json = json.dumps(body.day, ensure_ascii=False) if body.day else None
     c.nguon = body.nguon
@@ -226,6 +253,7 @@ async def cms_save_topic(
 
 class IngestRequest(BaseModel):
     nguon: str = ""  # tư liệu chuyên gia dán vào (tuỳ chọn)
+    media: bool = True  # sinh luôn ảnh + đặt hàng video ngắn
 
 
 @router.post("/topics/{topic_id}/ai-ingest")
@@ -235,15 +263,42 @@ async def cms_ai_ingest(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """AI soạn NHÁP khái niệm + ví dụ (không lưu — chuyên gia rà soát rồi PUT)."""
+    """AI soạn NHÁP khái niệm + ví dụ + minh hoạ, bám ngữ liệu SGK (Qdrant).
+
+    KHÔNG lưu nội dung — chuyên gia rà soát rồi PUT. `media=True` thì sinh luôn
+    ảnh (đồng bộ) và đặt hàng video ngắn (async qua Celery): request sẽ lâu hơn
+    đáng kể vì mỗi ảnh là một lần gọi model sinh ảnh.
+    """
     _require_author(user)
-    if await session.get(CurriculumTopic, topic_id) is None:
+    topic = await session.get(CurriculumTopic, topic_id)
+    if topic is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy đơn vị kiến thức")
     try:
         draft = await ingest_svc.ingest_draft(session, topic_id, nguon=body.nguon)
     except LLMUnavailable:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Hệ thống AI đang quá tải, thử lại sau nhé.")
-    return draft
+
+    minh_hoa: list[dict] = []
+    loi: list[str] = []
+    if body.media:
+        anh, loi_anh = await media_svc.generate_images(topic_id, draft["anh"])
+        minh_hoa += anh
+        loi += loi_anh
+        vid, loi_vid = await media_svc.request_video(
+            session, topic, draft["video"], mon=draft["mon"] or "toan")
+        if vid:
+            minh_hoa.append(vid)
+        loi += loi_vid
+        await session.commit()   # VideoJob vừa tạo phải bền trước khi worker đọc
+
+    return {
+        "khai_niem": draft["khai_niem"],
+        "vi_du": draft["vi_du"],
+        "minh_hoa": _media_for_view(minh_hoa),
+        "trang_sgk": draft["trang_sgk"],
+        "thieu_sgk": draft["thieu_sgk"],
+        "loi_media": loi,
+    }
 
 
 @router.post("/topics/{topic_id}/quiz/generate")
@@ -302,6 +357,6 @@ async def cms_upload_video(
     minh_hoa = json.loads(c.minh_hoa_json or "[]")
     minh_hoa.append({"type": "video", "url": url, "caption": caption or "Video minh họa", "source": "expert"})
     c.minh_hoa_json = json.dumps(minh_hoa, ensure_ascii=False)
-    out = {"topic_id": topic_id, "minh_hoa": minh_hoa}
+    out = {"topic_id": topic_id, "minh_hoa": _media_for_view(minh_hoa)}
     await session.commit()
     return out

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ApiError, cmsAiIngest, cmsGenerateQuiz, cmsGetTopic, cmsSaveTopic, cmsUploadVideo, tokenStore,
 } from "../api";
-import type { CmsMedia, CmsQuiz, CmsTopic, CmsViDu } from "../types";
+import type { CmsAiDraft, CmsMedia, CmsQuiz, CmsTopic, CmsViDu } from "../types";
 import { HtmlMathEditor } from "../components/HtmlMathEditor";
 import { renderMath } from "../mathHtml";
 
@@ -38,6 +38,9 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
   const [mode, setMode] = useState<"edit" | "preview">(initMode);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Kết quả lần "Gợi ý AI" gần nhất: bám được trang SGK nào, có thiếu ngữ liệu
+  // không, media nào sinh lỗi. Chỉ để hiển thị — không lưu vào nội dung.
+  const [ai, setAi] = useState<Pick<CmsAiDraft, "trang_sgk" | "thieu_sgk" | "loi_media"> | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handle = (e: unknown) => {
@@ -67,8 +70,19 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
     setBusy("ai");
     try {
       const dr = await cmsAiIngest(topicId, d.nguon);
-      patch({ khai_niem: dr.khai_niem || d.khai_niem, vi_du: dr.vi_du.length ? dr.vi_du : d.vi_du });
-      toast("AI đã gợi ý nội dung");
+      // Media AI THÊM vào, không thay: media chuyên gia tự thêm phải giữ nguyên.
+      // Khử trùng theo url/concept_key để bấm lại nhiều lần không nhân bản.
+      const cu = new Set(d.minh_hoa.map((m) => m.url || m.concept_key || ""));
+      const them = dr.minh_hoa.filter((m) => !cu.has(m.url || m.concept_key || ""));
+      patch({
+        khai_niem: dr.khai_niem || d.khai_niem,
+        vi_du: dr.vi_du.length ? dr.vi_du : d.vi_du,
+        minh_hoa: [...d.minh_hoa, ...them],
+      });
+      setAi({ trang_sgk: dr.trang_sgk, thieu_sgk: dr.thieu_sgk, loi_media: dr.loi_media });
+      toast(dr.thieu_sgk
+        ? "AI đã soạn nháp — KHÔNG bám được SGK"
+        : `AI đã soạn theo SGK (${dr.trang_sgk.length} trang)`);
     } catch (e) { handle(e); } finally { setBusy(null); }
   };
   const genQuiz = async () => {
@@ -134,12 +148,25 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
                 <div className="esec">
                   <div className="esec-h"><span className="n">1</span> Khái niệm, định nghĩa
                     <button className="ai-btn" type="button" disabled={busy === "ai"} onClick={aiIngest}>
-                      ✨ {busy === "ai" ? "Đang soạn…" : "Gợi ý AI"}
+                      ✨ {busy === "ai" ? "Đang soạn + sinh ảnh…" : "Gợi ý AI"}
                     </button>
                   </div>
+                  {ai && (ai.thieu_sgk ? (
+                    <div className="warn-box" style={{ marginBottom: 9 }}>
+                      ⚠️ <b>Nháp này KHÔNG bám SGK.</b> Không tìm được đoạn nào khớp trong kho sách, AI
+                      soạn theo chuẩn chương trình. Rà kỹ thuật ngữ và ký hiệu trước khi xuất bản.
+                    </div>
+                  ) : (
+                    <div className="sgk-box" style={{ marginBottom: 9 }}>
+                      📖 Bám SGK trang {ai.trang_sgk.join(", ")} — công thức và thuật ngữ lấy từ các trang này.
+                    </div>
+                  ))}
+                  {ai?.loi_media.map((m, i) => (
+                    <div className="warn-box" key={i} style={{ marginBottom: 9 }}>⚠️ {m}</div>
+                  ))}
                   <HtmlMathEditor value={d.khai_niem} placeholder="Nhập khái niệm (HTML thuần: <p>, <b>… — công thức đặt trong $…$)"
                     onChange={(v) => patch({ khai_niem: v })} />
-                  <label className="lbl" style={{ marginTop: 8 }}>Tư liệu nguồn cho AI (tuỳ chọn)</label>
+                  <label className="lbl" style={{ marginTop: 8 }}>Tư liệu nguồn cho AI (tuỳ chọn — ưu tiên hơn ngữ liệu tự tra)</label>
                   <input type="text" value={d.nguon} placeholder="Dán trích đoạn SGK…" onChange={(e) => patch({ nguon: e.target.value })} />
                 </div>
                 {/* 2 Minh hoạ */}
@@ -151,6 +178,15 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
                         {m.source === "expert" && <span className="badge-ai" style={{ marginLeft: 6 }}>chuyên gia</span>}
                         {m.source === "ai" && <span className="badge-ai" style={{ marginLeft: 6 }}>AI</span>}
                         <button className="rm" type="button" onClick={() => rmMedia(i)}>×</button></div>
+                      {/* url_xem = URL đã ký (chỉ để xem). Ảnh/video nội bộ không có
+                          nó thì không tải được; video AI chưa render xong -> url rỗng. */}
+                      {m.type === "image" && (m.url_xem || m.url) && (
+                        <img className="mh-thumb" src={m.url_xem || m.url || ""} alt={m.caption || "Hình minh hoạ"} />
+                      )}
+                      {m.type === "video" && (m.url_xem
+                        ? <video className="mh-thumb" controls src={m.url_xem} />
+                        : m.concept_key && <div className="mh-pending">⏳ Video AI đang dựng — mở lại đơn vị này sau để xem.</div>
+                      )}
                       <input type="text" value={m.url ?? ""} placeholder="URL/đường dẫn" onChange={(e) => setMedia(i, { url: e.target.value })} />
                       <input type="text" value={m.caption ?? ""} placeholder="Chú thích" style={{ marginTop: 7 }} onChange={(e) => setMedia(i, { caption: e.target.value })} />
                     </div>
