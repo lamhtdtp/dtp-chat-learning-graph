@@ -72,6 +72,12 @@ TASK_TIER: dict[str, Tier] = {
     "itest_map": "cheap",
     "solve": "strong",
     "exam_gen": "strong",
+    # Sinh trắc nghiệm "Kiểm tra nhanh" cho 1 đơn vị kiến thức theo ma trận
+    # (yêu cầu cần đạt + mức độ). Cần suy luận để đặt phương án nhiễu hợp lý ->
+    # tầng mạnh. Kết quả cache vào topic_content.quiz_json, không sinh lại mỗi lần.
+    "quiz_gen": "strong",
+    # Soạn nháp nội dung bài học từ nguồn (CMS AI ingest): khái niệm + ví dụ.
+    "lesson_ingest": "strong",
 }
 
 # Đã verify từng model một qua API thật — xem docstring trên. Thêm model mới

@@ -1,11 +1,8 @@
 import { useEffect, useState } from "react";
 import { getMe, tokenStore } from "./api";
 import { LoginView } from "./components/LoginView";
-import { ChatView } from "./components/ChatView";
-import { ExamView } from "./components/ExamView";
-import { SubjectHub } from "./components/SubjectHub";
+import { LearnApp } from "./learn/LearnApp";
 import { useTheme } from "./hooks/useTheme";
-import { DEFAULT_SUBJECT } from "./subjects";
 import type { Role } from "./types";
 
 type Session = { role: Role; name: string } | null;
@@ -14,19 +11,6 @@ export function App() {
   useTheme(); // áp data-theme (auto/light/dark) lên <html> ngay từ đầu
   const [session, setSession] = useState<Session>(null);
   const [ready, setReady] = useState(false);
-  // null = đang ở Subject Hub; có key = đang chat môn đó.
-  // Lưu vào localStorage -> refresh giữa lúc chat sẽ vào lại đúng môn (không văng
-  // về màn chọn môn).
-  const [subject, setSubjectState] = useState<string | null>(
-    () => localStorage.getItem("dtp_subject"),
-  );
-  const setSubject = (key: string | null) => {
-    setSubjectState(key);
-    if (key) localStorage.setItem("dtp_subject", key);
-    else localStorage.removeItem("dtp_subject");
-  };
-  // Giáo viên: mở màn Sinh đề (theo ma trận). Học sinh không dùng.
-  const [showExam, setShowExam] = useState(false);
 
   const restore = () =>
     getMe()
@@ -41,41 +25,13 @@ export function App() {
   const handleLogout = () => {
     tokenStore.clear();
     setSession(null);
-    setSubject(null);
-    setShowExam(false);
   };
 
   if (!ready) return null;
   if (!session) return <LoginView onAuthed={() => restore()} />;
 
   // Quản trị viên dùng KHU RIÊNG tại /admin (app tách riêng) — không vào app này.
-  const isTeacher = session.role === "giao_vien";
-
-  // Giáo viên: màn Sinh đề (Toán, theo ma trận) — mở từ Hub, có nút quay lại.
-  if (showExam && isTeacher) {
-    return <ExamView teacherName={session.name} onBack={() => setShowExam(false)} onLogout={handleLogout} />;
-  }
-
-  // Cả học sinh & giáo viên đều qua Subject Hub -> Chat (đa môn, gồm Tiếng Anh).
-  if (subject == null) {
-    return (
-      <SubjectHub
-        name={session.name}
-        role={session.role}
-        onOpenSubject={(key) => setSubject(key)}
-        onOpenExam={isTeacher ? () => setShowExam(true) : undefined}
-        onLogout={handleLogout}
-      />
-    );
-  }
-  return (
-    <ChatView
-      initialSubject={subject || DEFAULT_SUBJECT}
-      name={session.name}
-      role={session.role}
-      onBackToHub={() => setSubject(null)}
-      onOpenExam={isTeacher ? () => setShowExam(true) : undefined}
-      onLogout={handleLogout}
-    />
-  );
+  // Học sinh & giáo viên: nền tảng giáo trình có cấu trúc (Mục lục → Bài học 4
+  // phần → Tiến độ / Slide). Không còn chat/RAG (đã bỏ theo mockup).
+  return <LearnApp name={session.name} role={session.role} onLogout={handleLogout} />;
 }

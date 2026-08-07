@@ -14,6 +14,8 @@ export default defineConfig({
     proxy: {
       "/auth": "http://localhost:8000",
       "/admin": "http://localhost:8000",
+      "/cms": "http://localhost:8000",         // CMS chuyên gia biên soạn giáo trình
+      "/video": "http://localhost:8000",       // upload/thay video minh họa
       "/health": "http://localhost:8000",
     },
   },

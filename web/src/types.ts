@@ -1,113 +1,73 @@
 export type Role = "hoc_sinh" | "giao_vien" | "admin";
 
-export interface AdminUser {
-  id: number;
-  email: string;
-  name: string;
-  role: Role;
-  is_active: boolean;
-  daily_limit_override: number | null;
-  created_at: string;
-  sessions: number;
-  questions: number;
-  today: number;
+// ── Giáo trình có cấu trúc (mô hình mockup) ──
+export interface CurriculumUnit {
+  topic_id: number;
+  ten: string;
+  trang_thai: "dat" | "dang" | "chua";
+  co_noi_dung: boolean;
 }
-
-export interface AdminMessage {
-  content: string;
-  created_at: string;
-  subject: string;
+export interface CurriculumGroup {
+  mach: string;
+  em: string;
+  dv: CurriculumUnit[];
 }
-
-export interface DailyStat {
-  date: string;   // YYYY-MM-DD
-  count: number;
+export interface MinhHoa {
+  type: string;              // video | image | sieve …
+  url?: string | null;
+  caption?: string;
+  source?: string;           // "ai" | "expert"
 }
-
-export interface Citation {
-  nguon: string;
-  page_no: number;
-  chuong_so: number | null;
-  bai_so: number | null;
-  tap: number | null;
+export interface LessonDay {
+  muc_tieu?: string;
+  thoi_luong?: string;
+  luu_y?: string;
+  goi_y?: Record<string, string>;
 }
-
-export interface VideoInfo {
-  status: "OFFERED" | "QUEUED" | "RENDERING" | "DONE" | "FAILED";
-  concept_key?: string | null;
-  job_id?: number | null;
-  video_url: string | null;
-}
-
-// Chip gợi ý dưới câu trả lời. action="ask" -> gửi `query`; action="practice_exam"
-// -> mở đề ngắn sinh theo ma trận.
-export interface Suggestion {
-  label: string;
-  query?: string;
-  action?: "ask" | "practice_exam";
-}
-
-// Đề nghị luyện tập i-Test kèm câu trả lời — chỉ mang chủ đề; bấm nút mới tải đề.
-export interface ItestOffer {
-  topic: string;
-}
-
-// Bài trắc nghiệm i-Test (query trực tiếp DB i-Test, như repo dtp-chat-learning).
+// Câu trắc nghiệm — góc nhìn HỌC SINH KHÔNG có 'a'/'giai' (chấm ở server).
 export interface QuizQuestion {
-  type: "single" | "multi" | "fill" | "match";
   q: string;
-  options?: string[];
-  answer?: number | null; // single: -1 = chưa xác định (hiện, không chấm)
-  answers?: number[];     // multi
-  blanks?: string[];      // fill
-  image?: string | null;
+  o: string[];
+  lv: "de" | "trung_binh" | "kho";
 }
-
-export interface QuizData {
-  id: number;
-  title: string;
-  questions: QuizQuestion[];
+export interface QuizResultItem {
+  dung: boolean;
+  chon: number;
+  dap_an: number;
+  giai: string;
 }
-
-export interface Quota {
-  limit: number | null;      // null = không giới hạn
-  used: number;
-  remaining: number | null;
+export interface QuizResult {
+  diem: number;
+  tong: number;
+  dat_yeu_cau: boolean;
+  trang_thai: "dat" | "dang";
+  ket_qua: QuizResultItem[];
 }
-
-export interface ChatResponse {
-  reply: string;
-  intent: string | null;
-  citations: Citation[];
-  session_id: number;
-  video: VideoInfo | null;
-  itest: ItestOffer | null;
-  suggestions: Suggestion[];
-  quota: Quota | null;
+export interface Lesson {
+  topic_id: number;
+  mach: string;
+  dv: string;
+  khai_niem: string;
+  minh_hoa: MinhHoa[];
+  vi_du: { de: string; giai: string }[];
+  quiz: QuizQuestion[];
+  co_quiz: boolean;
+  day: LessonDay | null;
+  nguon: string | null;
+  trang_thai: string;        // published | draft | chua_bien_soan
 }
-
-export interface SessionRow {
-  id: number;
-  title: string;
-  subject: string;
-  last_active: string;
+export interface ProgressGroup {
+  mach: string;
+  em: string;
+  phan_tram: number;
+  dv: { topic_id: number; ten: string; trang_thai: "dat" | "dang" | "chua" }[];
 }
-
-export interface MessageRow {
-  role: "user" | "assistant";
-  content: string;
-  citations: Citation[] | null;
-}
-
-export interface ChatMessage {
-  who: "user" | "bot";
-  text: string;
-  citations?: Citation[];
-  pending?: boolean;
-  error?: boolean;
-  video?: VideoInfo;
-  itest?: ItestOffer;
-  chips?: Suggestion[];
+export interface ProgressMe {
+  overall: number;
+  dat: number;
+  dang: number;
+  tong: number;
+  mach: ProgressGroup[];
 }
 
 export interface AuthResult {
@@ -116,20 +76,22 @@ export interface AuthResult {
   name: string;
 }
 
-export interface ExamQuestion {
-  muc_do: "de" | "trung_binh" | "kho";
-  noi_dung: string;
-  dap_an: string;
-  loi_giai: string;
+// Trợ lý hỏi–đáp bám SGK (POST /tutor/ask)
+export interface TutorCitation { page_no: number; nguon: string }
+export interface TutorAnswer {
+  answer: string;
+  citations: TutorCitation[];
+  khong_tim_thay: boolean;
+  remaining: number | null;
 }
 
-export interface ExamResult {
-  hoc_ky: string;
-  mon?: string;
-  tong_so_cau: number;
-  chi_tieu: Record<string, number>;
-  ti_le_muc_do: Record<string, number>;
-  mach_noi_dung: string[];
-  cau_hoi: ExamQuestion[];
-  canh_bao: string | null;
+// Hero gamification (GET /me/stats)
+export interface MyStats {
+  overall: number;
+  dat: number;
+  tong: number;
+  current_mach: { mach: string; em: string; phan_tram: number } | null;
+  streak: number;
+  xp_week: number;
+  xp_total: number;
 }

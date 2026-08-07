@@ -1,23 +1,13 @@
-from contextlib import AsyncExitStack, asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, auth, books, chat, exam, itest, sessions, video
+from app.api import admin, auth, cms, lessons, tutor, video
 from app.config import settings
-from app.graph.build import build_graph_with_redis
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Dựng graph + Redis checkpointer 1 lần lúc startup, giữ mở suốt vòng đời
-    # app (không dựng lại mỗi request). AsyncExitStack để đóng checkpointer gọn.
-    async with AsyncExitStack() as stack:
-        app.state.graph = await stack.enter_async_context(build_graph_with_redis())
-        yield
-
-
-app = FastAPI(title="Chat Learning Toán", lifespan=lifespan)
+# Nền tảng giáo trình có cấu trúc (đã bỏ hẳn chat/RAG/sinh-đề — xem P5). Video AI
+# giữ lại như tính năng đính kèm. Không còn chat-graph nên không cần lifespan
+# dựng graph + Redis checkpointer.
+app = FastAPI(title="Gia sư DTP — Giáo trình")
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,13 +17,11 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
-app.include_router(chat.router)
-app.include_router(sessions.router)
-app.include_router(books.router)
-app.include_router(exam.router)
 app.include_router(video.router)
-app.include_router(itest.router)
 app.include_router(admin.router)
+app.include_router(lessons.router)
+app.include_router(cms.router)
+app.include_router(tutor.router)
 
 
 @app.get("/health")

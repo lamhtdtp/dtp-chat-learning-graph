@@ -2,7 +2,7 @@
 Qdrant, xem app/ingestion/matrix_parser.py và specs/full-system-spec.md mục 4).
 """
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import ForeignKey, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -53,6 +53,60 @@ class CurriculumTopic(Base):
     mach_noi_dung: Mapped[str]
     don_vi_kien_thuc: Mapped[str]
     order_index: Mapped[int]
+    hoc_ky: Mapped[str | None] = mapped_column(default=None)  # "hk1" | "hk2" (đa học kỳ)
+
+
+class TopicContent(Base):
+    """Nội dung bài học có cấu trúc cho 1 đơn vị kiến thức (mô hình giáo trình số
+    theo mockup). 1 topic ↔ tối đa 1 bản nội dung. Phần "kiểm tra nhanh" KHÔNG
+    lưu ở đây — sinh tự động theo ma trận (app/exam). Media/ví dụ lưu JSON (text).
+    minh_hoa_json giữ cả video AI (mặc định) lẫn media chuyên gia upload (ưu tiên)."""
+
+    __tablename__ = "topic_content"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    topic_id: Mapped[int] = mapped_column(ForeignKey("curriculum_topics.id"), unique=True, index=True)
+    khai_niem: Mapped[str] = mapped_column(Text, default="")           # phần ① (HTML)
+    minh_hoa_json: Mapped[str] = mapped_column(Text, default="[]")     # phần ② [{type,url,caption,source}]
+    vi_du_json: Mapped[str] = mapped_column(Text, default="[]")        # phần ③ [{de,giai}]
+    # phần ④ "Kiểm tra nhanh": trắc nghiệm sinh TỰ ĐỘNG theo ma trận (P3) rồi
+    # cache tại đây — [{q, o:[…], a:<index đúng>, lv, giai}]. Không nhập tay.
+    quiz_json: Mapped[str] = mapped_column(Text, default="[]")
+    day_json: Mapped[str | None] = mapped_column(Text, default=None)   # hướng dẫn giảng dạy (GV)
+    nguon: Mapped[str | None] = mapped_column(default=None)            # nguồn biên soạn
+    trang_thai: Mapped[str] = mapped_column(default="draft")           # draft | published
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+
+class StudentProgress(Base):
+    """Tiến độ học sinh theo ĐƠN VỊ kiến thức (baseline P1). Refine theo từng
+    yêu cầu cần đạt (blueprint_cells) ở P3. 1 (user, topic) → 1 trạng thái."""
+
+    __tablename__ = "student_progress"
+    __table_args__ = (UniqueConstraint("user_id", "topic_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    topic_id: Mapped[int] = mapped_column(ForeignKey("curriculum_topics.id"), index=True)
+    trang_thai: Mapped[str] = mapped_column(default="dang")            # dat | dang | chua
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+
+class StudentStats(Base):
+    """Gamification học sinh: điểm XP, chuỗi ngày học liên tục (streak), điểm
+    tuần. 1 user → 1 dòng. Cập nhật khi HS làm bài (nộp quiz / đánh dấu hoàn
+    thành). `last_study`/`week_start` là NGÀY (date) để tính streak & reset tuần."""
+
+    __tablename__ = "student_stats"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    xp_total: Mapped[int] = mapped_column(default=0, server_default=text("0"))
+    streak_days: Mapped[int] = mapped_column(default=0, server_default=text("0"))
+    last_study: Mapped[date | None] = mapped_column(default=None)   # ngày học gần nhất
+    week_start: Mapped[date | None] = mapped_column(default=None)   # thứ Hai của tuần đang đếm
+    week_points: Mapped[int] = mapped_column(default=0, server_default=text("0"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
 
 class Blueprint(Base):
@@ -101,70 +155,6 @@ class User(Base):
     # Quản trị: khoá/mở tài khoản; hạn mức chat/ngày riêng (None = dùng mặc định).
     is_active: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
     daily_limit_override: Mapped[int | None] = mapped_column(default=None)
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-
-
-class ChatSession(Base):
-    """1 phiên hội thoại của 1 user. Lịch sử tin nhắn (bảng messages) lưu ở
-    Postgres để dựng sidebar/xem lại — TÁCH khỏi checkpointer Redis của
-    LangGraph (Redis giữ state để resume graph, không tiện query theo user)."""
-
-    __tablename__ = "chat_sessions"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
-    subject: Mapped[str] = mapped_column(default="toan", server_default="toan", index=True)  # môn học (đa môn)
-    title: Mapped[str] = mapped_column(default="Cuộc trò chuyện")
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-    last_active: Mapped[datetime] = mapped_column(server_default=func.now())
-
-
-class Message(Base):
-    __tablename__ = "messages"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    session_id: Mapped[int] = mapped_column(ForeignKey("chat_sessions.id"), index=True)
-    role: Mapped[str]  # "user" | "assistant"
-    content: Mapped[str] = mapped_column(Text)
-    citations_json: Mapped[str | None] = mapped_column(Text, default=None)
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
-
-
-class ItestQuestion(Base):
-    """Mirror cục bộ 1 câu hỏi ngân hàng Itest (EPIC-10, US-21). Đồng bộ READ-ONLY
-    từ DB Itest ngoài -> suggest online chạy trên mirror này (nhanh, không phụ
-    thuộc Itest). `itest_id` unique để idempotent; `content_hash` để bỏ qua khi
-    nội dung không đổi, cập nhật khi đổi. `tag_goc` (tên đề unit_test) là khoá
-    ánh xạ sang taxonomy (xem ItestTopicMap)."""
-
-    __tablename__ = "itest_questions"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    itest_id: Mapped[str] = mapped_column(unique=True, index=True)
-    tag_goc: Mapped[str] = mapped_column(index=True)  # tên đề Itest (unit_test.name)
-    question_type: Mapped[str] = mapped_column(default="MC")
-    noi_dung: Mapped[str] = mapped_column(Text)
-    options_json: Mapped[str | None] = mapped_column(Text, default=None)
-    dap_an: Mapped[str | None] = mapped_column(Text, default=None)
-    loi_giai: Mapped[str | None] = mapped_column(Text, default=None)
-    image_url: Mapped[str | None] = mapped_column(default=None)
-    content_hash: Mapped[str] = mapped_column(index=True)
-    synced_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
-
-
-class ItestTopicMap(Base):
-    """Ánh xạ tag Itest (tên đề) -> taxonomy chương trình (EPIC-10, US-22). LLM
-    gợi ý (status='cho_duyet'), người duyệt xác nhận ('da_duyet') mới đủ điều
-    kiện suggest. Tag không map được -> 'chua_map' (đếm vào báo cáo, KHÔNG âm
-    thầm bỏ). topic_id/muc_do NULL khi chưa map."""
-
-    __tablename__ = "itest_topic_map"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    itest_tag: Mapped[str] = mapped_column(unique=True, index=True)
-    topic_id: Mapped[int | None] = mapped_column(ForeignKey("curriculum_topics.id"), default=None)
-    muc_do: Mapped[str | None] = mapped_column(default=None)  # de|trung_binh|kho
-    status: Mapped[str] = mapped_column(default="cho_duyet")  # cho_duyet|da_duyet|chua_map
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 

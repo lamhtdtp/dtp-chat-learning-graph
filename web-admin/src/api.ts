@@ -1,17 +1,14 @@
 import { API_BASE } from "./config";
 import type {
-  AdminMessage,
   AdminUser,
-  DailyStat,
   AuthResult,
-  ChatResponse,
-  ExamResult,
-  MessageRow,
-  Quota,
-  QuizData,
+  CmsGroup,
+  CmsMedia,
+  CmsTopic,
+  CmsViDu,
+  CmsDay,
+  CmsQuiz,
   Role,
-  SessionRow,
-  VideoInfo,
 } from "./types";
 
 const TOKEN_KEY = "chat_learning_token";
@@ -59,17 +56,7 @@ async function post<T>(path: string, body: unknown, auth = false): Promise<T> {
   return req<T>(path, { body, auth });
 }
 
-export async function register(
-  email: string,
-  password: string,
-  name: string,
-  role: Role,
-): Promise<AuthResult> {
-  const res = await post<AuthResult>("/auth/register", { email, password, name, role });
-  tokenStore.set(res.token);
-  return res;
-}
-
+// ── Xác thực (admin tạo bằng CLI; đây chỉ đăng nhập) ──
 export async function login(email: string, password: string): Promise<AuthResult> {
   const res = await post<AuthResult>("/auth/login", { email, password });
   tokenStore.set(res.token);
@@ -80,75 +67,9 @@ export function getMe(): Promise<{ id: number; email: string; name: string; role
   return req("/auth/me", { auth: true });
 }
 
-export function generateExam(hoc_ky: string, tong_so_cau: number, mon = "Toán"): Promise<ExamResult> {
-  return post<ExamResult>("/exam/generate", { hoc_ky, tong_so_cau, mon }, true);
-}
-
-// Học sinh: đề NGẮN bám ma trận (như giáo viên), không cần quyền giáo viên.
-export function generatePracticeExam(hoc_ky = "hk1", tong_so_cau = 5): Promise<ExamResult> {
-  return post<ExamResult>("/exam/practice", { hoc_ky, tong_so_cau }, true);
-}
-
-export function sendChat(message: string, sessionId: number | null, subject = "toan"): Promise<ChatResponse> {
-  return post<ChatResponse>("/chat", { message, session_id: sessionId, subject }, true);
-}
-
-export function getChatQuota(): Promise<Quota> {
-  return req("/chat/quota", { auth: true });
-}
-
-export function getSessions(subject?: string): Promise<SessionRow[]> {
-  const q = subject ? `?subject=${encodeURIComponent(subject)}` : "";
-  return req<SessionRow[]>(`/sessions${q}`, { auth: true });
-}
-
-export function getSessionMessages(id: number): Promise<MessageRow[]> {
-  return req<MessageRow[]>(`/sessions/${id}`, { auth: true });
-}
-
-export function deleteSession(id: number): Promise<void> {
-  return req<void>(`/sessions/${id}`, { method: "DELETE", auth: true });
-}
-
-export function getVideoStatus(jobId: number): Promise<VideoInfo> {
-  return req<VideoInfo>(`/video/jobs/${jobId}`);
-}
-
-export function generateVideo(conceptKey: string): Promise<VideoInfo> {
-  return post<VideoInfo>("/video/generate", { concept_key: conceptKey }, true);
-}
-
-export function getItestQuiz(topic: string): Promise<QuizData> {
-  return req<QuizData>(`/itest/quiz?topic=${encodeURIComponent(topic)}`, { auth: true });
-}
-
-// Lấy URL ẢNH TRANG SGK đã KÝ (có hạn) — thẻ <img> không gửi được Bearer nên
-// phải xin link ký qua endpoint auth này rồi mới gán vào src.
-export function getBookPageUrl(tap: number, page: number, mon = "toan"): Promise<{ url: string }> {
-  return req<{ url: string }>(`/books/pages-url/${encodeURIComponent(mon)}/${tap}/${page}`, { auth: true });
-}
-
-export function getBookPageSummary(tap: number, page: number, mon = "toan"): Promise<{ summary: string | null }> {
-  return req<{ summary: string | null }>(`/books/summary/${encodeURIComponent(mon)}/${tap}/${page}`, { auth: true });
-}
-
-// Danh mục chương trình (panel chủ đề trong chat) — lấy từ taxonomy backend.
-export interface TopicItem { ten: string; co_video: boolean }
-export interface TopicGroupRow { mach_noi_dung: string; items: TopicItem[]; co_video: boolean }
-
-export function getTopics(mon = "Toán"): Promise<TopicGroupRow[]> {
-  return req(`/books/topics?mon=${encodeURIComponent(mon)}`, { auth: true });
-}
-
 // ── Admin ──
 export function adminListUsers(): Promise<AdminUser[]> {
   return req("/admin/users", { auth: true });
-}
-export function adminUserMessages(id: number): Promise<AdminMessage[]> {
-  return req(`/admin/users/${id}/messages`, { auth: true });
-}
-export function adminDailyStats(days = 14): Promise<DailyStat[]> {
-  return req(`/admin/stats/daily?days=${days}`, { auth: true });
 }
 export function adminSetActive(id: number, active: boolean): Promise<{ is_active: boolean }> {
   return req(`/admin/users/${id}/active`, { auth: true, body: { active } });
@@ -157,6 +78,51 @@ export function adminSetSettings(
   id: number, patch: { role?: Role; daily_limit?: number | null; clear_limit?: boolean },
 ): Promise<{ role: Role; daily_limit_override: number | null }> {
   return req(`/admin/users/${id}/settings`, { auth: true, body: patch });
+}
+
+// ── CMS chuyên gia biên soạn giáo trình (P4) ──
+export interface CmsCatalog {
+  grades: string[];
+  subjects: string[];
+  semesters: { value: string; label: string }[];
+}
+export function cmsCatalog(): Promise<CmsCatalog> {
+  return req("/cms/catalog", { auth: true });
+}
+export function cmsCurriculum(mon = "Toán", khoi = "Lớp 6", hocKy = "all"): Promise<CmsGroup[]> {
+  const hk = hocKy && hocKy !== "all" ? `&hoc_ky=${encodeURIComponent(hocKy)}` : "";
+  return req(`/cms/curriculum?mon=${encodeURIComponent(mon)}&khoi=${encodeURIComponent(khoi)}${hk}`, { auth: true });
+}
+export function cmsGetTopic(topicId: number): Promise<CmsTopic> {
+  return req(`/cms/topics/${topicId}`, { auth: true });
+}
+export function cmsSaveTopic(topicId: number, body: {
+  khai_niem: string; minh_hoa: CmsMedia[]; vi_du: CmsViDu[];
+  day: CmsDay | null; nguon: string | null; trang_thai: string;
+}): Promise<{ topic_id: number; trang_thai: string; completeness: CmsTopic["completeness"] }> {
+  return req(`/cms/topics/${topicId}`, { method: "PUT", auth: true, body });
+}
+export function cmsAiIngest(topicId: number, nguon = ""): Promise<{ khai_niem: string; vi_du: CmsViDu[] }> {
+  return req(`/cms/topics/${topicId}/ai-ingest`, { auth: true, body: { nguon } });
+}
+export function cmsGenerateQuiz(topicId: number): Promise<{ topic_id: number; quiz: CmsQuiz[]; so_cau: number }> {
+  return req(`/cms/topics/${topicId}/quiz/generate`, { auth: true, body: {} });
+}
+// Upload video: multipart -> không dùng req() (JSON). Trả minh_hoa đã cập nhật.
+export async function cmsUploadVideo(topicId: number, file: File, caption = ""): Promise<{ minh_hoa: CmsMedia[] }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const t = tokenStore.get();
+  const res = await fetch(
+    `${API_BASE}/cms/topics/${topicId}/video?caption=${encodeURIComponent(caption)}`,
+    { method: "POST", headers: t ? { Authorization: `Bearer ${t}` } : {}, body: fd },
+  );
+  if (!res.ok) {
+    let detail = `Lỗi ${res.status}`;
+    try { detail = (await res.json()).detail ?? detail; } catch { /* mặc định */ }
+    throw new ApiError(res.status, detail);
+  }
+  return res.json();
 }
 
 export { ApiError };

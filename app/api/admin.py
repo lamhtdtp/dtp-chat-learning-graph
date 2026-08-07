@@ -1,24 +1,20 @@
-"""API quản trị (chỉ role=admin): quản lý user + tracking câu hỏi.
+"""API quản trị (chỉ role=admin): quản lý user + theo dõi tiến độ học.
 
-- GET  /admin/users                 — danh sách user + thống kê (phiên, câu hỏi, lượt hôm nay)
-- GET  /admin/users/{id}/messages   — các câu hỏi user đó đã gửi (tracking)
+- GET  /admin/users                 — danh sách user + tiến độ (đơn vị đạt / đang học)
 - POST /admin/users/{id}/active      — khoá / mở tài khoản
-- POST /admin/users/{id}/settings    — đổi vai trò / hạn mức chat/ngày
+- POST /admin/users/{id}/settings    — đổi vai trò / hạn mức riêng
 
 Admin tạo bằng CLI `python -m app.create_admin` (đăng ký thường KHÔNG chọn được
-admin — chống tự nâng quyền).
+admin — chống tự nâng quyền). Chat/RAG đã bỏ (P5) nên không còn thống kê "lượt hỏi".
 """
-from datetime import datetime, timedelta, timezone
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.db.models import ChatSession, Message, User
+from app.db.models import StudentProgress, User
 from app.db.session import get_session
-from app.llm import cache
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -30,82 +26,34 @@ def _require_admin(user: User) -> None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Chỉ quản trị viên mới được phép.")
 
 
-async def _today_quota(user_id: int) -> int:
-    key = f"chatquota:{user_id}:{datetime.now(timezone.utc):%Y%m%d}"
-    try:
-        v = await cache.get(key)
-    except Exception:  # noqa: BLE001
-        return 0
-    return int(v) if v else 0
-
-
 @router.get("/users")
 async def list_users(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
     _require_admin(user)
-    # Đếm phiên + câu hỏi (role=user) mỗi user bằng subquery gộp -> tránh N+1.
-    sc = (select(ChatSession.user_id, func.count().label("n"))
-          .group_by(ChatSession.user_id).subquery())
-    mc = (select(ChatSession.user_id, func.count().label("n"))
-          .join(Message, Message.session_id == ChatSession.id)
-          .where(Message.role == "user")
-          .group_by(ChatSession.user_id).subquery())
+    # Đếm tiến độ mỗi user bằng subquery gộp (tránh N+1): đơn vị Đạt / Đang học.
+    dat = (select(StudentProgress.user_id, func.count().label("n"))
+           .where(StudentProgress.trang_thai == "dat")
+           .group_by(StudentProgress.user_id).subquery())
+    dang = (select(StudentProgress.user_id, func.count().label("n"))
+            .where(StudentProgress.trang_thai == "dang")
+            .group_by(StudentProgress.user_id).subquery())
     rows = await session.execute(
-        select(User, sc.c.n, mc.c.n)
-        .outerjoin(sc, sc.c.user_id == User.id)
-        .outerjoin(mc, mc.c.user_id == User.id)
+        select(User, dat.c.n, dang.c.n)
+        .outerjoin(dat, dat.c.user_id == User.id)
+        .outerjoin(dang, dang.c.user_id == User.id)
         .order_by(User.created_at.desc())
     )
     out = []
-    for u, n_sessions, n_msgs in rows.all():
+    for u, n_dat, n_dang in rows.all():
         out.append({
             "id": u.id, "email": u.email, "name": u.name, "role": u.role,
             "is_active": u.is_active, "daily_limit_override": u.daily_limit_override,
             "created_at": u.created_at.isoformat(),
-            "sessions": n_sessions or 0, "questions": n_msgs or 0,
-            "today": await _today_quota(u.id),
+            "hoan_thanh": n_dat or 0, "dang_hoc": n_dang or 0,
         })
     return out
-
-
-@router.get("/stats/daily")
-async def daily_stats(
-    days: int = 14,
-    user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> list[dict]:
-    """Số lượt hỏi (Message role=user) theo NGÀY trong `days` ngày gần nhất — cho
-    biểu đồ. Chỉ trả ngày CÓ dữ liệu; frontend tự bù ngày trống = 0."""
-    _require_admin(user)
-    days = max(1, min(days, 90))
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=days - 1)).date()
-    d = func.date(Message.created_at)
-    rows = await session.execute(
-        select(d.label("d"), func.count().label("n"))
-        .where(Message.role == "user", d >= cutoff)
-        .group_by(d).order_by(d)
-    )
-    return [{"date": r.d.isoformat(), "count": r.n} for r in rows.all()]
-
-
-@router.get("/users/{user_id}/messages")
-async def user_messages(
-    user_id: int, limit: int = 100,
-    user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> list[dict]:
-    """Các câu hỏi (role=user) của 1 user — mới nhất trước (tracking)."""
-    _require_admin(user)
-    rows = await session.execute(
-        select(Message.content, Message.created_at, ChatSession.subject)
-        .join(ChatSession, Message.session_id == ChatSession.id)
-        .where(ChatSession.user_id == user_id, Message.role == "user")
-        .order_by(Message.created_at.desc())
-        .limit(max(1, min(limit, 500)))
-    )
-    return [{"content": c, "created_at": t.isoformat(), "subject": s} for c, t, s in rows.all()]
 
 
 class ActiveBody(BaseModel):
