@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError, adminListUsers, adminSetActive, adminSetSettings,
-  cmsAiIngest, cmsCatalog, cmsCurriculum, cmsSaveTopic, tokenStore,
+  cmsCatalog, cmsCurriculum, tokenStore,
 } from "../api";
 import type { CmsCatalog } from "../api";
 import { useTheme } from "../hooks/useTheme";
 import type { AdminUser, CmsGroup, CmsUnit, Role } from "../types";
 import { DrawerEditor } from "./DrawerEditor";
 import { KetQuaDrawer } from "./KetQuaDrawer";
+import { TaoTaiKhoan } from "./TaoTaiKhoan";
 
 type View = "overview" | "content" | "ingest" | "matrix" | "users" | "settings";
 type Flat = CmsUnit & { mach: string };
@@ -129,12 +130,8 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
                     : "Biên soạn nội dung 4 phần theo Mạch → Đơn vị kiến thức"}</div>
                 </div>
                 <div className="sp" />
-                {view === "content" && (
-                  <button className="btn btn-primary" type="button" onClick={() => setView("ingest")}>
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 2l1.7 4.3L18 8l-4.3 1.7L12 14l-1.7-4.3L6 8l4.3-1.7z" /></svg>
-                    Nạp bằng AI
-                  </button>
-                )}
+                {/* Bỏ CTA "Nạp bằng AI": mục đó đang là màn hình "Đang phát triển",
+                    nút chính dẫn vào ngõ cụt còn tệ hơn không có nút. */}
               </div>
 
               <div className="kpis">
@@ -193,22 +190,10 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
             </div>
           )}
 
-          {view === "ingest" && <IngestView flat={flat} toast={toast} onDone={loadCurriculum} handle={handle} />}
-          {view === "users" && <UsersView users={users} search={search} onPatch={patchUser} />}
-          {view === "matrix" && (
-            <div className="panel"><div className="panel-h"><h3>Ma trận đặc tả</h3></div>
-              <div style={{ padding: 18, color: "var(--ink-2)", fontSize: 14, lineHeight: 1.7 }}>
-                ✅ Ma trận đặc tả đã được nạp và ánh xạ vào danh mục hiện tại — mỗi đơn vị kiến thức
-                mang các <b>yêu cầu cần đạt</b> + <b>mức độ</b> (dễ / trung bình / khó).
-                <div style={{ marginTop: 8 }}>Xem/duyệt yêu cầu cần đạt của từng đơn vị: mở
-                  <b> Chương trình &amp; nội dung → Sửa</b>; bấm <b>"Sinh bài kiểm tra"</b> để quiz bám đúng đặc tả.</div>
-                <div style={{ marginTop: 8, color: "var(--ink-3)", fontSize: 13 }}>
-                  Nạp lại từ file .docx: <code>python -m app.seed_matrix</code> (khớp tự động vào catalog, không tạo trùng).
-                </div>
-              </div>
-            </div>
-          )}
-          {view === "settings" && <div className="stub"><div><div className="em">⚙️</div><b style={{ fontSize: 18, color: "var(--ink)" }}>Cài đặt</b><div style={{ marginTop: 6 }}>Đang phát triển.</div></div></div>}
+          {view === "users" && <UsersView users={users} search={search} onPatch={patchUser} onCreated={loadUsers} />}
+          {view === "ingest" && <Stub icon="🤖" ten="Nạp sách bằng AI" />}
+          {view === "matrix" && <Stub icon="🧩" ten="Ma trận đặc tả" />}
+          {view === "settings" && <Stub icon="⚙️" ten="Cài đặt" />}
         </div>
       </div>
 
@@ -347,58 +332,24 @@ function ContentTable({ flat, filter, search, onEdit, onPreview }: {
   );
 }
 
-function IngestView({ flat, toast, onDone, handle }: {
-  flat: Flat[]; toast: (m: string) => void; onDone: () => void; handle: (e: unknown) => void;
-}) {
-  const [target, setTarget] = useState<string>("");
-  const [busy, setBusy] = useState(false);
-  const run = async () => {
-    if (!target) { toast("Chọn một đơn vị để nạp."); return; }
-    const id = Number(target);
-    setBusy(true);
-    try {
-      const draft = await cmsAiIngest(id, "");
-      await cmsSaveTopic(id, {
-        khai_niem: draft.khai_niem, minh_hoa: [], vi_du: draft.vi_du,
-        // Cờ AI là cột riêng — không nhét chuỗi đánh dấu vào ô tư liệu nữa
-        // (ô đó dành cho trích đoạn SGK chuyên gia dán vào).
-        day: null, nguon: null, ai_soan: true, trang_thai: "draft",
-      });
-      toast("AI đã nạp nội dung (draft) — rà soát ở Chương trình & nội dung"); onDone();
-    } catch (e) { handle(e); } finally { setBusy(false); }
-  };
+
+/** Màn hình chưa mở — dùng chung cho mọi mục đang phát triển, để ba chỗ không
+ *  trôi mỗi nơi một kiểu. */
+function Stub({ icon, ten }: { icon: string; ten: string }) {
   return (
-    <>
-      <div className="page-head"><div><h1>Nạp sách bằng AI</h1>
-        <div className="ps">AI soạn Khái niệm + Ví dụ cho đơn vị kiến thức (lưu nháp để chuyên gia rà soát)</div></div></div>
-      <div className="grid2">
-        <div className="panel"><div className="panel-h"><h3>Tài liệu nguồn</h3></div>
-          <div style={{ padding: 18 }}>
-            <div className="dz"><div className="em">⬆️</div><b>Tải file sách nguồn</b><small>PDF · DOCX · ảnh trang (bản mockup — tính năng OCR đang phát triển)</small></div>
-          </div>
-        </div>
-        <div className="panel"><div className="panel-h"><h3>Nạp vào</h3></div>
-          <div style={{ padding: 18 }}>
-            <div className="field"><label className="lbl">Đơn vị đích</label>
-              <select value={target} onChange={(e) => setTarget(e.target.value)}>
-                <option value="">— Chọn đơn vị —</option>
-                {flat.map((u) => <option key={u.topic_id} value={u.topic_id}>{u.mach} › {u.ten}</option>)}
-              </select>
-            </div>
-            <button className="btn btn-primary" type="button" disabled={busy} onClick={run} style={{ marginTop: 6 }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 2l1.7 4.3L18 8l-4.3 1.7L12 14l-1.7-4.3L6 8l4.3-1.7z" /></svg>
-              {busy ? "Đang nạp…" : "Nạp bằng AI"}
-            </button>
-            {busy && <div className="proc"><div className="pt"><span className="spin" /> AI đang soạn khái niệm + ví dụ…</div></div>}
-          </div>
-        </div>
-      </div>
-    </>
+    <div className="stub"><div>
+      <div className="em">{icon}</div>
+      <b style={{ fontSize: 18, color: "var(--ink)" }}>{ten}</b>
+      <div style={{ marginTop: 6 }}>Đang phát triển.</div>
+    </div></div>
   );
 }
 
-function UsersView({ users, search, onPatch }: {
-  users: AdminUser[]; search: string; onPatch: (fn: () => Promise<unknown>) => void;
+function UsersView({ users, search, onPatch, onCreated }: {
+  users: AdminUser[]; search: string;
+  onPatch: (fn: () => Promise<unknown>) => void;
+  /** Tải lại danh sách sau khi tạo tài khoản mới. */
+  onCreated: () => void;
 }) {
   const q = search.trim().toLowerCase();
   const rows = users.filter((u) => !q || (u.name + " " + u.email).toLowerCase().includes(q));
@@ -406,7 +357,11 @@ function UsersView({ users, search, onPatch }: {
   const [xemKq, setXemKq] = useState<number | null>(null);
   return (
     <>
-      <div className="page-head"><div><h1>Người dùng</h1><div className="ps">Quản lý tài khoản + theo dõi tiến độ học ({rows.length})</div></div></div>
+      <div className="page-head">
+        <div><h1>Người dùng</h1><div className="ps">Quản lý tài khoản + theo dõi tiến độ học ({rows.length})</div></div>
+        <div className="sp" />
+        <TaoTaiKhoan onDone={onCreated} />
+      </div>
       <div className="panel">
         <div style={{ overflowX: "auto" }}>
           <table>
@@ -428,8 +383,12 @@ function UsersView({ users, search, onPatch }: {
                   <td className="tnum">{u.hoan_thanh}</td>
                   <td className="tnum">{u.dang_hoc}</td>
                   <td><div className="row-act">
-                    <button className="act" type="button" title="Xem kết quả kiểm tra nhanh"
-                      onClick={() => setXemKq(u.id)}>📊 Kết quả</button>
+                    {/* Chỉ học sinh mới có kết quả học tập — GV/QT tài khoản không
+                        sinh dữ liệu đánh giá, hiện nút ở đó chỉ dẫn tới bảng rỗng. */}
+                    {u.role === "hoc_sinh" && (
+                      <button className="act" type="button" title="Xem kết quả kiểm tra nhanh"
+                        onClick={() => setXemKq(u.id)}>📊 Kết quả</button>
+                    )}
                   </div></td>
                 </tr>
               ))}

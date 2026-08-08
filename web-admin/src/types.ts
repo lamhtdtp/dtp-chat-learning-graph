@@ -78,7 +78,7 @@ export interface CmsTopic {
   completeness: CmsCompleteness;
 }
 
-/** Kết quả Kiểm tra nhanh của 1 học sinh (GET /admin/users/{id}/ket-qua). */
+/** Kết quả Kiểm tra nhanh của 1 học sinh (GET /admin/users/{id}/result). */
 export interface KetQuaLan {
   topic_id: number; ten: string; mach: string;
   diem: number; tong: number; dat: boolean; phan_tram: number; luc: string;

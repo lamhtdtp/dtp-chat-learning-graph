@@ -3,16 +3,19 @@
 - GET  /admin/users                  — danh sách user + tiến độ (đơn vị đạt / đang học)  [admin]
 - POST /admin/users/{id}/active      — khoá / mở tài khoản                                [admin]
 - POST /admin/users/{id}/settings    — đổi vai trò / hạn mức riêng                        [admin]
-- GET  /admin/users/{id}/ket-qua     — kết quả Kiểm tra nhanh từng lần        [giáo viên + admin]
+- GET  /admin/users/{id}/result      — kết quả Kiểm tra nhanh từng lần       [giáo viên + admin]
+- POST /admin/users                  — tạo tài khoản chuyên gia / quản trị            [admin]
 
-Admin tạo bằng CLI `python -m app.create_admin` (đăng ký thường KHÔNG chọn được
-admin — chống tự nâng quyền). Chat/RAG đã bỏ (P5) nên không còn thống kê "lượt hỏi".
+/auth/register KHÔNG cho chọn role=admin (chống tự nâng quyền); tài khoản chuyên
+gia và quản trị tạo qua POST /admin/users — hoặc CLI `python -m app.create_admin`
+cho admin ĐẦU TIÊN, khi chưa có ai để đăng nhập.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api import security
 from app.api.deps import get_current_user
 from app.db.models import CurriculumTopic, QuizAttempt, StudentProgress, User
 from app.db.session import get_session
@@ -116,8 +119,8 @@ async def set_settings(
     return {"id": user_id, "role": role_out, "daily_limit_override": limit_out}
 
 
-@router.get("/users/{user_id}/ket-qua")
-async def ket_qua_hoc_sinh(
+@router.get("/users/{user_id}/result")
+async def student_result(
     user_id: int,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
@@ -131,6 +134,11 @@ async def ket_qua_hoc_sinh(
     hs = await session.get(User, user_id)
     if hs is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy học sinh")
+    # Chỉ HỌC SINH mới có kết quả học tập. Giáo viên/quản trị có làm thử quiz thì
+    # cũng không phải dữ liệu đánh giá — trả 400 rõ ràng thay vì bảng rỗng khó hiểu.
+    if hs.role != "hoc_sinh":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Chỉ xem được kết quả của tài khoản học sinh.")
 
     rows = (await session.execute(
         select(QuizAttempt, CurriculumTopic.don_vi_kien_thuc, CurriculumTopic.mach_noi_dung)
@@ -169,3 +177,39 @@ async def ket_qua_hoc_sinh(
         "theo_don_vi": sorted(theo_dv.values(), key=lambda g: -g["so_lan"]),
         "lan": lan[:50],   # đủ để xem lại, không đổ cả nghìn dòng về client
     }
+
+
+class CreateUserBody(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8)
+    name: str = Field(min_length=1)
+    role: str          # giao_vien | admin — KHÔNG tạo học sinh ở đây
+
+
+@router.post("/users", status_code=status.HTTP_201_CREATED)
+async def create_staff(
+    body: CreateUserBody,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Tạo tài khoản CHUYÊN GIA (giáo viên) hoặc QUẢN TRỊ. Chỉ quản trị được gọi.
+
+    /auth/register cố ý KHÔNG cho chọn role=admin (chống tự nâng quyền), nên trước
+    đây tạo admin phải chạy CLI trên server. Đường này thay thế cho việc đó, và
+    quyền tạo nằm trong tay người đã là admin.
+
+    Không tạo học sinh ở đây: học sinh tự đăng ký qua /auth/register.
+    """
+    _require_admin(user)
+    if body.role not in {"giao_vien", "admin"}:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Chỉ tạo được tài khoản giáo viên hoặc quản trị.")
+    if await session.scalar(select(User).where(User.email == body.email)):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Email đã được đăng ký")
+
+    moi = User(email=body.email, password_hash=security.hash_password(body.password),
+               name=body.name.strip(), role=body.role)
+    session.add(moi)
+    await session.commit()
+    await session.refresh(moi)
+    return {"id": moi.id, "email": moi.email, "name": moi.name, "role": moi.role}

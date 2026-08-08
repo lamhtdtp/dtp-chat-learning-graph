@@ -79,7 +79,7 @@ async def test_ket_qua_hoc_sinh_luu_tung_lan(client, session, mocker):
     assert r1.status_code == 200, r1.text
     assert r2.status_code == 200, r2.text
 
-    r = await client.get(f"/admin/users/{me['id']}/ket-qua", headers=gv)
+    r = await client.get(f"/admin/users/{me['id']}/result", headers=gv)
     assert r.status_code == 200
     b = r.json()
     assert b["tong_lan"] == 2 and b["so_lan_dat"] == 1        # 2 lần, 1 lần đạt
@@ -92,6 +92,51 @@ async def test_ket_qua_hoc_sinh_chan_hoc_sinh_khac_xem(client, session):
     """Học sinh KHÔNG được xem kết quả của người khác; giáo viên thì được."""
     hs = (await _reg(client, "hoc_sinh"))[1]
     me = (await client.get("/auth/me", headers=hs)).json()
-    assert (await client.get(f"/admin/users/{me['id']}/ket-qua", headers=hs)).status_code == 403
+    assert (await client.get(f"/admin/users/{me['id']}/result", headers=hs)).status_code == 403
     gv = (await _reg(client, "giao_vien"))[1]
-    assert (await client.get(f"/admin/users/{me['id']}/ket-qua", headers=gv)).status_code == 200
+    assert (await client.get(f"/admin/users/{me['id']}/result", headers=gv)).status_code == 200
+
+
+async def test_result_chi_cho_tai_khoan_hoc_sinh(client, session):
+    """GV/QT không có kết quả học tập -> 400 rõ ràng, không trả bảng rỗng."""
+    gv_email, gv = await _reg(client, "giao_vien")
+    me_gv = (await client.get("/auth/me", headers=gv)).json()
+    r = await client.get(f"/admin/users/{me_gv['id']}/result", headers=gv)
+    assert r.status_code == 400 and "học sinh" in r.json()["detail"]
+
+
+async def test_tao_tai_khoan_chuyen_gia_va_quan_tri(client, session):
+    """Admin tạo được giáo viên + admin; /auth/register vẫn KHÔNG cho chọn admin."""
+    adm, _ = await _make_admin(client, session)
+    em = f"gv-{uuid.uuid4().hex[:6]}@vd.vn"
+    r = await client.post("/admin/users", headers=adm, json={
+        "email": em, "password": "matkhau123", "name": "Cô A", "role": "giao_vien"})
+    assert r.status_code == 201 and r.json()["role"] == "giao_vien"
+    # Tài khoản mới đăng nhập được ngay
+    assert (await client.post("/auth/login", json={"email": em, "password": "matkhau123"})).status_code == 200
+    # Trùng email -> 409
+    r2 = await client.post("/admin/users", headers=adm, json={
+        "email": em, "password": "matkhau123", "name": "X", "role": "admin"})
+    assert r2.status_code == 409
+
+
+async def test_tao_tai_khoan_chan_hoc_sinh_va_nguoi_khong_phai_admin(client, session):
+    adm, _ = await _make_admin(client, session)
+    # Không tạo học sinh ở đây — các em tự đăng ký.
+    r = await client.post("/admin/users", headers=adm, json={
+        "email": f"x-{uuid.uuid4().hex[:6]}@vd.vn", "password": "matkhau123",
+        "name": "B", "role": "hoc_sinh"})
+    assert r.status_code == 400
+    # Giáo viên KHÔNG được tạo tài khoản (chống tự nhân bản quyền).
+    _, gv = await _reg(client, "giao_vien")
+    r2 = await client.post("/admin/users", headers=gv, json={
+        "email": f"y-{uuid.uuid4().hex[:6]}@vd.vn", "password": "matkhau123",
+        "name": "C", "role": "giao_vien"})
+    assert r2.status_code == 403
+
+
+async def test_tao_tai_khoan_mat_khau_ngan_bi_chan(client, session):
+    adm, _ = await _make_admin(client, session)
+    r = await client.post("/admin/users", headers=adm, json={
+        "email": f"z-{uuid.uuid4().hex[:6]}@vd.vn", "password": "123", "name": "D", "role": "admin"})
+    assert r.status_code == 422

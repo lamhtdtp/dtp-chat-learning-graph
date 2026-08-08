@@ -34,3 +34,5 @@ data_processed/
 web/node_modules/
 web/dist/
 web/*.tsbuildinfo
+# Added by code-review-graph
+.code-review-graph/

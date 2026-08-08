@@ -138,5 +138,12 @@ export { ApiError };
 
 /** Kết quả làm Kiểm tra nhanh của 1 học sinh (giáo viên + quản trị). */
 export function adminKetQua(userId: number): Promise<KetQuaHocSinh> {
-  return req(`/admin/users/${userId}/ket-qua`, { auth: true });
+  return req(`/admin/users/${userId}/result`, { auth: true });
+}
+
+/** Tạo tài khoản chuyên gia (giáo viên) hoặc quản trị. Chỉ quản trị gọi được. */
+export function adminCreateUser(body: {
+  email: string; password: string; name: string; role: "giao_vien" | "admin";
+}): Promise<{ id: number; email: string; name: string; role: Role }> {
+  return req("/admin/users", { auth: true, body });
 }

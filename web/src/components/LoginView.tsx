@@ -20,7 +20,11 @@ const FEATS = [
 
 // Trang đăng nhập split-screen: hero gradient (trái) + form (phải). Đồng bộ design
 // bên trong (tím/cam/teal, serif), sáng/tối theo data-theme, ≤900px ẩn hero.
-export function LoginView({ onAuthed }: { onAuthed: (role: Role) => void }) {
+export function LoginView({ onAuthed, chanDangNhap }: {
+  onAuthed: (role: Role) => void;
+  /** Lý do bị đẩy về đây (vd đăng nhập bằng tài khoản quản trị). */
+  chanDangNhap?: string | null;
+}) {
   const { cycle, icon, label } = useTheme();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -91,7 +95,7 @@ export function LoginView({ onAuthed }: { onAuthed: (role: Role) => void }) {
             <button type="button" className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>Đăng ký</button>
           </div>
 
-          {error && <div className="login-err">⚠️ {error}</div>}
+          {(error || chanDangNhap) && <div className="login-err">⚠️ {error || chanDangNhap}</div>}
 
           <form className="login-form" onSubmit={submit}>
             {mode === "register" && (

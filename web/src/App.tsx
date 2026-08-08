@@ -7,14 +7,24 @@ import type { Role } from "./types";
 
 type Session = { role: Role; name: string } | null;
 
+const CHAN_ADMIN = "Tài khoản quản trị không dùng được ở đây. Bạn vào khu quản trị riêng nhé.";
+
 export function App() {
   useTheme(); // áp data-theme (auto/light/dark) lên <html> ngay từ đầu
   const [session, setSession] = useState<Session>(null);
   const [ready, setReady] = useState(false);
+  const [chan, setChan] = useState<string | null>(null);
 
+  // Chặn ở ĐÂY chứ không phải trong LoginView: đường vào có hai lối — đăng nhập
+  // mới, và khôi phục phiên cũ từ token còn trong localStorage. Đặt ở LoginView
+  // thì lối thứ hai lọt.
   const restore = () =>
     getMe()
-      .then((u) => setSession({ role: u.role, name: u.name }))
+      .then((u) => {
+        if (u.role === "admin") { tokenStore.clear(); setSession(null); setChan(CHAN_ADMIN); return; }
+        setChan(null);
+        setSession({ role: u.role, name: u.name });
+      })
       .catch(() => tokenStore.clear());
 
   useEffect(() => {
@@ -28,10 +38,11 @@ export function App() {
   };
 
   if (!ready) return null;
-  if (!session) return <LoginView onAuthed={() => restore()} />;
+  // Quản trị viên dùng KHU RIÊNG (app web-admin) — token đã bị xoá ở restore(),
+  // `chan` chỉ để nói cho họ biết vì sao bị đẩy về trang đăng nhập.
+  if (!session) return <LoginView onAuthed={() => restore()} chanDangNhap={chan} />;
 
-  // Quản trị viên dùng KHU RIÊNG tại /admin (app tách riêng) — không vào app này.
   // Học sinh & giáo viên: nền tảng giáo trình có cấu trúc (Mục lục → Bài học 4
-  // phần → Tiến độ / Slide). Không còn chat/RAG (đã bỏ theo mockup).
+  // phần → Tiến độ / Slide).
   return <LearnApp name={session.name} role={session.role} onLogout={handleLogout} />;
 }

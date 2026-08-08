@@ -63,7 +63,7 @@
 /* ---------- Danh mục (nav) ---------- */
 .learn .nav{grid-area:nav;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column}
 .learn .brand{display:flex;align-items:center;gap:11px;padding:14px 18px;position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);z-index:3}
-.learn .brand-logo{width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-items:center;color:#fff;font-weight:800;font-family:var(--disp);font-size:19px;overflow:hidden;box-shadow:var(--shadow-primary)}
+.learn .brand-logo{width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-items:center;color:#fff;font-weight:800;font-family:var(--disp);font-size:19px;overflow:hidden;box-shadow:var(--shadow-primary);background-color: #fff;}
 .learn .brand-logo img{width:74%;height:74%;object-fit:contain}
 .learn .brand b{font-family:var(--disp);font-size:15.5px;letter-spacing:-.01em;display:block;line-height:1.15}
 .learn .brand span{font-size:11.5px;color:var(--ink-3)}
