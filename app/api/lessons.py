@@ -40,7 +40,7 @@ _NGUONG_DAT = 0.7
 
 def _is_author(user: User) -> bool:
     """Giáo viên/quản trị: xem được đáp án + nội dung chưa xuất bản (soạn/duyệt)."""
-    return user.role in {"giao_vien", "admin"}
+    return user.role in {"chuyen_gia", "giao_vien", "admin"}
 
 
 def _sign_media(items: list[dict]) -> list[dict]:

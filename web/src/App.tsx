@@ -7,7 +7,9 @@ import type { Role } from "./types";
 
 type Session = { role: Role; name: string } | null;
 
-const CHAN_ADMIN = "Tài khoản quản trị không dùng được ở đây. Bạn vào khu quản trị riêng nhé.";
+// Vai trò CMS-only: không có gì để học ở app này.
+const CHI_CMS: Role[] = ["chuyen_gia", "admin"];
+const CHAN_CMS = "Tài khoản quản trị / chuyên gia không dùng được ở đây. Bạn vào khu quản trị riêng nhé.";
 
 export function App() {
   useTheme(); // áp data-theme (auto/light/dark) lên <html> ngay từ đầu
@@ -21,7 +23,7 @@ export function App() {
   const restore = () =>
     getMe()
       .then((u) => {
-        if (u.role === "admin") { tokenStore.clear(); setSession(null); setChan(CHAN_ADMIN); return; }
+        if (CHI_CMS.includes(u.role)) { tokenStore.clear(); setSession(null); setChan(CHAN_CMS); return; }
         setChan(null);
         setSession({ role: u.role, name: u.name });
       })

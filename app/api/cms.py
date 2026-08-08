@@ -35,12 +35,15 @@ from app.video import storage
 router = APIRouter(prefix="/cms", tags=["cms"])
 
 _TRANG_THAI = {"draft", "review", "published"}
+# Ai được biên soạn giáo trình. `chuyen_gia` là vai trò CMS-only (chỉ thấy phần
+# Nội dung); `giao_vien` giữ lại vì họ cũng soạn/duyệt được.
+_TAC_GIA = {"chuyen_gia", "giao_vien", "admin"}
 _MAX_VIDEO_BYTES = 100 * 1024 * 1024  # 100MB — video minh họa ngắn
 _VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
 
 
 def _require_author(user: User) -> None:
-    if user.role not in {"giao_vien", "admin"}:
+    if user.role not in _TAC_GIA:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Chỉ giáo viên/quản trị được vào CMS")
 
 

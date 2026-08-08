@@ -430,3 +430,46 @@ async def test_cms_upload_video(client, session):
     # định dạng sai -> 400
     bad = {"file": ("x.txt", io.BytesIO(b"abc"), "text/plain")}
     assert (await client.post(f"/cms/topics/{tid}/video", headers=gv, files=bad)).status_code == 400
+
+
+async def _auth_noi_bo(client, session, role: str) -> dict:
+    """Tài khoản nội bộ: /auth/register CỐ Ý không cho tự chọn chuyen_gia/admin
+    (chống tự nâng quyền), nên đăng ký thường rồi đổi vai trò thẳng trong DB."""
+    from app.db.models import User
+
+    email = f"nb-{uuid.uuid4().hex[:8]}@vd.vn"
+    r = await client.post("/auth/register", json={
+        "email": email, "password": "matkhau123", "name": "NB", "role": "giao_vien"})
+    u = await session.scalar(select(User).where(User.email == email))
+    u.role = role
+    await session.commit()
+    return {"Authorization": f"Bearer {r.json()['token']}"}
+
+
+async def test_dang_ky_thuong_khong_tu_chon_duoc_chuyen_gia(client):
+    """Chặn tự nâng quyền: chỉ admin mới tạo được tài khoản chuyên gia."""
+    r = await client.post("/auth/register", json={
+        "email": f"z-{uuid.uuid4().hex[:6]}@vd.vn", "password": "matkhau123",
+        "name": "Z", "role": "chuyen_gia"})
+    assert r.status_code == 422
+
+
+async def test_chuyen_gia_vao_duoc_cms_hoc_sinh_thi_khong(client, session):
+    """Vai trò chuyen_gia là người biên soạn — CMS phải mở cho họ."""
+    mon, khoi, tid = await _seed(session)
+    await session.commit()
+    for role, mong in (("chuyen_gia", 200), ("giao_vien", 200), ("admin", 200)):
+        h = await _auth_noi_bo(client, session, role)
+        r = await client.get(f"/cms/topics/{tid}", headers=h)
+        assert r.status_code == mong, f"{role} -> {r.status_code}"
+    hs = await _auth(client, "hoc_sinh")
+    assert (await client.get(f"/cms/topics/{tid}", headers=hs)).status_code == 403
+
+
+async def test_chuyen_gia_khong_quan_ly_duoc_tai_khoan(client, session):
+    """Chuyên gia chỉ soạn nội dung: không xem/sửa được danh sách người dùng."""
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    assert (await client.get("/admin/users", headers=cg)).status_code == 403
+    r = await client.post("/admin/users", headers=cg, json={
+        "email": "x@vd.vn", "password": "matkhau123", "name": "X", "role": "chuyen_gia"})
+    assert r.status_code == 403

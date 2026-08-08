@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { ApiError, adminCreateUser } from "../api";
 
+type VaiTro = (typeof VAI_TRO)[number]["v"];
+
 const VAI_TRO = [
-  { v: "giao_vien", label: "👩‍🏫 Chuyên gia / Giáo viên", desc: "Biên soạn nội dung, xem kết quả học sinh" },
+  { v: "chuyen_gia", label: "✍️ Chuyên gia", desc: "Chỉ biên soạn nội dung — không thấy phần quản trị" },
+  { v: "giao_vien", label: "👩‍🏫 Giáo viên", desc: "Biên soạn + dạy trên app học (slide, hướng dẫn dạy)" },
   { v: "admin", label: "🛡️ Quản trị", desc: "Toàn quyền: quản lý tài khoản + nội dung" },
 ] as const;
 
@@ -17,7 +20,7 @@ export function TaoTaiKhoan({ onDone }: { onDone: () => void }) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"giao_vien" | "admin">("giao_vien");
+  const [role, setRole] = useState<VaiTro>("chuyen_gia");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);

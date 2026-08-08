@@ -13,13 +13,15 @@ import { TaoTaiKhoan } from "./TaoTaiKhoan";
 type View = "overview" | "content" | "ingest" | "matrix" | "users" | "settings";
 type Flat = CmsUnit & { mach: string };
 
-const NAV: { group: string; items: { v: View; label: string; icon: string }[] }[] = [
+// `chiAdmin`: nhóm chỉ quản trị thấy. Chuyên gia là vai trò CMS-only, chỉ được
+// phần Nội dung — Ma trận / Người dùng / Cài đặt là việc quản trị.
+const NAV: { group: string; chiAdmin?: boolean; items: { v: View; label: string; icon: string }[] }[] = [
   { group: "Nội dung", items: [
     { v: "overview", label: "Tổng quan", icon: "M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z" },
     { v: "content", label: "Chương trình & nội dung", icon: "M4 19.5A2.5 2.5 0 016.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" },
     { v: "ingest", label: "Nạp sách bằng AI", icon: "M12 3v12m0-12l-4 4m4-4l4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" },
   ] },
-  { group: "Hệ thống", items: [
+  { group: "Hệ thống", chiAdmin: true, items: [
     { v: "matrix", label: "Ma trận đặc tả", icon: "M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18" },
     { v: "users", label: "Người dùng", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z" },
     { v: "settings", label: "Cài đặt", icon: "M12 15a3 3 0 100-6 3 3 0 000 6z" },
@@ -34,13 +36,19 @@ const PILL: Record<string, [string, string]> = {
   published: ["p-xong", "Đã xuất bản"], review: ["p-duyet", "Chờ duyệt"],
   draft: ["p-nhap", "Nháp"], chua_bien_soan: ["p-nhap", "Chưa soạn"],
 };
-const ROLE_LABEL: Record<Role, string> = { hoc_sinh: "Học sinh", giao_vien: "Giáo viên", admin: "Quản trị" };
+const ROLE_LABEL: Record<Role, string> = {
+  hoc_sinh: "Học sinh", giao_vien: "Giáo viên", chuyen_gia: "Chuyên gia", admin: "Quản trị",
+};
 
 function Icon({ d }: { d: string }) {
   return <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={d} /></svg>;
 }
 
-export function Dashboard({ name, onLogout }: { name: string; onLogout: () => void }) {
+export function Dashboard({ name, role, onLogout }: {
+  name: string; role: Role; onLogout: () => void;
+}) {
+  const laAdmin = role === "admin";
+  const nav = NAV.filter((sec) => laAdmin || !sec.chiAdmin);
   const { cycle } = useTheme();
   const [view, setView] = useState<View>("content");
   const [groups, setGroups] = useState<CmsGroup[]>([]);
@@ -66,7 +74,12 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
   };
   const loadCurriculum = () => cmsCurriculum(mon, khoi, hocKy).then(setGroups).catch(handle);
   const loadUsers = () => adminListUsers().then(setUsers).catch(handle);
-  useEffect(() => { loadUsers(); cmsCatalog().then(setCatalog).catch(() => { /* bộ lọc phụ */ }); }, []);
+  // /admin/users chỉ admin gọi được — chuyên gia gọi sẽ ăn 403 rồi hiện banner
+  // lỗi đỏ ngay khi vừa vào, dù họ chẳng cần dữ liệu đó.
+  useEffect(() => {
+    if (laAdmin) loadUsers();
+    cmsCatalog().then(setCatalog).catch(() => { /* bộ lọc phụ */ });
+  }, []); // eslint-disable-line
   useEffect(() => { loadCurriculum(); }, [mon, khoi, hocKy]); // eslint-disable-line
 
   const flat: Flat[] = useMemo(() => groups.flatMap((g) => g.dv.map((d) => ({ ...d, mach: g.mach }))), [groups]);
@@ -85,7 +98,7 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
         <div className="sb-brand"><div className="sb-logo"><img src="/dtp-logo.png" alt="DTP" /></div>
           <div><b>Gia sư DTP</b><span>Bảng quản trị</span></div></div>
         <nav className="sb-nav">
-          {NAV.map((sec) => (
+          {nav.map((sec) => (
             <div key={sec.group}>
               <div className="sb-group">{sec.group}</div>
               {sec.items.map((it) => (
@@ -100,7 +113,7 @@ export function Dashboard({ name, onLogout }: { name: string; onLogout: () => vo
         </nav>
         <div className="sb-user">
           <div className="sb-ava">{(name || "?").trim().charAt(0).toUpperCase()}</div>
-          <div><div className="nm">{name}</div><div className="rl">Quản trị viên</div></div>
+          <div><div className="nm">{name}</div><div className="rl">{ROLE_LABEL[role]}</div></div>
           <button className="sb-logout" type="button" title="Đăng xuất" onClick={onLogout}>⎋</button>
         </div>
       </aside>
@@ -372,7 +385,7 @@ function UsersView({ users, search, onPatch, onCreated }: {
                   <td><div className="u-name">{u.name}</div><div className="u-email">{u.email}</div></td>
                   <td>
                     <select className="au-role" value={u.role} onChange={(e) => onPatch(() => adminSetSettings(u.id, { role: e.target.value as Role }))}>
-                      {(["hoc_sinh", "giao_vien", "admin"] as Role[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
+                      {(["hoc_sinh", "giao_vien", "chuyen_gia", "admin"] as Role[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
                     </select>
                   </td>
                   <td><button className={"au-pill " + (u.is_active ? "on" : "off")} type="button"

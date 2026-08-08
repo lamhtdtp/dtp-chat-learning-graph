@@ -179,7 +179,9 @@ class User(Base):
     email: Mapped[str] = mapped_column(unique=True, index=True)
     password_hash: Mapped[str]
     name: Mapped[str]
-    role: Mapped[str]  # "hoc_sinh" | "giao_vien" | "admin"
+    # "hoc_sinh" | "giao_vien" -> app học; "chuyen_gia" | "admin" -> CMS.
+    # Cột chuỗi tự do (không ENUM) nên thêm vai trò mới KHÔNG cần migration.
+    role: Mapped[str]
     # Quản trị: khoá/mở tài khoản; hạn mức chat/ngày riêng (None = dùng mặc định).
     is_active: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
     daily_limit_override: Mapped[int | None] = mapped_column(default=None)

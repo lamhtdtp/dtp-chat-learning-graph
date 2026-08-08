@@ -3,10 +3,15 @@ import { getMe, tokenStore } from "../api";
 import { useTheme } from "../hooks/useTheme";
 import { AdminLogin } from "./AdminLogin";
 import { Dashboard } from "./Dashboard";
+import type { Role } from "../types";
 
-type Session = { name: string } | null;
+type Session = { name: string; role: Role } | null;
 
-// App QUẢN TRỊ riêng (phục vụ tại /admin). Chỉ tài khoản role=admin vào được;
+// Vai trò làm việc trong CMS. `chuyen_gia` chỉ thấy phần Nội dung (lọc ở
+// Dashboard); `admin` thấy tất cả. Học sinh dùng app học, không vào đây.
+const VAO_DUOC: Role[] = ["chuyen_gia", "giao_vien", "admin"];
+
+// App QUẢN TRỊ riêng (phục vụ tại /admin). Chỉ tài khoản nội bộ vào được;
 // vai trò khác đăng nhập sẽ bị từ chối ngay tại đây.
 export function AdminApp() {
   useTheme();
@@ -16,8 +21,8 @@ export function AdminApp() {
   const restore = () =>
     getMe()
       .then((u) => {
-        if (u.role === "admin") setSession({ name: u.name });
-        else { tokenStore.clear(); setSession(null); }  // không phải admin -> loại
+        if (VAO_DUOC.includes(u.role)) setSession({ name: u.name, role: u.role });
+        else { tokenStore.clear(); setSession(null); }  // học sinh -> loại
       })
       .catch(() => tokenStore.clear());
 
@@ -30,5 +35,5 @@ export function AdminApp() {
 
   if (!ready) return null;
   if (!session) return <AdminLogin onAuthed={() => restore()} />;
-  return <Dashboard name={session.name} onLogout={logout} />;
+  return <Dashboard name={session.name} role={session.role} onLogout={logout} />;
 }

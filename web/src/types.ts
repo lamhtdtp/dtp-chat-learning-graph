@@ -1,4 +1,4 @@
-export type Role = "hoc_sinh" | "giao_vien" | "admin";
+export type Role = "hoc_sinh" | "giao_vien" | "chuyen_gia" | "admin";
 
 // ── Giáo trình có cấu trúc (mô hình mockup) ──
 export interface CurriculumUnit {

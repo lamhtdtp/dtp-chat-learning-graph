@@ -22,7 +22,9 @@ from app.db.session import get_session
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-_ROLES = {"hoc_sinh", "giao_vien", "admin"}
+_ROLES = {"hoc_sinh", "giao_vien", "chuyen_gia", "admin"}
+# Vai trò làm việc trong CMS (không phải tài khoản học).
+_NOI_BO = {"chuyen_gia", "giao_vien", "admin"}
 
 
 def _require_admin(user: User) -> None:
@@ -33,8 +35,8 @@ def _require_admin(user: User) -> None:
 def _require_author(user: User) -> None:
     """Xem kết quả học tập: GIÁO VIÊN cũng được, không riêng quản trị — dạy lớp
     thì phải xem được điểm. Sửa vai trò / khoá tài khoản vẫn chỉ admin."""
-    if user.role not in {"giao_vien", "admin"}:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Chỉ giáo viên/quản trị mới được xem.")
+    if user.role not in _NOI_BO:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Chỉ tài khoản nội bộ mới được xem.")
 
 
 @router.get("/users")
@@ -183,7 +185,7 @@ class CreateUserBody(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
     name: str = Field(min_length=1)
-    role: str          # giao_vien | admin — KHÔNG tạo học sinh ở đây
+    role: str          # chuyen_gia | giao_vien | admin — KHÔNG tạo học sinh ở đây
 
 
 @router.post("/users", status_code=status.HTTP_201_CREATED)
@@ -201,9 +203,9 @@ async def create_staff(
     Không tạo học sinh ở đây: học sinh tự đăng ký qua /auth/register.
     """
     _require_admin(user)
-    if body.role not in {"giao_vien", "admin"}:
+    if body.role not in _NOI_BO:
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
-                            "Chỉ tạo được tài khoản giáo viên hoặc quản trị.")
+                            "Chỉ tạo được tài khoản nội bộ (chuyên gia / giáo viên / quản trị).")
     if await session.scalar(select(User).where(User.email == body.email)):
         raise HTTPException(status.HTTP_409_CONFLICT, "Email đã được đăng ký")
 

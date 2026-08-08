@@ -143,7 +143,8 @@ export function adminKetQua(userId: number): Promise<KetQuaHocSinh> {
 
 /** Tạo tài khoản chuyên gia (giáo viên) hoặc quản trị. Chỉ quản trị gọi được. */
 export function adminCreateUser(body: {
-  email: string; password: string; name: string; role: "giao_vien" | "admin";
+  email: string; password: string; name: string;
+  role: "chuyen_gia" | "giao_vien" | "admin";   // học sinh tự đăng ký ở app học
 }): Promise<{ id: number; email: string; name: string; role: Role }> {
   return req("/admin/users", { auth: true, body });
 }
