@@ -1,8 +1,9 @@
-"""API quản trị (chỉ role=admin): quản lý user + theo dõi tiến độ học.
+"""API quản trị: quản lý user + theo dõi tiến độ và kết quả học.
 
-- GET  /admin/users                 — danh sách user + tiến độ (đơn vị đạt / đang học)
-- POST /admin/users/{id}/active      — khoá / mở tài khoản
-- POST /admin/users/{id}/settings    — đổi vai trò / hạn mức riêng
+- GET  /admin/users                  — danh sách user + tiến độ (đơn vị đạt / đang học)  [admin]
+- POST /admin/users/{id}/active      — khoá / mở tài khoản                                [admin]
+- POST /admin/users/{id}/settings    — đổi vai trò / hạn mức riêng                        [admin]
+- GET  /admin/users/{id}/ket-qua     — kết quả Kiểm tra nhanh từng lần        [giáo viên + admin]
 
 Admin tạo bằng CLI `python -m app.create_admin` (đăng ký thường KHÔNG chọn được
 admin — chống tự nâng quyền). Chat/RAG đã bỏ (P5) nên không còn thống kê "lượt hỏi".
@@ -13,7 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.db.models import StudentProgress, User
+from app.db.models import CurriculumTopic, QuizAttempt, StudentProgress, User
 from app.db.session import get_session
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -24,6 +25,13 @@ _ROLES = {"hoc_sinh", "giao_vien", "admin"}
 def _require_admin(user: User) -> None:
     if user.role != "admin":
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Chỉ quản trị viên mới được phép.")
+
+
+def _require_author(user: User) -> None:
+    """Xem kết quả học tập: GIÁO VIÊN cũng được, không riêng quản trị — dạy lớp
+    thì phải xem được điểm. Sửa vai trò / khoá tài khoản vẫn chỉ admin."""
+    if user.role not in {"giao_vien", "admin"}:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Chỉ giáo viên/quản trị mới được xem.")
 
 
 @router.get("/users")
@@ -106,3 +114,58 @@ async def set_settings(
     role_out, limit_out = target.role, target.daily_limit_override  # đọc TRƯỚC commit
     await session.commit()
     return {"id": user_id, "role": role_out, "daily_limit_override": limit_out}
+
+
+@router.get("/users/{user_id}/ket-qua")
+async def ket_qua_hoc_sinh(
+    user_id: int,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Kết quả làm Kiểm tra nhanh của 1 học sinh: từng lần nộp + tổng hợp theo đơn vị.
+
+    Đọc quiz_attempts (ghi từ /lessons/quiz/submit). Bảng chỉ có dữ liệu TỪ KHI
+    triển khai — các lượt làm trước đó không được lưu, không dựng lại được.
+    """
+    _require_author(user)
+    hs = await session.get(User, user_id)
+    if hs is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy học sinh")
+
+    rows = (await session.execute(
+        select(QuizAttempt, CurriculumTopic.don_vi_kien_thuc, CurriculumTopic.mach_noi_dung)
+        .join(CurriculumTopic, CurriculumTopic.id == QuizAttempt.topic_id)
+        .where(QuizAttempt.user_id == user_id)
+        # id DESC phá hoà: Postgres now() là mốc BẮT ĐẦU transaction nên hai lần
+        # nộp sát nhau có created_at y hệt -> thiếu nó thì "gần nhất" sắp tuỳ ý.
+        .order_by(QuizAttempt.created_at.desc(), QuizAttempt.id.desc())
+    )).all()
+
+    lan = [{
+        "topic_id": a.topic_id, "ten": (dv or "").strip(), "mach": (mach or "").strip(),
+        "diem": a.diem, "tong": a.tong, "dat": a.dat,
+        "phan_tram": round(100 * a.diem / a.tong) if a.tong else 0,
+        "luc": a.created_at.isoformat(),
+    } for a, dv, mach in rows]
+
+    # Gộp theo đơn vị: làm mấy lần, tốt nhất bao nhiêu. `lan` đã sắp mới -> cũ nên
+    # phần tử ĐẦU của mỗi đơn vị chính là lần gần nhất.
+    theo_dv: dict[int, dict] = {}
+    for x in lan:
+        g = theo_dv.setdefault(x["topic_id"], {
+            "topic_id": x["topic_id"], "ten": x["ten"], "mach": x["mach"],
+            "so_lan": 0, "tot_nhat": 0, "gan_nhat": x["phan_tram"], "dat": False,
+        })
+        g["so_lan"] += 1
+        g["tot_nhat"] = max(g["tot_nhat"], x["phan_tram"])
+        g["dat"] = g["dat"] or x["dat"]
+
+    tong_lan = len(lan)
+    return {
+        "hoc_sinh": {"id": hs.id, "name": hs.name, "email": hs.email},
+        "tong_lan": tong_lan,
+        "so_lan_dat": sum(1 for x in lan if x["dat"]),
+        "diem_tb": round(sum(x["phan_tram"] for x in lan) / tong_lan) if tong_lan else 0,
+        "theo_don_vi": sorted(theo_dv.values(), key=lambda g: -g["so_lan"]),
+        "lan": lan[:50],   # đủ để xem lại, không đổ cả nghìn dòng về client
+    }

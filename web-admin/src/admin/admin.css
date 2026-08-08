@@ -207,6 +207,13 @@
 .admin .hme-pv>:first-child{margin-top:0}
 .admin .hme-pv>:last-child{margin-bottom:0}
 .admin .hme-pv i{color:var(--ink-3)}
+/* Kết quả học tập của 1 học sinh (KetQuaDrawer) */
+.admin .kq-tong{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+.admin .kq-o{border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-2);padding:12px;text-align:center}
+.admin .kq-o b{display:block;font-family:var(--disp);font-size:22px;line-height:1.1;color:var(--ink)}
+.admin .kq-o span{font-size:11.5px;color:var(--ink-3)}
+.admin .kq-lan{display:flex;align-items:center;gap:11px;padding:9px 11px;border:1px solid var(--border);
+  border-radius:var(--r-sm);background:var(--surface-2);margin-bottom:7px}
 /* Bộ đếm ký tự nằm bên phải nhãn ô nhập (chỉ hiện khi gần hết hạn mức) */
 .admin .lbl-dem{float:right;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink-3)}
 .admin .lbl-dem.het{color:var(--warn);font-weight:800}

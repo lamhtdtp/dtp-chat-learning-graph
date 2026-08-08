@@ -98,6 +98,28 @@ class StudentProgress(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
 
+class QuizAttempt(Base):
+    """MỘT lần học sinh nộp bài Kiểm tra nhanh — lưu để giáo viên xem lại.
+
+    StudentProgress chỉ giữ trạng thái cuối (dat|dang) nên mất sạch quá trình:
+    làm mấy lần, tiến bộ ra sao, đơn vị nào cả lớp cùng đuối. Bảng này ghi từng
+    lần, KHÔNG khử trùng — làm lại là thêm dòng mới.
+
+    CỐ Ý không lưu đáp án học sinh chọn: quiz sinh lại theo ma trận (topic_content
+    .quiz_json bị ghi đè) nên chỉ số câu lưu hôm nay sẽ trỏ sai đề vào ngày mai —
+    dữ liệu trông có vẻ chi tiết nhưng suy ra kết luận sai."""
+
+    __tablename__ = "quiz_attempts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    topic_id: Mapped[int] = mapped_column(ForeignKey("curriculum_topics.id"), index=True)
+    diem: Mapped[int]                                    # số câu đúng
+    tong: Mapped[int]                                    # tổng số câu của đề lúc làm
+    dat: Mapped[bool]                                    # có đạt ngưỡng 70% không
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), index=True)
+
+
 class StudentStats(Base):
     """Gamification học sinh: điểm XP, chuỗi ngày học liên tục (streak), điểm
     tuần. 1 user → 1 dòng. Cập nhật khi HS làm bài (nộp quiz / đánh dấu hoàn

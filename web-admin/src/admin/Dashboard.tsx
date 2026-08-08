@@ -7,6 +7,7 @@ import type { CmsCatalog } from "../api";
 import { useTheme } from "../hooks/useTheme";
 import type { AdminUser, CmsGroup, CmsUnit, Role } from "../types";
 import { DrawerEditor } from "./DrawerEditor";
+import { KetQuaDrawer } from "./KetQuaDrawer";
 
 type View = "overview" | "content" | "ingest" | "matrix" | "users" | "settings";
 type Flat = CmsUnit & { mach: string };
@@ -402,13 +403,14 @@ function UsersView({ users, search, onPatch }: {
   const q = search.trim().toLowerCase();
   const rows = users.filter((u) => !q || (u.name + " " + u.email).toLowerCase().includes(q));
   const { page, pages, setPage, shown } = usePaging(rows, `${search}|${users.length}`);
+  const [xemKq, setXemKq] = useState<number | null>(null);
   return (
     <>
       <div className="page-head"><div><h1>Người dùng</h1><div className="ps">Quản lý tài khoản + theo dõi tiến độ học ({rows.length})</div></div></div>
       <div className="panel">
         <div style={{ overflowX: "auto" }}>
           <table>
-            <thead><tr><th>Người dùng</th><th>Vai trò</th><th>Trạng thái</th><th>Hạn mức/ngày</th><th className="tnum">Đạt</th><th className="tnum">Đang</th></tr></thead>
+            <thead><tr><th>Người dùng</th><th>Vai trò</th><th>Trạng thái</th><th>Hạn mức/ngày</th><th className="tnum">Đạt</th><th className="tnum">Đang</th><th></th></tr></thead>
             <tbody>
               {shown.map((u) => (
                 <tr key={u.id}>
@@ -425,14 +427,19 @@ function UsersView({ users, search, onPatch }: {
                       onPatch(() => adminSetSettings(u.id, v === "" ? { clear_limit: true } : { daily_limit: Number(v) })); }} /></td>
                   <td className="tnum">{u.hoan_thanh}</td>
                   <td className="tnum">{u.dang_hoc}</td>
+                  <td><div className="row-act">
+                    <button className="act" type="button" title="Xem kết quả kiểm tra nhanh"
+                      onClick={() => setXemKq(u.id)}>📊 Kết quả</button>
+                  </div></td>
                 </tr>
               ))}
-              {rows.length === 0 && <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--ink-3)", padding: 24 }}>Không có người dùng khớp.</td></tr>}
+              {rows.length === 0 && <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--ink-3)", padding: 24 }}>Không có người dùng khớp.</td></tr>}
             </tbody>
           </table>
         </div>
         <Pager page={page} pages={pages} total={rows.length} onPage={setPage} />
       </div>
+      {xemKq != null && <KetQuaDrawer userId={xemKq} onClose={() => setXemKq(null)} />}
     </>
   );
 }

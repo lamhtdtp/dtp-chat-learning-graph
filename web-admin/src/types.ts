@@ -77,3 +77,19 @@ export interface CmsTopic {
   trang_thai: string;
   completeness: CmsCompleteness;
 }
+
+/** Kết quả Kiểm tra nhanh của 1 học sinh (GET /admin/users/{id}/ket-qua). */
+export interface KetQuaLan {
+  topic_id: number; ten: string; mach: string;
+  diem: number; tong: number; dat: boolean; phan_tram: number; luc: string;
+}
+export interface KetQuaDonVi {
+  topic_id: number; ten: string; mach: string;
+  so_lan: number; tot_nhat: number; gan_nhat: number; dat: boolean;
+}
+export interface KetQuaHocSinh {
+  hoc_sinh: { id: number; name: string; email: string };
+  tong_lan: number; so_lan_dat: number; diem_tb: number;
+  theo_don_vi: KetQuaDonVi[];
+  lan: KetQuaLan[];
+}

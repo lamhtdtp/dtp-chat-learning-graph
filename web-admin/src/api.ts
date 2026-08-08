@@ -9,6 +9,7 @@ import type {
   CmsViDu,
   CmsDay,
   CmsQuiz,
+  KetQuaHocSinh,
   Role,
 } from "./types";
 
@@ -134,3 +135,8 @@ export async function cmsUploadVideo(topicId: number, file: File, caption = ""):
 }
 
 export { ApiError };
+
+/** Kết quả làm Kiểm tra nhanh của 1 học sinh (giáo viên + quản trị). */
+export function adminKetQua(userId: number): Promise<KetQuaHocSinh> {
+  return req(`/admin/users/${userId}/ket-qua`, { auth: true });
+}

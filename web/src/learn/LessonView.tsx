@@ -9,8 +9,12 @@ function Media({ m }: { m: MinhHoa }) {
   if (isVideo && m.url) {
     return (
       <figure>
-        <video className="img-poster" style={{ minHeight: 156 }} controls src={m.url} />
-        <figcaption>{cap}{m.source === "ai" && " · AI tự sinh"}</figcaption>
+        {/* Hạn chế tải video về: controlsList bỏ nút Tải xuống trong thanh điều
+            khiển (Chrome/Edge), chặn menu chuột phải "Lưu video". KHÔNG phải bảo
+            vệ tuyệt đối — link đã ký vẫn mở được trực tiếp trong 12 giờ. */}
+        <video className="img-poster" style={{ minHeight: 156 }} controls src={m.url}
+          controlsList="nodownload noplaybackrate" disablePictureInPicture
+          onContextMenu={(e) => e.preventDefault()} />
       </figure>
     );
   }
@@ -29,7 +33,6 @@ function Media({ m }: { m: MinhHoa }) {
       ) : (
         <div className="img-poster" aria-hidden>🖼️</div>
       )}
-      <figcaption>{cap}{m.source === "ai" && " · AI tự sinh"}</figcaption>
     </figure>
   );
 }

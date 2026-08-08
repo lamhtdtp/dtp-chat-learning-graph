@@ -89,7 +89,14 @@ async def get_file(name: str, exp: str | None = None, sig: str | None = None) ->
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Media không tồn tại")
     # Storage này giữ cả mp4 lẫn ảnh minh hoạ AI -> content-type theo đuôi file,
     # không cứng video/mp4 (trả sai type làm <img> không hiện).
-    return FileResponse(path, media_type=storage.media_type_for(name))
+    # Content-Disposition inline TƯỜNG MINH: media để xem trong trang, không phải
+    # file tải về. Starlette bỏ trống header này khi không truyền `filename`, nhưng
+    # nói rõ thì proxy/CDN đứng trước không tự suy diễn thành attachment.
+    return FileResponse(
+        path,
+        media_type=storage.media_type_for(name),
+        headers={"Content-Disposition": "inline"},
+    )
 
 
 @router.websocket("/ws/{job_id}")

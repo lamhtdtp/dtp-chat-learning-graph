@@ -18,7 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import security
 from app.api.deps import get_current_user
-from app.db.models import CurriculumTopic, Grade, StudentProgress, Subject, TopicContent, User
+from app.db.models import (
+    CurriculumTopic, Grade, QuizAttempt, StudentProgress, Subject, TopicContent, User,
+)
 from app.db.session import get_session
 from app.lessons import media as media_svc
 from app.lessons import quiz as quiz_svc
@@ -329,6 +331,10 @@ async def submit_quiz(
     dat = diem / tong >= _NGUONG_DAT
     trang_thai = "dat" if dat else "dang"
     await _upsert_progress(session, user.id, body.topic_id, trang_thai)
+    # Ghi lại TỪNG lần nộp (không khử trùng) — student_progress chỉ giữ trạng thái
+    # cuối nên không có nó thì mất sạch quá trình học.
+    session.add(QuizAttempt(user_id=user.id, topic_id=body.topic_id,
+                            diem=diem, tong=tong, dat=dat))
     # XP: mỗi câu đúng + thưởng nếu đạt. Cập nhật streak/điểm tuần.
     xp = diem * _XP_PER_CORRECT + (_XP_QUIZ_PASS if dat else 0)
     st = await stats_svc.award(session, user.id, xp)
