@@ -140,3 +140,57 @@ async def test_tao_tai_khoan_mat_khau_ngan_bi_chan(client, session):
     r = await client.post("/admin/users", headers=adm, json={
         "email": f"z-{uuid.uuid4().hex[:6]}@vd.vn", "password": "123", "name": "D", "role": "admin"})
     assert r.status_code == 422
+
+
+async def test_overview_thong_ke_hoc_tap(client, session, mocker):
+    """Tile + nhịp theo ngày (có bơm ngày trống) + đơn vị đuối nhất."""
+    import json as _json
+    from datetime import date
+    from app.db.models import CurriculumTopic, Grade, Subject, TopicContent
+
+    gv = (await _reg(client, "giao_vien"))[1]
+    hs = (await _reg(client, "hoc_sinh"))[1]
+    subj = Subject(name=f"M-{uuid.uuid4().hex[:6]}"); gr = Grade(name=f"K-{uuid.uuid4().hex[:6]}")
+    session.add_all([subj, gr]); await session.flush()
+    t = CurriculumTopic(subject_id=subj.id, grade_id=gr.id, mach_noi_dung="Số tự nhiên",
+                        don_vi_kien_thuc="Số nguyên tố", order_index=0)
+    session.add(t); await session.flush()
+    tid = t.id
+    quiz = [{"q": "1+1?", "o": ["1", "2"], "a": 1, "lv": "de"}]
+    session.add(TopicContent(topic_id=tid, khai_niem="<p>x</p>", trang_thai="published",
+                             quiz_json=_json.dumps(quiz)))
+    await session.commit()
+
+    for _ in range(3):   # 3 lượt SAI -> đủ ngưỡng toi_thieu, 100% trượt
+        await client.post("/quiz/submit", headers=hs, json={"topic_id": tid, "answers": [0]})
+
+    b = (await client.get("/admin/overview?ngay=7", headers=gv)).json()
+    assert b["tong"]["luot_lam"] >= 3 and b["tong"]["hoc_sinh"] >= 1
+    # Đúng `ngay` điểm, ngày không có lượt vẫn có mặt với 0 — đường không nối tắt.
+    assert len(b["hoat_dong"]) == 7
+    assert b["hoat_dong"][-1]["ngay"] == str(date.today())
+    assert all("so_lan" in x for x in b["hoat_dong"])
+    kho = next(x for x in b["kho_nhat"] if x["topic_id"] == tid)
+    assert kho["so_lan"] == 3 and kho["ty_le_truot"] == 100
+
+
+async def test_overview_bo_don_vi_qua_it_luot(client, session):
+    """1 lượt trượt lẻ KHÔNG được nhảy lên đầu bảng với '100% trượt'."""
+    import json as _json
+    from app.db.models import CurriculumTopic, Grade, Subject, TopicContent
+
+    gv = (await _reg(client, "giao_vien"))[1]
+    hs = (await _reg(client, "hoc_sinh"))[1]
+    subj = Subject(name=f"M-{uuid.uuid4().hex[:6]}"); gr = Grade(name=f"K-{uuid.uuid4().hex[:6]}")
+    session.add_all([subj, gr]); await session.flush()
+    t = CurriculumTopic(subject_id=subj.id, grade_id=gr.id, mach_noi_dung="M",
+                        don_vi_kien_thuc="Chỉ một lượt", order_index=0)
+    session.add(t); await session.flush()
+    tid = t.id
+    session.add(TopicContent(topic_id=tid, trang_thai="published",
+                             quiz_json=_json.dumps([{"q": "?", "o": ["a", "b"], "a": 1, "lv": "de"}])))
+    await session.commit()
+    await client.post("/quiz/submit", headers=hs, json={"topic_id": tid, "answers": [0]})
+
+    b = (await client.get("/admin/overview", headers=gv)).json()
+    assert tid not in [x["topic_id"] for x in b["kho_nhat"]]

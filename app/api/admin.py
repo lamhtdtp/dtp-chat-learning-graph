@@ -10,6 +10,8 @@
 gia và quản trị tạo qua POST /admin/users — hoặc CLI `python -m app.create_admin`
 cho admin ĐẦU TIÊN, khi chưa có ai để đăng nhập.
 """
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, select
@@ -215,3 +217,68 @@ async def create_staff(
     await session.commit()
     await session.refresh(moi)
     return {"id": moi.id, "email": moi.email, "name": moi.name, "role": moi.role}
+
+
+@router.get("/overview")
+async def overview(
+    ngay: int = 14,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Số liệu học tập cho trang Tổng quan CMS.
+
+    Ba lớp, mỗi lớp trả lời một câu khác nhau:
+      - `tong`      : quy mô đang diễn ra (tile số lớn)
+      - `hoat_dong` : nhịp học `ngay` ngày gần nhất (đường)
+      - `kho_nhat`  : đơn vị học sinh trượt nhiều nhất (cột xếp hạng)
+
+    `kho_nhat` là thứ đáng giá nhất với người biên soạn: nó chỉ thẳng nội dung
+    nào cần viết lại, thay vì chỉ nói "học sinh yếu".
+    """
+    _require_author(user)
+    ngay = max(1, min(ngay, 90))
+    tu = date.today() - timedelta(days=ngay - 1)
+
+    tong_lan, hs_hd, dat = (await session.execute(
+        select(func.count(QuizAttempt.id),
+               func.count(func.distinct(QuizAttempt.user_id)),
+               func.count(QuizAttempt.id).filter(QuizAttempt.dat))
+    )).one()
+
+    # Nhịp theo ngày. Ngày KHÔNG có lượt nào sẽ thiếu trong kết quả SQL -> phải
+    # bơm 0 vào, nếu không đường biểu đồ nối tắt qua khoảng trống và trông như
+    # ngày đó vẫn có hoạt động.
+    rows = (await session.execute(
+        select(func.date(QuizAttempt.created_at).label("ngay"), func.count(QuizAttempt.id))
+        .where(func.date(QuizAttempt.created_at) >= tu)
+        .group_by("ngay")
+    )).all()
+    theo_ngay = {str(d): n for d, n in rows}
+    hoat_dong = [{"ngay": str(tu + timedelta(days=i)),
+                  "so_lan": theo_ngay.get(str(tu + timedelta(days=i)), 0)}
+                 for i in range(ngay)]
+
+    # Đơn vị đuối nhất. Ngưỡng tối thiểu để 1 lượt trượt lẻ không nhảy lên đầu
+    # bảng với "100% trượt".
+    toi_thieu = 3
+    kq = (await session.execute(
+        select(CurriculumTopic.id, CurriculumTopic.don_vi_kien_thuc, CurriculumTopic.mach_noi_dung,
+               func.count(QuizAttempt.id).label("n"),
+               func.count(QuizAttempt.id).filter(~QuizAttempt.dat).label("truot"))
+        .join(QuizAttempt, QuizAttempt.topic_id == CurriculumTopic.id)
+        .group_by(CurriculumTopic.id, CurriculumTopic.don_vi_kien_thuc, CurriculumTopic.mach_noi_dung)
+        .having(func.count(QuizAttempt.id) >= toi_thieu)
+    )).all()
+    kho_nhat = sorted(
+        ({"topic_id": tid, "ten": (dv or "").strip(), "mach": (mach or "").strip(),
+          "so_lan": n, "ty_le_truot": round(100 * truot / n)} for tid, dv, mach, n, truot in kq),
+        key=lambda x: (-x["ty_le_truot"], -x["so_lan"]),
+    )[:6]
+
+    return {
+        "tong": {"luot_lam": tong_lan, "hoc_sinh": hs_hd,
+                 "ty_le_dat": round(100 * dat / tong_lan) if tong_lan else 0},
+        "hoat_dong": hoat_dong,
+        "kho_nhat": kho_nhat,
+        "toi_thieu_luot": toi_thieu,
+    }

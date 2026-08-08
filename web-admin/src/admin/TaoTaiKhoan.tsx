@@ -3,9 +3,11 @@ import { ApiError, adminCreateUser } from "../api";
 
 type VaiTro = (typeof VAI_TRO)[number]["v"];
 
+// Chỉ hai vai trò tạo được ở đây. `giao_vien` vẫn là vai trò hợp lệ trong hệ
+// thống (server nhận, ô đổi vai trò ở bảng Người dùng vẫn có) — chỉ là không mở
+// đường tạo mới từ form này.
 const VAI_TRO = [
   { v: "chuyen_gia", label: "✍️ Chuyên gia", desc: "Chỉ biên soạn nội dung — không thấy phần quản trị" },
-  { v: "giao_vien", label: "👩‍🏫 Giáo viên", desc: "Biên soạn + dạy trên app học (slide, hướng dẫn dạy)" },
   { v: "admin", label: "🛡️ Quản trị", desc: "Toàn quyền: quản lý tài khoản + nội dung" },
 ] as const;
 

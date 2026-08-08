@@ -7,6 +7,7 @@ import type { CmsCatalog } from "../api";
 import { useTheme } from "../hooks/useTheme";
 import type { AdminUser, CmsGroup, CmsUnit, Role } from "../types";
 import { DrawerEditor } from "./DrawerEditor";
+import { HocTapChart } from "./HocTapChart";
 import { KetQuaDrawer } from "./KetQuaDrawer";
 import { TaoTaiKhoan } from "./TaoTaiKhoan";
 
@@ -146,6 +147,10 @@ export function Dashboard({ name, role, onLogout }: {
                 {/* Bỏ CTA "Nạp bằng AI": mục đó đang là màn hình "Đang phát triển",
                     nút chính dẫn vào ngõ cụt còn tệ hơn không có nút. */}
               </div>
+
+              {/* Tổng quan = hai lớp: học sinh học đến đâu, rồi mới tới tình hình
+                  biên soạn. Trang này trước chỉ có lớp thứ hai. */}
+              {view === "overview" && <HocTapChart />}
 
               <div className="kpis">
                 <Kpi ic="ic-total" v={kpi.total} l="Đơn vị kiến thức" />

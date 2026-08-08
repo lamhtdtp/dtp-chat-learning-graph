@@ -1,5 +1,6 @@
 import { API_BASE } from "./config";
 import type {
+  AdminOverview,
   AdminUser,
   AuthResult,
   CmsAiDraft,
@@ -147,4 +148,9 @@ export function adminCreateUser(body: {
   role: "chuyen_gia" | "giao_vien" | "admin";   // học sinh tự đăng ký ở app học
 }): Promise<{ id: number; email: string; name: string; role: Role }> {
   return req("/admin/users", { auth: true, body });
+}
+
+/** Số liệu học tập cho trang Tổng quan (giáo viên/chuyên gia/quản trị). */
+export function adminOverview(ngay = 14): Promise<AdminOverview> {
+  return req(`/admin/overview?ngay=${ngay}`, { auth: true });
 }

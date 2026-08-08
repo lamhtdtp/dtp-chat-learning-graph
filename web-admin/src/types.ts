@@ -93,3 +93,11 @@ export interface KetQuaHocSinh {
   theo_don_vi: KetQuaDonVi[];
   lan: KetQuaLan[];
 }
+
+/** Số liệu học tập cho trang Tổng quan (GET /admin/overview). */
+export interface AdminOverview {
+  tong: { luot_lam: number; hoc_sinh: number; ty_le_dat: number };
+  hoat_dong: { ngay: string; so_lan: number }[];
+  kho_nhat: { topic_id: number; ten: string; mach: string; so_lan: number; ty_le_truot: number }[];
+  toi_thieu_luot: number;
+}
