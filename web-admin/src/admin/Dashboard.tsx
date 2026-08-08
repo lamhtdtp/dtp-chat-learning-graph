@@ -244,14 +244,64 @@ function OverviewBar({ flat }: { flat: Flat[] }) {
 
 const PAGE_SIZE = 10;
 
-function Pager({ page, pages, onPage }: { page: number; pages: number; onPage: (p: number) => void }) {
-  if (pages <= 1) return null;
+/** Cắt trang cho 1 danh sách đã lọc. `resetKey` đổi -> về trang 1 (đổi bộ lọc mà
+ *  vẫn ở trang 7 thì thấy bảng rỗng). Gộp ở đây vì hai bảng dùng y hệt nhau. */
+function usePaging<T>(rows: T[], resetKey: unknown) {
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [resetKey]);
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pageSafe = Math.min(page, pages);
+  return {
+    pages, page: pageSafe, setPage,
+    shown: rows.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE),
+  };
+}
+
+/** Dãy số trang có rút gọn: luôn giữ trang đầu/cuối, trang hiện tại và 1 trang
+ *  kề hai bên; khoảng cách còn lại thay bằng "…". Ví dụ 12 trang, đang ở 7:
+ *  1 … 6 7 8 … 12 — bấm được tới đích thay vì phải Next nhiều lần. */
+function daySoTrang(page: number, pages: number): (number | "…")[] {
+  if (pages <= 7) return Array.from({ length: pages }, (_, i) => i + 1);
+  const quanh = [page - 1, page, page + 1].filter((p) => p > 1 && p < pages);
+  const out: (number | "…")[] = [1];
+  if (quanh[0] > 2) out.push("…");
+  out.push(...quanh);
+  if (quanh[quanh.length - 1] < pages - 1) out.push("…");
+  out.push(pages);
+  return out;
+}
+
+function Pager({ page, pages, total, onPage }: {
+  page: number; pages: number; total: number; onPage: (p: number) => void;
+}) {
+  if (total === 0) return null;
+  const dau = (page - 1) * PAGE_SIZE + 1;
+  const cuoi = Math.min(page * PAGE_SIZE, total);
   return (
-    <div className="pager">
-      <button className="btn-ghost" type="button" disabled={page <= 1} onClick={() => onPage(page - 1)}>← Trước</button>
-      <span className="pager-n">Trang {page}/{pages}</span>
-      <button className="btn-ghost" type="button" disabled={page >= pages} onClick={() => onPage(page + 1)}>Sau →</button>
-    </div>
+    <nav className="pager" aria-label="Phân trang">
+      {/* Vị trí hiện tại hiện cả khi chỉ có 1 trang — "47 mục" là thông tin có
+          ích, còn nút bấm thì không cần khi không có gì để chuyển. */}
+      <span className="pager-info">
+        <b className="tnum">{dau}–{cuoi}</b> trong <b className="tnum">{total}</b>
+      </span>
+      {pages > 1 && (
+        <div className="pager-ctl">
+          <button className="pg-nav" type="button" disabled={page <= 1}
+            onClick={() => onPage(page - 1)} aria-label="Trang trước">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M15 18l-6-6 6-6" /></svg>
+          </button>
+          {daySoTrang(page, pages).map((p, i) => p === "…"
+            ? <span className="pg-gap" key={`gap${i}`} aria-hidden>…</span>
+            : <button className={"pg-num" + (p === page ? " on" : "")} key={p} type="button"
+                aria-current={p === page ? "page" : undefined}
+                aria-label={`Trang ${p}`} onClick={() => onPage(p)}>{p}</button>)}
+          <button className="pg-nav" type="button" disabled={page >= pages}
+            onClick={() => onPage(page + 1)} aria-label="Trang sau">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M9 18l6-6-6-6" /></svg>
+          </button>
+        </div>
+      )}
+    </nav>
   );
 }
 
@@ -260,11 +310,7 @@ function ContentTable({ flat, filter, search, onEdit, onPreview }: {
 }) {
   const q = search.trim().toLowerCase();
   const rows = flat.filter((u) => (filter === "all" || u.trang_thai === filter) && (!q || u.ten.toLowerCase().includes(q)));
-  const [page, setPage] = useState(1);
-  useEffect(() => { setPage(1); }, [filter, search, flat.length]);
-  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const pageSafe = Math.min(page, pages);
-  const shown = rows.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
+  const { page, pages, setPage, shown } = usePaging(rows, `${filter}|${search}|${flat.length}`);
   return (
     <div style={{ overflowX: "auto" }}>
       <table>
@@ -295,7 +341,7 @@ function ContentTable({ flat, filter, search, onEdit, onPreview }: {
           {rows.length === 0 && <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--ink-3)", padding: 28 }}>Không có đơn vị khớp bộ lọc.</td></tr>}
         </tbody>
       </table>
-      <Pager page={pageSafe} pages={pages} onPage={setPage} />
+      <Pager page={page} pages={pages} total={rows.length} onPage={setPage} />
     </div>
   );
 }
@@ -355,11 +401,7 @@ function UsersView({ users, search, onPatch }: {
 }) {
   const q = search.trim().toLowerCase();
   const rows = users.filter((u) => !q || (u.name + " " + u.email).toLowerCase().includes(q));
-  const [page, setPage] = useState(1);
-  useEffect(() => { setPage(1); }, [search, users.length]);
-  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const pageSafe = Math.min(page, pages);
-  const shown = rows.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
+  const { page, pages, setPage, shown } = usePaging(rows, `${search}|${users.length}`);
   return (
     <>
       <div className="page-head"><div><h1>Người dùng</h1><div className="ps">Quản lý tài khoản + theo dõi tiến độ học ({rows.length})</div></div></div>
@@ -389,7 +431,7 @@ function UsersView({ users, search, onPatch }: {
             </tbody>
           </table>
         </div>
-        <Pager page={pageSafe} pages={pages} onPage={setPage} />
+        <Pager page={page} pages={pages} total={rows.length} onPage={setPage} />
       </div>
     </>
   );

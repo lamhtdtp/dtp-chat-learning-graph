@@ -25,7 +25,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import BlueprintCell, CurriculumTopic, Grade, Subject
 from app.graph.grounding import has_grounding
-from app.llm import gateway
+from app.llm import gateway, jsonfix
+from app.llm.gateway import LLMUnavailable
 from app.retrieval import retriever
 from app.retrieval.retriever import RetrievedChunk
 
@@ -87,31 +88,55 @@ def _prompt(dv: str, mach: str, mon_ten: str, khoi_ten: str,
         f"{khoi_ten}, ngắn gọn, dễ hiểu với học sinh {khoi_ten.lower()}.\n\n"
         f"YÊU CẦU CẦN ĐẠT:\n{ycd_text}\n\n"
         f"{nguon_block}{nguon_tay}\n"
-        "Kèm ĐỀ XUẤT MINH HOẠ: ảnh tĩnh và 1 video ngắn. Với ảnh, viết `prompt` là "
-        "câu lệnh cho model sinh ảnh, tả một hình minh hoạ giáo dục sạch sẽ, nền "
-        "phẳng, phong cách sách giáo khoa; TUYỆT ĐỐI yêu cầu KHÔNG CÓ CHỮ trong "
-        "ảnh (model sinh ảnh viết chữ tiếng Việt hay sai, chữ sai còn tệ hơn không "
-        "có chữ). Với video, `chu_de` là một câu hỏi/chủ đề ngắn để hệ thống dựng "
-        "video giảng bài, phải nằm trong phạm vi đơn vị kiến thức này.\n\n"
         "Trả JSON THUẦN:\n"
         '{"khai_niem": "<HTML: vài thẻ <p>, có thể <b>/<blockquote>, KHÔNG tiêu đề>", '
-        '"vi_du": [{"de": "đề bài", "giai": "lời giải từng bước (HTML ngắn)"}], '
-        f'"anh": [{{"caption": "chú thích ngắn", "prompt": "câu lệnh sinh ảnh, no text"}}] (tối đa {_MAX_ANH}), '
-        '"video": {"chu_de": "chủ đề video ngắn", "caption": "chú thích ngắn"}}\n'
+        '"vi_du": [{"de": "đề bài", "giai": "lời giải từng bước (HTML ngắn)"}]}\n'
         "Soạn 2–3 ví dụ từ dễ đến vận dụng."
     )
+
+
+def _prompt_media(dv: str, mach: str, noi_dung: str) -> str:
+    """Prompt RIÊNG cho đề xuất minh hoạ.
+
+    Cố ý tách khỏi prompt soạn bài: gộp chung thì model dồn sức vào phần nội dung
+    bám SGK rồi BỎ RƠI hai trường phụ — đã quan sát thật, cùng một prompt lúc trả
+    lúc không, và nhánh parse lặng lẽ bỏ qua nên người dùng thấy trống mà không
+    có lỗi nào. Prompt ngắn, chỉ một việc -> ổn định hơn hẳn, và chạy ở tầng rẻ.
+    """
+    return (
+        f'Đề xuất minh hoạ cho bài học "{dv}" (mạch "{mach}").\n\n'
+        f"NỘI DUNG BÀI HỌC (minh hoạ phải đúng nội dung này):\n{noi_dung}\n\n"
+        f"Cần: {_MAX_ANH} ảnh tĩnh + 1 video ngắn.\n"
+        "- `prompt` của ảnh là câu lệnh TIẾNG ANH cho model sinh ảnh: hình minh hoạ "
+        "giáo dục, nền phẳng, phong cách sách giáo khoa, và PHẢI ghi rõ không có "
+        "chữ/số trong ảnh (model sinh ảnh viết chữ tiếng Việt hay sai — chữ sai còn "
+        "tệ hơn không có chữ).\n"
+        "- `chu_de` của video là một chủ đề ngắn nằm trong phạm vi bài này, để hệ "
+        "thống dựng video giảng bài.\n"
+        "- `caption` viết bằng tiếng Việt, ngắn gọn.\n\n"
+        "Trả JSON THUẦN, KHÔNG kèm giải thích:\n"
+        '{"anh": [{"caption": "…", "prompt": "…, no text, no letters, no numbers"}], '
+        '"video": {"chu_de": "…", "caption": "…"}}'
+    )
+
+
+async def goi_y_media(dv: str, mach: str, noi_dung: str) -> dict:
+    """{anh, video} — đề xuất minh hoạ cho nội dung vừa soạn. Lỗi -> rỗng."""
+    if not noi_dung.strip():
+        return {"anh": [], "video": None}
+    raw = await gateway.complete(
+        task="media_suggest",
+        messages=[{"role": "user", "content": _prompt_media(dv, mach, noi_dung)}],
+        max_tokens=1024,
+    )
+    d = _parse(raw)
+    return {"anh": d["anh"], "video": d["video"]}
 
 
 def _parse(raw: str) -> dict:
     """Bóc nháp; phần nào hỏng thì bỏ phần đó, không làm sập cả nháp."""
     empty = {"khai_niem": "", "vi_du": [], "anh": [], "video": None}
-    text = raw.strip()
-    if text.startswith("```"):
-        text = text.split("```")[1].removeprefix("json").strip()
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        return empty
+    data = jsonfix.boc_json(raw)   # chịu được escape LaTeX sai — xem app/llm/jsonfix
     if not isinstance(data, dict):
         return empty
 
@@ -179,8 +204,22 @@ async def ingest_draft(session: AsyncSession, topic_id: int, *, nguon: str = "")
         subject.name if subject else "Toán", grade.name if grade else "Lớp 6",
         ycd, nguon, _sgk_context(chunks),
     )}]
-    raw = await gateway.complete(task="lesson_ingest", messages=messages, max_tokens=4096)
+    # max_tokens rộng tay: model tầng mạnh là model REASONING, token suy luận ăn
+    # CHUNG ngân sách này. Để 4096 thì phần trả lời thật chỉ còn vài trăm token và
+    # bị cắt giữa chuỗi -> JSON hỏng -> nháp rỗng (đã gặp thật: output dừng ở
+    # `($a \neq ` sau 1074 ký tự).
+    raw = await gateway.complete(task="lesson_ingest", messages=messages, max_tokens=16384)
     draft = _parse(raw)
+
+    # Đề xuất minh hoạ ở LẦN GỌI RIÊNG, và ground trên nội dung VỪA SOẠN chứ không
+    # phải đoạn SGK thô — hình phải minh hoạ đúng bài học hiện ra màn hình.
+    # Lỗi ở đây không được kéo sập nháp chữ (phần chính).
+    try:
+        media = await goi_y_media(topic.don_vi_kien_thuc, topic.mach_noi_dung, draft["khai_niem"])
+    except LLMUnavailable:
+        media = {"anh": [], "video": None}
+    draft["anh"], draft["video"] = media["anh"], media["video"]
+
     draft["trang_sgk"] = sorted({c.page_no for c in chunks})
     draft["thieu_sgk"] = thieu_sgk
     draft["mon"] = mon

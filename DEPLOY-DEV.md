@@ -343,3 +343,37 @@ curl https://<DOMAIN_THẬT>/health           # -> {"status":"ok"} (qua nginx ->
 # Mở trình duyệt: https://<DOMAIN_THẬT>      # web + chat, ổ khoá HTTPS xanh
 ```
 Nếu 502: kiểm `docker compose ... ps` (api/web up chưa) và `sudo tail -f /var/log/nginx/error.log`.
+
+Được — script nằm trong image (COPY app ./app ở backend.Dockerfile:17) — nhưng phải làm 3 việc trước, không thì hỏng.
+
+
+# 1. Build lại image — BẮT BUỘC
+./deploy.sh build api worker
+
+# 2. Migration — BẮT BUỘC
+./deploy.sh migrate
+
+# 3. Chạy
+./deploy.sh exec api python -m app.seed_all_lessons --force
+./deploy.sh exec map thẳng sang docker compose exec (deploy.sh:32), nên dùng được luôn. Không có deploy.sh thì:
+
+
+docker compose -f docker-compose.app.yml -f docker-compose.dev-server.yml \
+  exec api python -m app.seed_all_lessons --force
+Vì sao từng bước bắt buộc:
+
+Build lại: code vào image lúc build, container không bind-mount app/ (chỉ mount ./data và ./data_processed). Container đang chạy vẫn là code cũ → --force báo unrecognized arguments, quiz vẫn 4 câu, ingest vẫn không bám SGK.
+Migrate: model đã có ai_soan mà DB prod thì chưa → mọi lần ghi đều lỗi. ./deploy.sh migrate chạy alembic upgrade head.
+Hai cảnh báo trước khi bấm
+1. Qdrant trên server đó phải có SGK. Đây là điều kiện quyết định — grounding mới lấy ngữ liệu từ qdrant service, dùng named volume qdrantdata cục bộ trên chính máy đó, không dùng chung với máy bạn. Kho rỗng thì mọi đơn vị đều in ⚠️ KHÔNG bám SGK, và bạn đốt quota LLM + embedding để nhận lại đúng thứ nội dung không bám sách như cũ. Kiểm trước:
+
+
+./deploy.sh exec api curl -s http://qdrant:6333/collections/sgk_toan
+Rỗng thì phải ./deploy.sh ingest --tap 1 --sach cung_kham_pha_tap_1 trước.
+
+2. Quota VNGCloud ~50 request/ngày (gateway.py:41: "VNGCloud giới hạn 50 req/ngày → 429 rất hay gặp"). Một lần --force cho 21 đơn vị tốn khoảng 63 request: 21 ingest + 21 quiz + 21 embed truy vấn. Vượt quota giữa chừng → script bắt LLMUnavailable, in ✗ … AI quá tải, bỏ qua rồi chạy tiếp, nên bạn sẽ có bộ nội dung nham nhở: một nửa mới, một nửa cũ. Nên chạy chia đợt hoặc kiểm quota còn lại trước.
+
+Và --force ghi đè dữ liệu thật học sinh đang học. Backup trước:
+
+
+pg_dump -t topic_content <db> > topic_content_$(date +%F).sql

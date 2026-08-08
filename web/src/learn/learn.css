@@ -248,6 +248,46 @@
 .learn .chat-dem{align-self:flex-end;padding-bottom:13px;font-size:11px;font-variant-numeric:tabular-nums;color:var(--ink-3);white-space:nowrap}
 .learn .chat-dem.het{color:var(--warn);font-weight:700}
 
+/* Nút mở rộng khung chat (chỉ có tác dụng khi còn chia 3 cột — xem @media dưới) */
+.learn .chat-rong-btn{margin-left:auto;width:32px;height:32px;flex:none;border-radius:9px;
+  border:1px solid var(--border);background:var(--surface-2);color:var(--ink-3);
+  display:grid;place-items:center;transition:.14s}
+.learn .chat-rong-btn:hover{color:var(--primary);border-color:var(--primary);background:var(--surface)}
+.learn .chat-rong-btn:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
+
+/* Nhập bằng giọng nói */
+.learn .chat-in .mic{width:42px;height:42px;flex:none;border-radius:12px;border:1px solid var(--border);
+  background:var(--surface-2);color:var(--ink-2);display:grid;place-items:center;transition:.14s}
+.learn .chat-in .mic:hover:not(:disabled){color:var(--primary);border-color:var(--primary)}
+.learn .chat-in .mic:disabled{opacity:.5;cursor:default}
+.learn .chat-in .mic.on{background:var(--warn);border-color:var(--warn);color:#fff;
+  animation:mic-tho 1.4s ease-in-out infinite}
+@keyframes mic-tho{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--warn) 55%,transparent)}
+  50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--warn) 0%,transparent)}}
+.learn .mic-live{display:flex;align-items:center;gap:9px;margin:0 14px 8px;padding:9px 12px;
+  border-radius:12px;background:var(--surface-2);border:1px solid var(--border);
+  font-size:12.5px;color:var(--ink-2);min-height:38px}
+.learn .mic-wave{display:inline-flex;align-items:flex-end;gap:3px;height:15px;flex:none}
+.learn .mic-wave i{width:3px;border-radius:2px;background:var(--warn);animation:mic-song .9s ease-in-out infinite}
+.learn .mic-wave i:nth-child(1){height:6px;animation-delay:-.2s}
+.learn .mic-wave i:nth-child(2){height:14px;animation-delay:-.1s}
+.learn .mic-wave i:nth-child(3){height:9px}
+@keyframes mic-song{0%,100%{transform:scaleY(.45)}50%{transform:scaleY(1)}}
+.learn .mic-loi{margin:0 14px 8px;padding:9px 12px;border-radius:12px;font-size:12.5px;
+  background:var(--warn-weak);border:1px solid color-mix(in srgb,var(--warn) 35%,transparent);color:var(--ink-2)}
+@media (prefers-reduced-motion:reduce){
+  .learn .chat-in .mic.on,.learn .mic-wave i{animation:none}
+}
+
+/* Mở rộng cột chat. CHỈ áp khi còn chia 3 cột: dưới 1180px lưới đã xếp dọc nên
+   nới cột là vô nghĩa, và `.learn.chat-rong` (0,2,0) sẽ đè mất rule xếp dọc
+   `.learn` (0,1,0) trong media query dưới nếu không chặn ở đây. */
+@media (min-width:1181px){
+  .learn{transition:grid-template-columns .22s ease}
+  .learn.chat-rong{grid-template-columns:288px minmax(0,1fr) min(620px,46vw)}
+}
+@media (prefers-reduced-motion:reduce){.learn{transition:none}}
+
 @media (max-width:1180px){
   .learn{grid-template-columns:1fr;grid-template-areas:"nav" "main" "chat";height:auto;min-height:100vh;overflow:visible}
   .learn .col{overflow:visible}

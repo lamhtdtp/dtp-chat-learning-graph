@@ -78,8 +78,19 @@ def _chunk(page_no: int, content: str):
                           page_no=page_no, tap=1, loai_noi_dung="ly_thuyet", nguon="sgk")
 
 
+def _prompt_soan_bai(complete) -> str:
+    """Prompt của LẦN GỌI ĐẦU (soạn khái niệm + ví dụ). Lần thứ hai là đề xuất
+    minh hoạ — prompt hoàn toàn khác, đừng nhầm."""
+    return complete.await_args_list[0].kwargs["messages"][0]["content"]
+
+
 def _mock_ai(mocker, *, chunks, khai_niem="<p>AI nháp</p>", anh=None, video=None):
-    """Mock LLM + retriever cho luồng ai-ingest. Trả mock của gateway.complete."""
+    """Mock LLM + retriever + ghi file cho luồng ai-ingest. Trả mock gateway.complete.
+
+    ingest_draft gọi gateway.complete HAI lần (soạn bài, rồi đề xuất minh hoạ ở
+    lần riêng) — mock trả cùng payload cho cả hai, nên `anh`/`video` đặt chung
+    vào payload là đủ cho cả hai đường.
+    """
     payload = {"khai_niem": khai_niem, "vi_du": [{"de": "VD1", "giai": "GIẢI1"}]}
     if anh is not None:
         payload["anh"] = anh
@@ -89,6 +100,10 @@ def _mock_ai(mocker, *, chunks, khai_niem="<p>AI nháp</p>", anh=None, video=Non
     mocker.patch("app.lessons.ingest.gateway.complete", complete)
     # retriever phải mock: nó gọi API embedding thật + Qdrant thật.
     mocker.patch("app.lessons.ingest.retriever.retrieve", mocker.AsyncMock(return_value=chunks))
+    # save_image phải mock: DB có rollback cuối test chứ FILE thì không — không
+    # chặn ở đây thì mỗi lần chạy test lại vứt một file rác vào data/videos thật.
+    mocker.patch("app.lessons.media.storage.save_image",
+                 side_effect=lambda data, name: f"/video/files/{name}")
     return complete
 
 
@@ -103,8 +118,8 @@ async def test_cms_ai_ingest_bam_sgk(client, session, mocker):
     body = r.json()
     assert body["khai_niem"] == "<p>AI nháp</p>" and body["vi_du"][0]["de"] == "VD1"
     assert body["thieu_sgk"] is False and body["trang_sgk"] == [45, 46]
-    # Prompt thật sự chứa ngữ liệu SGK có nhãn [tr.N] + tư liệu chuyên gia dán vào.
-    prompt = complete.await_args.kwargs["messages"][0]["content"]
+    # Prompt SOẠN BÀI là lần gọi ĐẦU (lần sau là đề xuất minh hoạ, prompt khác hẳn).
+    prompt = _prompt_soan_bai(complete)
     assert "[tr.45] Số nguyên tố chỉ có hai ước." in prompt
     assert "QUY TẮC BÁM SÁCH" in prompt and "trích SGK" in prompt
     # ingest KHÔNG tự lưu — topic vẫn trống
@@ -154,7 +169,7 @@ async def test_cms_ai_ingest_thieu_sgk_van_soan_va_canh_bao(client, session, moc
     body = (await client.post(f"/cms/topics/{tid}/ai-ingest", headers=gv, json={})).json()
     assert body["thieu_sgk"] is True and body["trang_sgk"] == []
     assert body["khai_niem"] == "<p>AI nháp</p>"   # vẫn soạn được, không chặn tác giả
-    assert "KHÔNG bịa số trang" in complete.await_args.kwargs["messages"][0]["content"]
+    assert "KHÔNG bịa số trang" in _prompt_soan_bai(complete)
 
 
 async def test_cms_ai_ingest_sinh_anh_va_dat_hang_video(client, session, mocker):
@@ -184,6 +199,39 @@ async def test_cms_ai_ingest_sinh_anh_va_dat_hang_video(client, session, mocker)
     job = await session.scalar(select(VideoJob).filter_by(concept_key=vid["concept_key"]))
     assert job is not None and job.status == "QUEUED"
     delay.assert_called_once_with(job_id=job.id)
+
+
+async def test_de_xuat_media_la_lan_goi_rieng(client, session, mocker):
+    """Đề xuất minh hoạ PHẢI là lần gọi LLM riêng, ground trên nội dung vừa soạn.
+
+    Gộp chung vào prompt soạn bài thì model hay bỏ rơi `anh`/`video` (quan sát
+    thật: cùng prompt, lúc trả lúc không) và người dùng thấy khung trống."""
+    complete = _mock_ai(mocker, chunks=[_chunk(45, "ngữ liệu")], khai_niem="<p>Nội dung đã soạn</p>",
+                        anh=[{"caption": "H", "prompt": "p"}], video={"chu_de": "cd", "caption": "c"})
+    mocker.patch("app.lessons.media.gateway.generate_image", mocker.AsyncMock(return_value=b"png"))
+    mocker.patch("app.ingestion.celery_app.render_video_task.delay")
+    gv = await _auth(client, "giao_vien")
+    mon, khoi, tid = await _seed(session)
+    await session.commit()
+    await client.post(f"/cms/topics/{tid}/ai-ingest", headers=gv, json={})
+
+    assert complete.await_count == 2, "phải tách thành 2 lần gọi, không gộp một prompt"
+    soan, media = (c.kwargs for c in complete.await_args_list)
+    assert soan["task"] == "lesson_ingest" and media["task"] == "media_suggest"
+    p_media = media["messages"][0]["content"]
+    # Prompt media ground trên nội dung VỪA SOẠN, không phải đoạn SGK thô.
+    assert "Nội dung đã soạn" in p_media and "ngữ liệu" not in p_media
+
+
+async def test_khong_de_xuat_duoc_media_thi_bao_ro(client, session, mocker):
+    """Không có media mà cũng không lỗi -> phải nói ra, đừng để khung trống im lặng."""
+    _mock_ai(mocker, chunks=[_chunk(45, "x")])   # payload không có anh/video
+    gv = await _auth(client, "giao_vien")
+    mon, khoi, tid = await _seed(session)
+    await session.commit()
+    body = (await client.post(f"/cms/topics/{tid}/ai-ingest", headers=gv, json={})).json()
+    assert body["minh_hoa"] == []
+    assert any("chưa đề xuất được minh hoạ" in m for m in body["loi_media"])
 
 
 async def test_cms_ai_ingest_media_loi_khong_lam_vo_nhap(client, session, mocker):

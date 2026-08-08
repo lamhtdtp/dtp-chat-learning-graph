@@ -136,10 +136,29 @@
 .admin .au-pill.off{color:var(--slate);background:var(--slate-weak)}
 .admin .au-limit{width:92px;border:1px solid var(--border);background:var(--surface-2);color:var(--ink);border-radius:var(--r-xs);padding:6px 9px;font:inherit;font-size:12.5px}
 
-/* Phân trang bảng */
-.admin .pager{display:flex;align-items:center;justify-content:center;gap:14px;padding:12px 18px;border-top:1px solid var(--border)}
-.admin .pager-n{font-size:13px;font-weight:700;color:var(--ink-2);font-variant-numeric:tabular-nums}
-.admin .pager .btn-ghost:disabled{opacity:.5;cursor:default}
+/* Phân trang bảng — vị trí hiện tại bên trái, điều khiển bên phải */
+.admin .pager{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding:11px 18px;border-top:1px solid var(--border);background:var(--surface-2)}
+.admin .pager-info{font-size:12.5px;color:var(--ink-3)}
+.admin .pager-info b{color:var(--ink-2);font-weight:700}
+.admin .pager-ctl{display:flex;align-items:center;gap:4px;margin-left:auto}
+/* Nút số + nút mũi tên cùng khuôn 32px -> hàng nút thẳng đều, không so le */
+.admin .pg-num,.admin .pg-nav{min-width:32px;height:32px;padding:0 8px;border-radius:var(--r-xs);
+  border:1px solid transparent;background:transparent;color:var(--ink-2);
+  font:inherit;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;
+  display:grid;place-items:center;transition:.13s}
+.admin .pg-num:hover,.admin .pg-nav:not(:disabled):hover{background:var(--surface-3);color:var(--ink)}
+.admin .pg-num.on{background:linear-gradient(140deg,var(--primary),var(--primary-2));color:#fff;
+  box-shadow:0 6px 14px -6px var(--primary)}
+.admin .pg-num.on:hover{color:#fff}
+.admin .pg-nav{border-color:var(--border);background:var(--surface)}
+.admin .pg-nav:disabled{opacity:.4;cursor:default;background:transparent;border-color:transparent}
+.admin .pg-gap{min-width:20px;text-align:center;color:var(--ink-3);font-size:13px;user-select:none}
+.admin .pg-num:focus-visible,.admin .pg-nav:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
+@media (max-width:560px){
+  .admin .pager{justify-content:center}
+  .admin .pager-ctl{margin-left:0}
+}
 
 /* Ingest */
 .admin .grid2{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}

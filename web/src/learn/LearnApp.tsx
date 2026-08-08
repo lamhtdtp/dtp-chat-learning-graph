@@ -51,6 +51,9 @@ export function LearnApp({ name, role, onLogout }: { name: string; role: Role; o
   const [slide, setSlide] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [injected, setInjected] = useState<{ q: string; n: number } | null>(null);
+  // Mở rộng cột chat: đổi grid-template-columns của .learn nên phải nằm ở đây,
+  // ChatPanel không với tới lưới cha được.
+  const [chatRong, setChatRong] = useState(false);
   const askTutor = (q: string) => setInjected((p) => ({ q, n: (p?.n ?? 0) + 1 }));
 
   const handle = (e: unknown) => {
@@ -97,7 +100,7 @@ export function LearnApp({ name, role, onLogout }: { name: string; role: Role; o
   const crumb = lesson ? <>{lesson.mach} · <b>{lesson.dv}</b></> : <b>Chọn một bài học</b>;
 
   return (
-    <div className="learn">
+    <div className={"learn" + (chatRong ? " chat-rong" : "")}>
       <nav className="nav col">
         <div className="brand">
           <div className="brand-logo"><img src="/dtp-logo.png" alt="DTP" /></div>
@@ -155,7 +158,8 @@ export function LearnApp({ name, role, onLogout }: { name: string; role: Role; o
             : <div className="lesson-empty">Đang tải bài học…</div>)}
       </main>
 
-      <ChatPanel lessonName={lesson?.dv ?? null} injected={injected} onLogout={onLogout} />
+      <ChatPanel lessonName={lesson?.dv ?? null} injected={injected} onLogout={onLogout}
+        rong={chatRong} onToggleRong={() => setChatRong((v) => !v)} />
     </div>
   );
 }

@@ -307,6 +307,10 @@ async def cms_ai_ingest(
 
     minh_hoa: list[dict] = []
     loi: list[str] = []
+    # Nháp chữ rỗng = AI trả về thứ không bóc được. Trước đây im lặng, tác giả
+    # tưởng bấm hụt; nói thẳng để họ bấm lại thay vì ngồi đoán.
+    if not draft["khai_niem"] and not draft["vi_du"]:
+        loi.append("AI trả về nội dung không đọc được — bấm “Gợi ý AI” lại lần nữa.")
     if body.media:
         anh, loi_anh = await media_svc.generate_images(topic_id, draft["anh"])
         minh_hoa += anh
@@ -316,6 +320,10 @@ async def cms_ai_ingest(
         if vid:
             minh_hoa.append(vid)
         loi += loi_vid
+        # Không có media mà cũng không có lỗi = AI không đề xuất được gì. Phải nói
+        # ra: im lặng thì tác giả ngồi nhìn khung trống, tưởng tính năng hỏng.
+        if not minh_hoa and not loi:
+            loi.append("AI chưa đề xuất được minh hoạ cho đơn vị này — bấm “Gợi ý AI” lại lần nữa.")
         await session.commit()   # VideoJob vừa tạo phải bền trước khi worker đọc
 
     return {

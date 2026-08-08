@@ -78,6 +78,10 @@ TASK_TIER: dict[str, Tier] = {
     "quiz_gen": "strong",
     # Soạn nháp nội dung bài học từ nguồn (CMS AI ingest): khái niệm + ví dụ.
     "lesson_ingest": "strong",
+    # Đề xuất minh hoạ (ảnh + video ngắn) cho nội dung ĐÃ soạn — chỉ mô tả lại
+    # thành câu lệnh sinh ảnh, không suy luận chuyên môn -> tầng rẻ đủ. Tách khỏi
+    # lesson_ingest vì gộp chung thì model hay bỏ rơi phần này (xem _prompt_media).
+    "media_suggest": "cheap",
 }
 
 # Đã verify từng model một qua API thật — xem docstring trên. Thêm model mới

@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import BlueprintCell, CurriculumTopic, TopicContent
-from app.llm import gateway
+from app.llm import gateway, jsonfix
 
 _LV = {"de", "trung_binh", "kho"}
 _LV_TEN = {"de": "dễ", "trung_binh": "trung bình", "kho": "khó"}
@@ -91,12 +91,14 @@ def _parse_quiz(raw: str) -> list[dict]:
     text = raw.strip()
     if text.startswith("```"):
         text = text.split("```")[1].removeprefix("json").strip()
-    try:
-        data = json.loads(text)
+    # Đề trắc nghiệm cũng đầy LaTeX -> cùng bẫy escape như ingest (app/llm/jsonfix).
+    # Vá hỏng hẳn thì mới rơi xuống _salvage_objects vớt từng câu.
+    data = jsonfix.boc_json(raw)
+    if data is not None:
         items = data.get("quiz", []) if isinstance(data, dict) else data
         if not isinstance(items, list):
             items = []
-    except json.JSONDecodeError:
+    else:
         items = _salvage_objects(text)
 
     out: list[dict] = []
@@ -176,5 +178,8 @@ async def generate_quiz(session: AsyncSession, topic_id: int, *, so_cau: int | N
     messages = [{"role": "user", "content": _prompt(
         topic.don_vi_kien_thuc, topic.mach_noi_dung, ycd, phan_bo, _grounding_text(content),
     )}]
-    raw = await gateway.complete(task="quiz_gen", messages=messages, max_tokens=4096)
+    # Rộng tay như lesson_ingest: tầng mạnh là model reasoning, token suy luận ăn
+    # chung ngân sách -> 4096 hay bị cắt cụt giữa câu hỏi (_salvage_objects vớt
+    # được phần đầu nhưng mất mấy câu cuối, ra thiếu số câu mà không báo gì).
+    raw = await gateway.complete(task="quiz_gen", messages=messages, max_tokens=16384)
     return _parse_quiz(raw)
