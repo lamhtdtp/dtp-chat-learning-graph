@@ -58,6 +58,11 @@ services:
     volumes:
       # ảnh trang SGK để endpoint /books/pages phục vụ (read-only, không trong image)
       - ./data:/app/data:ro
+      # ...NHƯNG kho media phải GHI ĐƯỢC: api ghi thẳng vào đây khi chuyên gia
+      # upload video và khi "Gợi ý AI" sinh ảnh minh hoạ (app/lessons/media.py).
+      # Mount lồng rw đè lên phần ro ở trên — thiếu dòng này là OSError Errno 30
+      # "Read-only file system" giữa request.
+      - ./data/videos:/app/data/videos
       # cache OCR (markdown mỗi trang) — ghi được + giữ lại khi recreate để
       # ingest lại KHÔNG phải OCR lại từ đầu (xem docs/INGEST-ENGLISH.md).
       - ./data_processed:/app/data_processed

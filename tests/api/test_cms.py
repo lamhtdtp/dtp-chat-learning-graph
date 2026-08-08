@@ -223,6 +223,26 @@ async def test_de_xuat_media_la_lan_goi_rieng(client, session, mocker):
     assert "Nội dung đã soạn" in p_media and "ngữ liệu" not in p_media
 
 
+async def test_kho_media_chi_doc_khong_lam_500(client, session, mocker):
+    """Không ghi được ảnh (mount read-only) -> bỏ ảnh + báo, KHÔNG 500.
+
+    Gặp thật trên server: container api mount ./data:ro nên save_image ném
+    OSError Errno 30 giữa request, sập cả nháp chữ đã soạn xong."""
+    _mock_ai(mocker, chunks=[_chunk(45, "x")], anh=[{"caption": "H", "prompt": "p"}])
+    mocker.patch("app.lessons.media.gateway.generate_image", mocker.AsyncMock(return_value=b"png"))
+    mocker.patch("app.lessons.media.storage.save_image",
+                 side_effect=OSError(30, "Read-only file system"))
+    gv = await _auth(client, "giao_vien")
+    mon, khoi, tid = await _seed(session)
+    await session.commit()
+    r = await client.post(f"/cms/topics/{tid}/ai-ingest", headers=gv, json={})
+    assert r.status_code == 200
+    b = r.json()
+    assert b["khai_niem"] == "<p>AI nháp</p>"          # nháp chữ còn nguyên
+    assert not [m for m in b["minh_hoa"] if m["type"] == "image"]
+    assert any("Chưa lưu được ảnh" in m for m in b["loi_media"])
+
+
 async def test_qdrant_hong_khong_lam_500(client, session, mocker):
     """Kho SGK sập/chưa có collection -> vẫn soạn được, cờ thieu_sgk, KHÔNG 500.
 

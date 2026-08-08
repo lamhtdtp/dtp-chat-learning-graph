@@ -60,7 +60,15 @@ async def generate_images(topic_id: int, goi_y: list[dict]) -> tuple[list[dict],
             loi.append("Chưa sinh được ảnh (lỗi từ dịch vụ sinh ảnh).")
             log.exception("lỗi sinh ảnh minh hoạ (topic=%s): %s", topic_id, e)
             continue
-        url = storage.save_image(data, _img_name(topic_id, prompt))
+        try:
+            url = storage.save_image(data, _img_name(topic_id, prompt))
+        except OSError as e:
+            # Hay gặp nhất: container api mount ./data read-only (xem
+            # docker-compose.app.yml) -> Errno 30. Ảnh hỏng thì bỏ ảnh, KHÔNG
+            # được kéo sập cả nháp chữ như trước.
+            loi.append("Chưa lưu được ảnh vào kho media — kiểm quyền ghi thư mục video/ảnh.")
+            log.exception("không ghi được ảnh minh hoạ (topic=%s): %s", topic_id, e)
+            continue
         media.append({"type": "image", "url": url, "source": "ai",
                       "caption": g.get("caption") or "Hình minh hoạ"})
     return media, loi
