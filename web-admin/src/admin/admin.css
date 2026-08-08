@@ -134,7 +134,7 @@
 .admin .cbar .tk i{display:block;height:100%;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--primary),var(--primary-2))}
 .admin .cbar .fr{font-size:11.5px;font-weight:700;color:var(--ink-2)}
 .admin .row-act{display:flex;gap:6px;justify-content:flex-end}
-.admin .act{width:32px;height:32px;border-radius:9px;border:1px solid var(--border);background:var(--surface);color:var(--ink-2);display:grid;place-items:center}
+.admin .act{height:32px;border-radius:9px;border:1px solid var(--border);background:var(--surface);color:var(--ink-2);display:grid;place-items:center}
 .admin .act:hover{border-color:var(--primary);color:var(--primary)}
 /* `.act` mặc định là ô vuông 32px chỉ chứa icon. Nút CÓ CHỮ phải nới ra, nếu
    không chữ bị nhồi vào 32px rồi xuống dòng và tràn khỏi nút. `.edit` vốn làm
