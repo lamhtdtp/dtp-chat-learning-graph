@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import security
 from app.api.deps import get_current_user
-from app.db.models import CurriculumTopic, QuizAttempt, StudentProgress, User
+from app.db.models import CurriculumTopic, QuizAttempt, StudentProgress, TopicContent, User
 from app.db.session import get_session
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -275,10 +275,62 @@ async def overview(
         key=lambda x: (-x["ty_le_truot"], -x["so_lan"]),
     )[:6]
 
+    # Phân bố điểm: tỉ lệ đạt trung bình che mất hình dạng lớp học. "Cả lớp lơ
+    # lửng 60%" và "một nửa giỏi một nửa mất gốc" cùng ra ~60% nhưng cần can
+    # thiệp khác hẳn nhau. Gom về 5 khoảng 20%.
+    pct = func.round(100.0 * QuizAttempt.diem / func.nullif(QuizAttempt.tong, 0))
+    buckets = {int(k): v for k, v in (await session.execute(
+        select(func.least(func.floor(pct / 20), 4).label("b"), func.count()).group_by("b")
+    )).all() if k is not None}
+    nhan = ["0–19%", "20–39%", "40–59%", "60–79%", "80–100%"]
+    phan_bo = [{"khoang": nhan[i], "so_lan": buckets.get(i, 0), "dat": i >= 3} for i in range(5)]
+
+    # Theo mạch nội dung: chỉ ra MẢNG kiến thức yếu, không phải từng bài lẻ.
+    mach_rows = (await session.execute(
+        select(CurriculumTopic.mach_noi_dung,
+               func.count(QuizAttempt.id).label("n"),
+               func.count(QuizAttempt.id).filter(QuizAttempt.dat).label("d"))
+        .join(QuizAttempt, QuizAttempt.topic_id == CurriculumTopic.id)
+        .group_by(CurriculumTopic.mach_noi_dung)
+    )).all()
+    theo_mach = sorted(
+        ({"mach": (m or "").strip(), "so_lan": n, "ty_le_dat": round(100 * d / n)} for m, n, d in mach_rows),
+        key=lambda x: x["ty_le_dat"],
+    )
+
+    # Phễu: chỗ học sinh rơi rụng. LƯU Ý bước "mở bài" KHÔNG có — hệ thống chưa
+    # log lượt mở, nên phễu bắt đầu từ "có tài khoản". Đặt bước không đo được vào
+    # đây sẽ là con số bịa.
+    tong_hs = await session.scalar(
+        select(func.count()).select_from(User).where(User.role == "hoc_sinh")) or 0
+    hs_dat = await session.scalar(
+        select(func.count(func.distinct(QuizAttempt.user_id))).where(QuizAttempt.dat)) or 0
+    pheu = [
+        {"buoc": "Có tài khoản học sinh", "so": tong_hs},
+        {"buoc": "Đã làm ít nhất 1 bài", "so": hs_hd},
+        {"buoc": "Đã đạt ít nhất 1 bài", "so": hs_dat},
+    ]
+
+    # Đối trọng của "trượt nhiều nhất": nội dung đã xuất bản mà chưa ai đụng tới.
+    da_lam = select(QuizAttempt.topic_id).distinct().scalar_subquery()
+    chua_hoc_rows = (await session.execute(
+        select(CurriculumTopic.id, CurriculumTopic.don_vi_kien_thuc, CurriculumTopic.mach_noi_dung)
+        .join(TopicContent, TopicContent.topic_id == CurriculumTopic.id)
+        .where(TopicContent.trang_thai == "published", CurriculumTopic.id.not_in(da_lam))
+        .order_by(CurriculumTopic.order_index)
+    )).all()
+    chua_hoc = [{"topic_id": i, "ten": (dv or "").strip(), "mach": (m or "").strip()}
+                for i, dv, m in chua_hoc_rows]
+
     return {
         "tong": {"luot_lam": tong_lan, "hoc_sinh": hs_hd,
                  "ty_le_dat": round(100 * dat / tong_lan) if tong_lan else 0},
         "hoat_dong": hoat_dong,
         "kho_nhat": kho_nhat,
         "toi_thieu_luot": toi_thieu,
+        "phan_bo": phan_bo,
+        "theo_mach": theo_mach,
+        "pheu": pheu,
+        "chua_hoc": chua_hoc[:8],
+        "chua_hoc_tong": len(chua_hoc),
     }

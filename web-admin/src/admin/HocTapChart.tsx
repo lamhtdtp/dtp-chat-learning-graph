@@ -72,6 +72,44 @@ function CotKhoNhat({ data, toiThieu }: { data: AdminOverview["kho_nhat"]; toiTh
   );
 }
 
+/** Cột dọc: phân bố điểm. Tỉ lệ đạt trung bình che mất HÌNH DẠNG lớp học —
+ *  "cả lớp lơ lửng 60%" và "một nửa giỏi một nửa mất gốc" cùng ra ~60%. */
+function CotPhanBo({ data }: { data: AdminOverview["phan_bo"] }) {
+  const max = Math.max(1, ...data.map((d) => d.so_lan));
+  return (
+    <div className="viz-cols">
+      {data.map((b) => (
+        <div className="vc" key={b.khoang}>
+          <b className="vc-so tnum">{b.so_lan || ""}</b>
+          {/* MỘT màu, không tô xanh/đỏ theo đạt-trượt: ngưỡng đạt là 70% nhưng
+              khoảng chia là 20% nên cột "60–79%" nằm vắt ngang ngưỡng — tô màu
+              cho nó là nói sai. Con số trên đầu cột mới là thông tin. */}
+          <div className="vc-track"><i style={{ height: `${(b.so_lan / max) * 100}%` }} /></div>
+          <span className="vc-nhan">{b.khoang}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Phễu: chỗ học sinh rơi rụng. Mỗi bước ghi cả số tuyệt đối lẫn % so với bước
+ *  đầu — chỉ vẽ thanh thì không đọc ra được mất bao nhiêu. */
+function Pheu({ data }: { data: AdminOverview["pheu"] }) {
+  const goc = Math.max(1, data[0]?.so ?? 1);
+  return (
+    <div className="viz-pheu">
+      {data.map((b, i) => (
+        <div className="vp" key={b.buoc}>
+          <div className="vp-ten">{b.buoc}</div>
+          <div className="vp-track"><i style={{ width: `${(b.so / goc) * 100}%` }} /></div>
+          <b className="vp-so tnum">{b.so}</b>
+          <span className="vp-pct tnum">{i === 0 ? "" : `${Math.round((b.so / goc) * 100)}%`}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Khối thống kê học tập cho trang Tổng quan. Ẩn hẳn khi chưa có lượt làm nào —
  *  biểu đồ rỗng chỉ làm người xem tưởng hệ thống hỏng. */
 export function HocTapChart() {
@@ -95,7 +133,7 @@ export function HocTapChart() {
         <div className="kpi"><div className="v tnum">{d.tong.ty_le_dat}%</div><div className="l">Tỉ lệ đạt</div></div>
       </div>
 
-      <div className="grid2" style={{ marginBottom: 22 }}>
+      <div className="grid2" style={{ marginBottom: 14 }}>
         <div className="panel">
           <div className="panel-h"><h3>Lượt làm bài {NGAY} ngày qua</h3></div>
           <div style={{ padding: "10px 14px 4px" }}>
@@ -108,6 +146,62 @@ export function HocTapChart() {
           <div className="panel-h"><h3>Đơn vị học sinh trượt nhiều nhất</h3></div>
           <div style={{ padding: "12px 14px" }}>
             <CotKhoNhat data={d.kho_nhat} toiThieu={d.toi_thieu_luot} />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid2" style={{ marginBottom: 14 }}>
+        <div className="panel">
+          <div className="panel-h"><h3>Phân bố kết quả</h3>
+            <span className="vz-ghi">ngưỡng đạt 70%</span></div>
+          <div style={{ padding: "14px 14px 6px" }}>
+            {d.tong.luot_lam === 0
+              ? <div className="viz-trong">Chưa có lượt làm bài nào.</div>
+              : <CotPhanBo data={d.phan_bo} />}
+          </div>
+        </div>
+        <div className="panel">
+          <div className="panel-h"><h3>Tỉ lệ đạt theo mạch nội dung</h3></div>
+          <div style={{ padding: "12px 14px" }}>
+            {d.theo_mach.length === 0
+              ? <div className="viz-trong">Chưa có dữ liệu.</div>
+              : <div className="viz-bars">
+                  {d.theo_mach.map((m) => (
+                    <div className="viz-bar" key={m.mach}>
+                      <div className="vb-ten" title={m.mach}>{m.mach}</div>
+                      <div className="vb-track"><i className="ok" style={{ width: `${m.ty_le_dat}%` }} /></div>
+                      <b className="vb-so tnum">{m.ty_le_dat}%</b>
+                      <span className="vb-n tnum">{m.so_lan} lượt</span>
+                    </div>
+                  ))}
+                </div>}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid2" style={{ marginBottom: 22 }}>
+        <div className="panel">
+          <div className="panel-h"><h3>Phễu hoàn thành</h3></div>
+          <div style={{ padding: "12px 14px" }}><Pheu data={d.pheu} /></div>
+        </div>
+        <div className="panel">
+          <div className="panel-h"><h3>Đã xuất bản nhưng chưa ai học</h3>
+            {d.chua_hoc_tong > 0 && <span className="vz-ghi">{d.chua_hoc_tong} đơn vị</span>}</div>
+          <div style={{ padding: "12px 14px" }}>
+            {d.chua_hoc.length === 0
+              ? <div className="viz-trong">Mọi đơn vị đã xuất bản đều có học sinh làm bài.</div>
+              : <>
+                  {d.chua_hoc.map((u) => (
+                    <div className="vh" key={u.topic_id}>
+                      <div className="u-name">{u.ten}</div><div className="u-mach">{u.mach}</div>
+                    </div>
+                  ))}
+                  {d.chua_hoc_tong > d.chua_hoc.length && (
+                    <div className="viz-trong" style={{ padding: "8px 0 0" }}>
+                      …và {d.chua_hoc_tong - d.chua_hoc.length} đơn vị khác
+                    </div>
+                  )}
+                </>}
           </div>
         </div>
       </div>

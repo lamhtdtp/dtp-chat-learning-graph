@@ -100,4 +100,9 @@ export interface AdminOverview {
   hoat_dong: { ngay: string; so_lan: number }[];
   kho_nhat: { topic_id: number; ten: string; mach: string; so_lan: number; ty_le_truot: number }[];
   toi_thieu_luot: number;
+  phan_bo: { khoang: string; so_lan: number; dat: boolean }[];
+  theo_mach: { mach: string; so_lan: number; ty_le_dat: number }[];
+  pheu: { buoc: string; so: number }[];
+  chua_hoc: { topic_id: number; ten: string; mach: string }[];
+  chua_hoc_tong: number;
 }
