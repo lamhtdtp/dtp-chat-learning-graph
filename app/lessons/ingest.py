@@ -18,6 +18,7 @@ buộc phải ghi vào storage mới có URL để xem, nên file ảnh tồn t�
 chuyên gia bỏ nháp (rác chấp nhận được, đổi lấy việc xem được ảnh trước khi lưu).
 """
 import json
+import logging
 import unicodedata
 
 from sqlalchemy import select
@@ -29,6 +30,8 @@ from app.llm import gateway, jsonfix
 from app.llm.gateway import LLMUnavailable
 from app.retrieval import retriever
 from app.retrieval.retriever import RetrievedChunk
+
+log = logging.getLogger(__name__)
 
 # Số đoạn SGK nạp vào prompt + ngưỡng điểm — giữ khớp tutor.ask/pipeline video để
 # nội dung biên soạn không "thấy" nhiều/ít ngữ liệu hơn phần trả lời HS.
@@ -192,9 +195,16 @@ async def ingest_draft(session: AsyncSession, topic_id: int, *, nguon: str = "")
     chunks: list[RetrievedChunk] = []
     if mon and khoi:
         query = ". ".join([topic.don_vi_kien_thuc, topic.mach_noi_dung, *ycd])
-        chunks = await retriever.retrieve(
-            query, mon=mon, khoi=khoi, top_k=_TOP_K, score_threshold=_SCORE_THRESHOLD
-        )
+        try:
+            chunks = await retriever.retrieve(
+                query, mon=mon, khoi=khoi, top_k=_TOP_K, score_threshold=_SCORE_THRESHOLD
+            )
+        except Exception:  # noqa: BLE001
+            # Qdrant sập / chưa có collection / embedding lỗi -> COI NHƯ không có
+            # ngữ liệu, không phải lỗi 500. Kho SGK hỏng thì chuyên gia vẫn phải
+            # soạn bài được; cờ thieu_sgk sẽ nói rõ nháp này không bám sách.
+            log.exception("Retrieve ngữ liệu SGK thất bại (topic=%s, mon=%s, khoi=%s)",
+                          topic_id, mon, khoi)
     thieu_sgk = not has_grounding(chunks)
 
     subject = await session.get(Subject, topic.subject_id)

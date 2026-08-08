@@ -223,6 +223,26 @@ async def test_de_xuat_media_la_lan_goi_rieng(client, session, mocker):
     assert "Nội dung đã soạn" in p_media and "ngữ liệu" not in p_media
 
 
+async def test_qdrant_hong_khong_lam_500(client, session, mocker):
+    """Kho SGK sập/chưa có collection -> vẫn soạn được, cờ thieu_sgk, KHÔNG 500.
+
+    Trước đây retriever.retrieve không được bọc: Qdrant chưa ingest trên server
+    mới là endpoint trả 500 trong khi việc biên soạn lẽ ra vẫn phải chạy."""
+    from qdrant_client.http.exceptions import UnexpectedResponse
+
+    mocker.patch("app.lessons.ingest.gateway.complete",
+                 mocker.AsyncMock(return_value=json.dumps({"khai_niem": "<p>x</p>", "vi_du": []})))
+    mocker.patch("app.lessons.ingest.retriever.retrieve", mocker.AsyncMock(
+        side_effect=UnexpectedResponse(404, "Not found", b"Collection `sgk_toan` doesn't exist", None)))
+    gv = await _auth(client, "giao_vien")
+    mon, khoi, tid = await _seed(session)
+    await session.commit()
+    r = await client.post(f"/cms/topics/{tid}/ai-ingest", headers=gv, json={"media": False})
+    assert r.status_code == 200
+    b = r.json()
+    assert b["thieu_sgk"] is True and b["trang_sgk"] == [] and b["khai_niem"] == "<p>x</p>"
+
+
 async def test_khong_de_xuat_duoc_media_thi_bao_ro(client, session, mocker):
     """Không có media mà cũng không lỗi -> phải nói ra, đừng để khung trống im lặng."""
     _mock_ai(mocker, chunks=[_chunk(45, "x")])   # payload không có anh/video
