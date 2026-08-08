@@ -66,8 +66,15 @@
 .admin .crumb{font-size:13px;color:var(--ink-3);font-weight:600}
 .admin .crumb b{color:var(--ink)}
 .admin .search{margin-left:auto;position:relative;display:flex;align-items:center}
-.admin .search input{width:260px;border:1px solid var(--border);background:var(--surface-2);color:var(--ink);border-radius:var(--r-pill);padding:9px 14px 9px 36px;font:inherit;font-size:13.5px}
-.admin .search input:focus{outline:2px solid var(--ring);border-color:var(--primary);background:var(--surface)}
+/* `[type=text]` là CỐ Ý, không thừa: rule form dùng chung bên dưới
+   (`.admin input[type=text]`) có specificity NGANG BẰNG `.admin .search input`
+   — cùng (0,2,1) — nên nó đứng sau là thắng, ghi đè padding-left 36px xuống 12px
+   và chữ chui xuống dưới icon kính lúp. Thêm thuộc tính vào đây để rule này
+   thắng chắc, không phụ thuộc thứ tự dòng trong file. */
+.admin .search input[type=text]{width:260px;border:1px solid var(--border);background:var(--surface-2);color:var(--ink);border-radius:var(--r-pill);padding:9px 14px 9px 38px;font:inherit;font-size:13.5px}
+.admin .search input[type=text]:focus{outline:2px solid var(--ring);border-color:var(--primary);background:var(--surface)}
+/* Bấm vào icon thì focus luôn ô nhập, thay vì rơi vào khoảng chết */
+.admin .search svg{pointer-events:none}
 .admin .search svg{position:absolute;left:12px;color:var(--ink-3)}
 .admin .tb-btn{width:38px;height:38px;border-radius:11px;border:1px solid var(--border);background:var(--surface);display:grid;place-items:center;color:var(--ink-2);position:relative}
 .admin .tb-btn:hover{color:var(--primary);border-color:var(--primary)}
@@ -129,7 +136,12 @@
 .admin .row-act{display:flex;gap:6px;justify-content:flex-end}
 .admin .act{width:32px;height:32px;border-radius:9px;border:1px solid var(--border);background:var(--surface);color:var(--ink-2);display:grid;place-items:center}
 .admin .act:hover{border-color:var(--primary);color:var(--primary)}
-.admin .act.edit{padding:0 12px;width:auto;gap:7px;font-size:12.5px;font-weight:700;display:inline-flex;align-items:center}
+/* `.act` mặc định là ô vuông 32px chỉ chứa icon. Nút CÓ CHỮ phải nới ra, nếu
+   không chữ bị nhồi vào 32px rồi xuống dòng và tràn khỏi nút. `.edit` vốn làm
+   việc này nhưng tên gắn với một hành động cụ thể — thêm `.txt` để nút chữ khác
+   dùng chung mà không phải mượn tên "edit". */
+.admin .act.edit,.admin .act.txt{padding:0 12px;width:auto;gap:7px;font-size:12.5px;font-weight:700;
+  display:inline-flex;align-items:center;white-space:nowrap}
 .admin .au-role{border:1px solid var(--border);background:var(--surface-2);color:var(--ink);border-radius:var(--r-xs);padding:6px 9px;font:inherit;font-size:12.5px}
 .admin .au-pill{border:1px solid var(--border);background:var(--surface);border-radius:var(--r-pill);padding:5px 12px;font:inherit;font-size:12px;font-weight:700}
 .admin .au-pill.on{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent);background:var(--ok-weak)}
@@ -264,7 +276,7 @@
 @media (max-width:860px){
   .admin{grid-template-columns:1fr}
   .admin .sb{display:none}
-  .admin .search input{width:150px}
+  .admin .search input[type=text]{width:150px}   /* [type=text]: xem ghi chú specificity ở trên */
   .admin .kpis{grid-template-columns:1fr 1fr}
   .admin .panel{overflow-x:auto}
   .admin table{min-width:640px}

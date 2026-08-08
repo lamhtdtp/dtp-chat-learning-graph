@@ -1,0 +1,7 @@
+<!doctype html><meta charset="utf-8"><title>shot</title>
+<script>
+var p=new URLSearchParams(location.search);
+localStorage.setItem('chat_learning_token', p.get('t')||'');
+localStorage.setItem('dtp_theme', p.get('theme')||'light');
+location.replace(p.get('to')||'/');
+</script>

@@ -386,7 +386,7 @@ function UsersView({ users, search, onPatch, onCreated }: {
                     {/* Chỉ học sinh mới có kết quả học tập — GV/QT tài khoản không
                         sinh dữ liệu đánh giá, hiện nút ở đó chỉ dẫn tới bảng rỗng. */}
                     {u.role === "hoc_sinh" && (
-                      <button className="act" type="button" title="Xem kết quả kiểm tra nhanh"
+                      <button className="act txt" type="button" title="Xem kết quả kiểm tra nhanh"
                         onClick={() => setXemKq(u.id)}>📊 Kết quả</button>
                     )}
                   </div></td>
