@@ -20,9 +20,15 @@ function tex(src: string, display: boolean): string {
   }
 }
 
-/** Đổi `$$…$$` (khối), `$…$` và `\(…\)` (inline) trong `html` thành HTML KaTeX. */
+// Trích trang sách "[tr.45]" mà AI chèn vào để chứng minh bám SGK. Có ích lúc
+// biên soạn, nhưng KHÔNG hiện cho người đọc — nguồn đã nói ở chỗ khác ("Bám SGK
+// trang 45, 46"). Bỏ cả khoảng trắng đứng trước để không hở đôi dấu cách.
+const TRICH_TRANG = /\s*\[tr\.?\s*\d+\s*\]/gi;
+
+/** Bỏ trích trang + đổi `$$…$$` (khối), `$…$`, `\(…\)` thành HTML KaTeX. */
 export function renderMath(html: string): string {
   return html
+    .replace(TRICH_TRANG, "")
     .replace(/\$\$([^$]+?)\$\$/g, (_, m) => tex(m, true))
     .replace(/\$([^$\n]+?)\$/g, (_, m) => tex(m, false))
     .replace(/\\\((.+?)\\\)/g, (_, m) => tex(m, false));

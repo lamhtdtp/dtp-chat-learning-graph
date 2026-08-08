@@ -10,11 +10,10 @@ const FALLBACK_MAX_CHARS = 500;
 // Từ mốc này mới hiện bộ đếm — hiện suốt thì thành tiếng ồn cho câu hỏi ngắn.
 const HIEN_DEM_TU = 0.7;
 
-// Chuẩn hoá câu trả lời trợ lý -> HTML: render công thức LaTeX ($…$, $$…$$) bằng
-// KaTeX (không còn hiện ký tự $ — dùng chung renderMath với trang bài học), bỏ
-// trích trang sách [tr.N], markdown nhẹ.
+// Chuẩn hoá câu trả lời trợ lý -> HTML. renderMath lo cả công thức LaTeX lẫn việc
+// bỏ trích trang [tr.45] (dùng chung với trang bài học); ở đây chỉ thêm markdown nhẹ.
 function toHtml(answer: string): string {
-  return renderMath(answer.replace(/\s*\[tr\.?\s*\d+\s*\]/gi, ""))   // bỏ suggest trang sách [tr.45]
+  return renderMath(answer)
     .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
     .replace(/(^|\n)\s*[*•-]\s+/g, "$1• ")
     .replace(/\s+([.,;!?])/g, "$1")                   // dọn khoảng trắng thừa trước dấu câu

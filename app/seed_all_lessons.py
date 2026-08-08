@@ -17,8 +17,11 @@ GIỮ LẠI: minh hoạ đã có (ảnh/video chuyên gia upload lẫn AI đã s
 thái xuất bản — hai thứ tốn công/tốn tiền nhất, không đáng mất khi soạn lại chữ.
 Thêm --publish thì mới đổi trạng thái đơn vị cũ sang 'published'.
 
-LƯU Ý: minh hoạ KHÔNG sinh ở đây kể cả với --force. Ảnh + video ngắn sinh qua
-CMS ("✨ Gợi ý AI" trong trình soạn) vì video cần Celery worker + công cụ host.
+--media sinh luôn minh hoạ: ảnh gọi model sinh ảnh NGAY (ghi vào storage), video
+ngắn chỉ ĐẶT HÀNG job rồi worker queue 'video' dựng sau. Media THÊM vào phần đã
+có, khử trùng theo url/concept_key nên chạy lại không nhân bản. Tốn thêm ~3
+request mỗi đơn vị (1 đề xuất + 2 ảnh) — cộng với 2 request soạn bài + quiz.
+Không có --media thì hành vi như cũ: chỉ soạn chữ.
 """
 import argparse
 import asyncio
@@ -29,11 +32,28 @@ from sqlalchemy import select
 from app.db.models import CurriculumTopic, Grade, Subject, TopicContent
 from app.db.session import async_session_factory
 from app.lessons import ingest as ingest_svc
+from app.lessons import media as media_svc
 from app.lessons import quiz as quiz_svc
 from app.llm.gateway import LLMUnavailable
 
 
-async def seed(*, mon: str, khoi: str, publish: bool, force: bool) -> None:
+async def _sinh_media(session, topic, draft, cu_minh_hoa: list[dict]) -> tuple[list[dict], list[str]]:
+    """Ảnh (sinh ngay) + video ngắn (đặt hàng job) cho 1 đơn vị.
+
+    THÊM vào minh hoạ đang có, khử trùng theo url/concept_key — chạy lại script
+    nhiều lần không nhân bản, và media chuyên gia tự thêm không bị mất.
+    """
+    them, loi = await media_svc.generate_images(topic.id, draft["anh"])
+    vid, loi_vid = await media_svc.request_video(
+        session, topic, draft["video"], mon=draft["mon"] or "toan")
+    if vid:
+        them.append(vid)
+    da_co = {m.get("url") or m.get("concept_key") or "" for m in cu_minh_hoa}
+    moi = [m for m in them if (m.get("url") or m.get("concept_key") or "") not in da_co]
+    return cu_minh_hoa + moi, loi + loi_vid
+
+
+async def seed(*, mon: str, khoi: str, publish: bool, force: bool, media: bool) -> None:
     trang_thai = "published" if publish else "draft"
     async with async_session_factory() as session:
         subject = await session.scalar(select(Subject).filter_by(name=mon))
@@ -81,7 +101,14 @@ async def seed(*, mon: str, khoi: str, publish: bool, force: bool) -> None:
                 # Cờ AI là cột riêng — KHÔNG nhét chuỗi đánh dấu vào `nguon` nữa,
                 # ô đó dành cho tư liệu chuyên gia dán vào.
                 c.ai_soan = True
+                loi_media: list[str] = []
+                if media:
+                    mh, loi_media = await _sinh_media(
+                        session, t, draft, json.loads(c.minh_hoa_json or "[]"))
+                    c.minh_hoa_json = json.dumps(mh, ensure_ascii=False)
                 await session.commit()
+                for m_ in loi_media:
+                    print(f"    ⚠️  {m_}")
                 ok += 1
                 print(f"  ✓ {label} — khái niệm {'có' if draft.get('khai_niem') else 'trống'}, "
                       f"{len(draft.get('vi_du', []))} ví dụ, {len(quiz)} câu quiz"
@@ -106,8 +133,11 @@ def main() -> None:
     ap.add_argument("--publish", action="store_true", help="Xuất bản luôn (mặc định: draft)")
     ap.add_argument("--force", action="store_true",
                     help="Soạn LẠI cả đơn vị đã có nội dung (ghi đè chữ, giữ minh hoạ)")
+    ap.add_argument("--media", action="store_true",
+                    help="Sinh luôn ảnh minh hoạ + đặt hàng video ngắn (tốn ~3 request/đơn vị)")
     args = ap.parse_args()
-    asyncio.run(seed(mon=args.mon, khoi=args.khoi, publish=args.publish, force=args.force))
+    asyncio.run(seed(mon=args.mon, khoi=args.khoi, publish=args.publish,
+                     force=args.force, media=args.media))
 
 
 if __name__ == "__main__":
