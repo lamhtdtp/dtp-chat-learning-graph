@@ -188,6 +188,9 @@
 .admin .hme-pv>:first-child{margin-top:0}
 .admin .hme-pv>:last-child{margin-bottom:0}
 .admin .hme-pv i{color:var(--ink-3)}
+/* Bộ đếm ký tự nằm bên phải nhãn ô nhập (chỉ hiện khi gần hết hạn mức) */
+.admin .lbl-dem{float:right;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink-3)}
+.admin .lbl-dem.het{color:var(--warn);font-weight:800}
 /* Nguồn ngữ liệu SGK của nháp AI (đối trọng của .warn-box khi KHÔNG bám được sách) */
 .admin .sgk-box{background:var(--primary-weak);border:1px solid color-mix(in srgb,var(--primary) 30%,transparent);color:var(--ink-2);border-radius:var(--r);padding:11px 14px;font-size:13px}
 /* Xem trước media trong trình soạn */

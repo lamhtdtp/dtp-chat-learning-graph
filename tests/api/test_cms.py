@@ -254,6 +254,81 @@ async def test_video_da_render_xong_thi_hien_url(client, session, mocker):
     assert les["minh_hoa"][0]["url"].startswith("/video/files/xong.mp4?exp=")
 
 
+async def test_co_ai_soan_khong_suy_tu_chuoi_trong_nguon(client, session):
+    """Trích đoạn SGK viết hoa chứa "HAI" KHÔNG được gắn nhãn AI (lỗi của cách cũ
+    dò `"AI" in c.nguon`); cờ chỉ bật khi ai_soan=true."""
+    gv = await _auth(client, "giao_vien")
+    mon, khoi, tid = await _seed(session)
+    await session.commit()
+    await client.put(f"/cms/topics/{tid}", headers=gv, json={
+        "khai_niem": "<p>x</p>", "vi_du": [], "trang_thai": "draft",
+        "nguon": "SỐ NGUYÊN TỐ CHỈ CÓ HAI ƯỚC"})
+    dv = (await client.get(f"/cms/curriculum?mon={mon}&khoi={khoi}", headers=gv)).json()[0]["dv"][0]
+    assert dv["ai"] is False
+
+    # Luồng "Nạp sách bằng AI" đặt cờ tường minh -> mới hiện nhãn.
+    await client.put(f"/cms/topics/{tid}", headers=gv, json={
+        "khai_niem": "<p>x</p>", "vi_du": [], "trang_thai": "draft", "ai_soan": True})
+    dv = (await client.get(f"/cms/curriculum?mon={mon}&khoi={khoi}", headers=gv)).json()[0]["dv"][0]
+    assert dv["ai"] is True
+
+
+async def test_luu_khong_gui_ai_soan_thi_giu_nguyen_co(client, session):
+    """Trình soạn không gửi ai_soan -> cờ cũ phải còn, không bị lưu đè thành False."""
+    gv = await _auth(client, "giao_vien")
+    mon, khoi, tid = await _seed(session)
+    await session.commit()
+    await client.put(f"/cms/topics/{tid}", headers=gv, json={
+        "khai_niem": "<p>a</p>", "vi_du": [], "trang_thai": "draft", "ai_soan": True})
+    await client.put(f"/cms/topics/{tid}", headers=gv, json={
+        "khai_niem": "<p>đã sửa tay</p>", "vi_du": [], "trang_thai": "draft"})
+    dv = (await client.get(f"/cms/curriculum?mon={mon}&khoi={khoi}", headers=gv)).json()[0]["dv"][0]
+    assert dv["ai"] is True
+
+
+async def test_nguon_qua_dai_bi_chan(client, session):
+    """Chặn cả khi lưu lẫn khi ai-ingest — nguon đi thẳng vào prompt."""
+    from app.config import settings
+
+    gv = await _auth(client, "giao_vien")
+    mon, khoi, tid = await _seed(session)
+    await session.commit()
+    qua_dai = "x" * (settings.cms_nguon_max_chars + 1)
+    r = await client.put(f"/cms/topics/{tid}", headers=gv, json={
+        "khai_niem": "", "vi_du": [], "trang_thai": "draft", "nguon": qua_dai})
+    assert r.status_code == 400 and "Tư liệu nguồn dài" in r.json()["detail"]
+    r = await client.post(f"/cms/topics/{tid}/ai-ingest", headers=gv, json={"nguon": qua_dai})
+    assert r.status_code == 400
+    # đúng biên thì vẫn lưu được
+    r = await client.put(f"/cms/topics/{tid}", headers=gv, json={
+        "khai_niem": "", "vi_du": [], "trang_thai": "draft",
+        "nguon": "x" * settings.cms_nguon_max_chars})
+    assert r.status_code == 200
+
+
+async def test_cms_limits_tra_dung_gioi_han(client, session):
+    from app.config import settings
+
+    gv = await _auth(client, "giao_vien")
+    r = await client.get("/cms/limits", headers=gv)
+    assert r.status_code == 200 and r.json() == {"nguon_max_chars": settings.cms_nguon_max_chars}
+    hs = await _auth(client, "hoc_sinh")
+    assert (await client.get("/cms/limits", headers=hs)).status_code == 403
+
+
+async def test_hs_khong_nhan_nguon_tac_gia_thi_co(client, session):
+    """`nguon` là tư liệu nội bộ của chuyên gia — không đẩy xuống client HS."""
+    gv = await _auth(client, "giao_vien")
+    mon, khoi, tid = await _seed(session)
+    await session.commit()
+    await client.put(f"/cms/topics/{tid}", headers=gv, json={
+        "khai_niem": "<p>x</p>", "vi_du": [], "trang_thai": "published",
+        "nguon": "ghi chú nội bộ của chuyên gia"})
+    hs = await _auth(client, "hoc_sinh")
+    assert (await client.get(f"/lessons/{tid}", headers=hs)).json()["nguon"] is None
+    assert (await client.get(f"/lessons/{tid}", headers=gv)).json()["nguon"] == "ghi chú nội bộ của chuyên gia"
+
+
 async def test_cms_upload_video(client, session):
     gv = await _auth(client, "giao_vien")
     mon, khoi, tid = await _seed(session)

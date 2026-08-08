@@ -77,7 +77,6 @@ export function QuizView({ topicId, quiz, onGraded }: {
         )}
         {err && <span className="ex-fb no">⚠️ {err}</span>}
       </div>
-      <div className="gen-note">※ Bộ câu hỏi sinh tự động theo ma trận đặc tả (yêu cầu cần đạt + mức độ).</div>
     </div>
   );
 }

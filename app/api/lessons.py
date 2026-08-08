@@ -156,7 +156,9 @@ async def get_lesson(
         "quiz": quiz if author else [{"q": x["q"], "o": x["o"], "lv": x.get("lv", "de")} for x in quiz],
         "co_quiz": len(quiz) > 0,
         "day": json.loads(c.day_json) if c.day_json else None,
-        "nguon": c.nguon,
+        # `nguon` là tư liệu THÔ chuyên gia dán vào cho AI, không phải nội dung
+        # bài học — không giao diện HS nào hiển thị nó. Chỉ trả cho tác giả.
+        "nguon": c.nguon if author else None,
         "trang_thai": c.trang_thai,
     }
 

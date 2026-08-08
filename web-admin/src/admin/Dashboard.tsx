@@ -313,7 +313,9 @@ function IngestView({ flat, toast, onDone, handle }: {
       const draft = await cmsAiIngest(id, "");
       await cmsSaveTopic(id, {
         khai_niem: draft.khai_niem, minh_hoa: [], vi_du: draft.vi_du,
-        day: null, nguon: "AI soạn nháp (CMS ingest)", trang_thai: "draft",
+        // Cờ AI là cột riêng — không nhét chuỗi đánh dấu vào ô tư liệu nữa
+        // (ô đó dành cho trích đoạn SGK chuyên gia dán vào).
+        day: null, nguon: null, ai_soan: true, trang_thai: "draft",
       });
       toast("AI đã nạp nội dung (draft) — rà soát ở Chương trình & nội dung"); onDone();
     } catch (e) { handle(e); } finally { setBusy(false); }

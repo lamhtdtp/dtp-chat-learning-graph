@@ -73,7 +73,13 @@ class TopicContent(Base):
     # cache tại đây — [{q, o:[…], a:<index đúng>, lv, giai}]. Không nhập tay.
     quiz_json: Mapped[str] = mapped_column(Text, default="[]")
     day_json: Mapped[str | None] = mapped_column(Text, default=None)   # hướng dẫn giảng dạy (GV)
-    nguon: Mapped[str | None] = mapped_column(default=None)            # nguồn biên soạn
+    # Tư liệu THÔ chuyên gia dán vào để AI bám khi soạn (trích đoạn SGK, ghi chú
+    # chuyên môn). Chỉ là đầu vào biên soạn — KHÔNG hiển thị cho học sinh.
+    nguon: Mapped[str | None] = mapped_column(Text, default=None)
+    # Nội dung này do AI soạn nháp (chưa có người rà). Cột riêng, CỐ Ý không suy
+    # từ `nguon` nữa: cách cũ dò chuỗi con "AI" trong nguon nên trích đoạn SGK
+    # viết hoa có chữ "HAI" cũng bị gắn nhãn AI oan.
+    ai_soan: Mapped[bool] = mapped_column(default=False)
     trang_thai: Mapped[str] = mapped_column(default="draft")           # draft | published
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 

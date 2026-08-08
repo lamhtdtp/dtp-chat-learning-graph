@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  ApiError, cmsAiIngest, cmsGenerateQuiz, cmsGetTopic, cmsSaveTopic, cmsUploadVideo, tokenStore,
+  ApiError, cmsAiIngest, cmsGenerateQuiz, cmsGetTopic, cmsLimits, cmsSaveTopic, cmsUploadVideo,
+  tokenStore,
 } from "../api";
 import type { CmsAiDraft, CmsMedia, CmsQuiz, CmsTopic, CmsViDu } from "../types";
 import { HtmlMathEditor } from "../components/HtmlMathEditor";
 import { renderMath } from "../mathHtml";
 
 const STATUS: [string, string][] = [["draft", "● Nháp"], ["review", "● Chờ duyệt"], ["published", "● Đã xuất bản"]];
+// Dùng khi GET /cms/limits lỗi. Giữ khớp mặc định settings.cms_nguon_max_chars.
+const FALLBACK_NGUON_MAX = 5000;
 const LV: Record<string, string> = { de: "Dễ", trung_binh: "TB", kho: "Khó" };
 
 interface Draft {
@@ -41,6 +44,9 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
   // Kết quả lần "Gợi ý AI" gần nhất: bám được trang SGK nào, có thiếu ngữ liệu
   // không, media nào sinh lỗi. Chỉ để hiển thị — không lưu vào nội dung.
   const [ai, setAi] = useState<Pick<CmsAiDraft, "trang_sgk" | "thieu_sgk" | "loi_media"> | null>(null);
+  // Giới hạn ô tư liệu nguồn — đọc từ server (override được bằng env), fallback
+  // khớp mặc định settings.cms_nguon_max_chars nếu gọi lỗi.
+  const [nguonMax, setNguonMax] = useState(FALLBACK_NGUON_MAX);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handle = (e: unknown) => {
@@ -50,6 +56,9 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
   useEffect(() => {
     cmsGetTopic(topicId).then((t) => { setTopic(t); setD(toDraft(t)); setQuiz(t.quiz); }).catch(handle);
   }, [topicId]);
+  useEffect(() => {
+    cmsLimits().then((l) => setNguonMax(l.nguon_max_chars)).catch(() => { /* giữ fallback */ });
+  }, []);
 
   const patch = (p: Partial<Draft>) => setD((s) => (s ? { ...s, ...p } : s));
 
@@ -166,8 +175,19 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
                   ))}
                   <HtmlMathEditor value={d.khai_niem} placeholder="Nhập khái niệm (HTML thuần: <p>, <b>… — công thức đặt trong $…$)"
                     onChange={(v) => patch({ khai_niem: v })} />
-                  <label className="lbl" style={{ marginTop: 8 }}>Tư liệu nguồn cho AI (tuỳ chọn — ưu tiên hơn ngữ liệu tự tra)</label>
-                  <input type="text" value={d.nguon} placeholder="Dán trích đoạn SGK…" onChange={(e) => patch({ nguon: e.target.value })} />
+                  <label className="lbl" style={{ marginTop: 8 }}>
+                    Tư liệu nguồn cho AI (tuỳ chọn — ưu tiên hơn ngữ liệu tự tra)
+                    {d.nguon.length >= nguonMax * 0.7 && (
+                      <span className={"lbl-dem" + (d.nguon.length >= nguonMax ? " het" : "")}>
+                        {d.nguon.length}/{nguonMax}
+                      </span>
+                    )}
+                  </label>
+                  {/* textarea chứ không phải input 1 dòng: đây là chỗ dán nguyên
+                      trích đoạn SGK. maxLength chặn tại chỗ, server chặn lần nữa. */}
+                  <textarea value={d.nguon} maxLength={nguonMax} style={{ minHeight: 64 }}
+                    placeholder="Dán trích đoạn SGK để AI bám theo (để trống thì AI tự tra trong kho sách)…"
+                    onChange={(e) => patch({ nguon: e.target.value })} />
                 </div>
                 {/* 2 Minh hoạ */}
                 <div className="esec">
@@ -228,7 +248,7 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
                     </div>
                   ))}
                   <button className="add-b" type="button" disabled={busy === "quiz"} onClick={genQuiz} style={{ marginTop: 7 }}>
-                    {busy === "quiz" ? "🤖 Đang sinh…" : (quiz.length ? "🔄 Sinh lại theo ma trận" : "🤖 Sinh bài kiểm tra")}
+                    {busy === "quiz" ? "🤖 Đang sinh…" : (quiz.length ? "🔄 Sinh lại" : "🤖 Sinh bài kiểm tra")}
                   </button>
                 </div>
                 {/* 5 Hướng dẫn dạy */}

@@ -53,6 +53,7 @@ export interface Lesson {
   quiz: QuizQuestion[];
   co_quiz: boolean;
   day: LessonDay | null;
+  /** Tư liệu thô chuyên gia dán cho AI. CHỈ tác giả nhận; HS luôn nhận null. */
   nguon: string | null;
   trang_thai: string;        // published | draft | chua_bien_soan
 }

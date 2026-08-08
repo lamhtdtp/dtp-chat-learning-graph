@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import security
 from app.api.deps import get_current_user
+from app.config import settings
 from app.db.models import BlueprintCell, CurriculumTopic, Grade, Subject, TopicContent, User
 from app.db.session import get_session
 from app.lessons import ingest as ingest_svc
@@ -41,6 +42,25 @@ _VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
 def _require_author(user: User) -> None:
     if user.role not in {"giao_vien", "admin"}:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Chỉ giáo viên/quản trị được vào CMS")
+
+
+def _check_nguon(nguon: str | None) -> None:
+    """Chặn tư liệu nguồn quá dài — nó đi thẳng vào prompt soạn bài."""
+    if nguon and len(nguon) > settings.cms_nguon_max_chars:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Tư liệu nguồn dài {len(nguon)} ký tự, tối đa {settings.cms_nguon_max_chars}.")
+
+
+class CmsLimits(BaseModel):
+    nguon_max_chars: int
+
+
+@router.get("/limits", response_model=CmsLimits)
+async def cms_limits(user: User = Depends(get_current_user)) -> CmsLimits:
+    """Giới hạn ô nhập cho trình soạn biết TRƯỚC khi gửi (xem /tutor/limits)."""
+    _require_author(user)
+    return CmsLimits(nguon_max_chars=settings.cms_nguon_max_chars)
 
 
 # Khoá được phép lưu trong 1 item minh hoạ. Chốt danh sách để trường chỉ-để-xem
@@ -151,7 +171,7 @@ async def cms_curriculum(
             d["trang_thai"] = c.trang_thai if c else "chua_bien_soan"
             d["completeness"] = _completeness(c)
             d["nguon"] = c.nguon if c else None
-            d["ai"] = bool(c and c.nguon and "AI" in c.nguon)  # nội dung do AI soạn
+            d["ai"] = bool(c and c.ai_soan)  # cờ riêng, không dò chuỗi trong `nguon` nữa
     return groups
 
 
@@ -216,6 +236,9 @@ class TopicUpdate(BaseModel):
     day: dict | None = None
     nguon: str | None = None
     trang_thai: str = "draft"
+    # None = giữ nguyên cờ đang có (trình soạn không đụng tới); True/False = đặt
+    # rõ (luồng "Nạp sách bằng AI" đặt True).
+    ai_soan: bool | None = None
 
 
 async def _get_or_create(session: AsyncSession, topic_id: int) -> TopicContent:
@@ -239,12 +262,15 @@ async def cms_save_topic(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Trạng thái không hợp lệ")
     if await session.get(CurriculumTopic, topic_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy đơn vị kiến thức")
+    _check_nguon(body.nguon)
     c = await _get_or_create(session, topic_id)
     c.khai_niem = body.khai_niem
     c.minh_hoa_json = json.dumps(_media_for_save(body.minh_hoa), ensure_ascii=False)
     c.vi_du_json = json.dumps(body.vi_du, ensure_ascii=False)
     c.day_json = json.dumps(body.day, ensure_ascii=False) if body.day else None
     c.nguon = body.nguon
+    if body.ai_soan is not None:
+        c.ai_soan = body.ai_soan
     c.trang_thai = body.trang_thai
     out = {"topic_id": topic_id, "trang_thai": body.trang_thai, "completeness": _completeness(c)}
     await session.commit()
@@ -273,6 +299,7 @@ async def cms_ai_ingest(
     topic = await session.get(CurriculumTopic, topic_id)
     if topic is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy đơn vị kiến thức")
+    _check_nguon(body.nguon)   # chặn ở đây nữa: ai-ingest gửi nguon thẳng vào prompt
     try:
         draft = await ingest_svc.ingest_draft(session, topic_id, nguon=body.nguon)
     except LLMUnavailable:

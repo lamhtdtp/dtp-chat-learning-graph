@@ -100,8 +100,14 @@ export function cmsGetTopic(topicId: number): Promise<CmsTopic> {
 export function cmsSaveTopic(topicId: number, body: {
   khai_niem: string; minh_hoa: CmsMedia[]; vi_du: CmsViDu[];
   day: CmsDay | null; nguon: string | null; trang_thai: string;
+  /** Bỏ trống = giữ nguyên cờ "AI soạn" đang có. */
+  ai_soan?: boolean;
 }): Promise<{ topic_id: number; trang_thai: string; completeness: CmsTopic["completeness"] }> {
   return req(`/cms/topics/${topicId}`, { method: "PUT", auth: true, body });
+}
+/** Giới hạn ô nhập CMS (đọc từ server — override được bằng env). */
+export function cmsLimits(): Promise<{ nguon_max_chars: number }> {
+  return req("/cms/limits", { auth: true });
 }
 /** Nháp AI bám SGK. `media=false` để chỉ soạn chữ (không tốn lần gọi sinh ảnh). */
 export function cmsAiIngest(topicId: number, nguon = "", media = true): Promise<CmsAiDraft> {
