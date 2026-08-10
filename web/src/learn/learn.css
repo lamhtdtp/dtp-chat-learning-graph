@@ -295,3 +295,53 @@
   .learn .tp-scroll{max-height:240px;overflow-y:auto}
   .learn .chat{border-left:none;border-top:1px solid var(--border);height:80vh}
 }
+
+/* ── Thẻ tiến độ: rõ hơn + BÁO khi số đổi ────────────────────────────────────
+   Trước đây số cập nhật im lặng, học sinh làm xong bài không thấy gì phản hồi.
+   Giờ: đếm tăng dần (useSoDoi) + loé sáng + hiện "+n". */
+.learn .progress-card{transition:box-shadow .25s}
+.learn .ring .fill{filter:drop-shadow(0 3px 10px color-mix(in srgb,var(--primary) 45%,transparent))}
+.learn .ring .pct{font-size:27px;letter-spacing:-.02em}
+
+.learn .stat{position:relative;overflow:hidden;transition:transform .18s cubic-bezier(.2,.7,.3,1),
+  border-color .18s,box-shadow .18s,background .18s}
+.learn .stat::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;border-radius:3px;
+  background:var(--primary);opacity:.5;transition:opacity .18s}
+.learn .stat.streak::before{background:var(--accent)}
+.learn .stat.xp::before{background:var(--teal)}
+.learn .stat:hover{transform:translateY(-2px);border-color:var(--border);box-shadow:var(--shadow-sm)}
+.learn .stat:hover::before{opacity:1}
+.learn .stat .v{font-size:21px}
+
+/* Loé sáng khi số vừa đổi — nền + viền + bóng cùng sáng lên rồi tắt dần */
+.learn .stat.nhay{animation:stat-sang 1.4s cubic-bezier(.2,.7,.3,1)}
+.learn .stat.nhay::before{opacity:1}
+@keyframes stat-sang{
+  0%   {background:var(--primary-weak);border-color:var(--primary);box-shadow:0 0 0 0 var(--ring);transform:scale(1)}
+  18%  {transform:scale(1.045)}
+  100% {background:var(--surface-2);border-color:var(--border);box-shadow:0 0 0 12px transparent;transform:scale(1)}
+}
+.learn .stat.streak.nhay{animation-name:stat-sang-accent}
+@keyframes stat-sang-accent{
+  0%   {background:var(--accent-weak);border-color:var(--accent);transform:scale(1)}
+  18%  {transform:scale(1.045)}
+  100% {background:var(--surface-2);border-color:var(--border);transform:scale(1)}
+}
+.learn .stat.xp.nhay{animation-name:stat-sang-teal}
+@keyframes stat-sang-teal{
+  0%   {background:var(--teal-weak);border-color:var(--teal);transform:scale(1)}
+  18%  {transform:scale(1.045)}
+  100% {background:var(--surface-2);border-color:var(--border);transform:scale(1)}
+}
+/* "+15" bay lên rồi mờ dần — mức tăng là thứ học sinh muốn thấy nhất */
+.learn .stat .delta{margin-left:5px;font-size:12px;font-weight:800;color:var(--teal);
+  animation:delta-bay 1.4s ease-out forwards}
+@keyframes delta-bay{
+  0%{opacity:0;transform:translateY(6px)} 15%{opacity:1;transform:translateY(0)}
+  70%{opacity:1} 100%{opacity:0;transform:translateY(-5px)}
+}
+@media (prefers-reduced-motion:reduce){
+  .learn .stat.nhay,.learn .stat.streak.nhay,.learn .stat.xp.nhay,.learn .stat .delta{animation:none}
+  .learn .stat.nhay{border-color:var(--primary)}
+  .learn .stat .delta{opacity:1}
+}

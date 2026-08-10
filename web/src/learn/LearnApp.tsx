@@ -5,6 +5,7 @@ import {
 import { useTheme } from "../hooks/useTheme";
 import type { CurriculumGroup, Lesson, MyStats, Role } from "../types";
 import { LessonView } from "./LessonView";
+import { useSoDoi } from "./useSoDoi";
 import { SlideView } from "./SlideView";
 import { ChatPanel } from "./ChatPanel";
 
@@ -16,6 +17,24 @@ const CIRC = 2 * Math.PI * R;
 const HK1_MACH = new Set([
   "Số tự nhiên", "Số nguyên", "Các hình phẳng trong thực tiễn", "Tính đối xứng của hình phẳng",
 ]);
+
+/** Một ô số liệu. Đổi giá trị -> đếm tăng dần + loé sáng + hiện "+n" ngay bên
+ *  cạnh, để học sinh thấy công mình vừa bỏ ra được ghi nhận. */
+function O({ k, so, dv, duoi, nhan }: {
+  k: string; so: number; dv?: string; duoi?: string; nhan: string;
+}) {
+  const { hien, nhay, delta } = useSoDoi(so);
+  return (
+    <div className={"stat " + k + (nhay ? " nhay" : "")}>
+      <div className="v num">
+        {hien}{duoi}
+        {dv && <span className="u">{dv}</span>}
+        {delta > 0 && <span className="delta">+{delta}</span>}
+      </div>
+      <div className="l">{nhan}</div>
+    </div>
+  );
+}
 
 function Hero({ stats }: { stats: MyStats | null }) {
   const pct = stats?.current_mach?.phan_tram ?? stats?.overall ?? 0;
@@ -33,9 +52,9 @@ function Hero({ stats }: { stats: MyStats | null }) {
         <div className="pct num">{pct}%<small>{lbl}</small></div>
       </div>
       <div className="prog-stats">
-        <div className="stat"><div className="v num">{stats?.dat ?? 0}<span className="u">/{stats?.tong ?? 0} đơn vị</span></div><div className="l">Trong chương trình</div></div>
-        <div className="stat streak"><div className="v num">{stats?.streak ?? 0} 🔥</div><div className="l">Chuỗi ngày học</div></div>
-        <div className="stat xp"><div className="v num">{stats?.xp_week ?? 0}<span className="u">XP</span></div><div className="l">Điểm tuần này</div></div>
+        <O k="" so={stats?.dat ?? 0} dv={`/${stats?.tong ?? 0} đơn vị`} nhan="Trong chương trình" />
+        <O k="streak" so={stats?.streak ?? 0} duoi=" 🔥" nhan="Chuỗi ngày học" />
+        <O k="xp" so={stats?.xp_week ?? 0} dv="XP" nhan="Điểm tuần này" />
       </div>
     </section>
   );
