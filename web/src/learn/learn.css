@@ -100,15 +100,15 @@
 .learn .icon-btn:hover{color:var(--primary);border-color:var(--primary);transform:translateY(-1px)}
 .learn .topbar .spacer{margin-left:auto}
 
-.learn .progress-card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px 24px;display:flex;gap:28px;align-items:center;justify-content:center;max-width:660px;margin:0 auto 26px;text-align:center;overflow:hidden;flex-wrap:wrap}
+.learn .progress-card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 22px;display:flex;gap:22px;align-items:center;justify-content:center;max-width:660px;margin:0 auto 26px;text-align:center;overflow:hidden;flex-wrap:wrap}
 .learn .progress-card::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:linear-gradient(90deg,var(--primary),var(--primary-2),var(--accent))}
-.learn .ring{position:relative;width:106px;height:106px;flex:none}
+.learn .ring{position:relative;width:96px;height:96px;flex:none}
 .learn .ring svg{transform:rotate(-90deg)}
 .learn .ring .track{stroke:var(--surface-3)}
 .learn .ring .a{stop-color:var(--primary)} .learn .ring .b{stop-color:var(--primary-2)}
 .learn .ring .fill{filter:drop-shadow(0 3px 6px rgba(91,84,240,.35));transition:stroke-dashoffset .5s cubic-bezier(.2,.7,.3,1)}
 .learn .ring .pct{position:absolute;inset:0;display:grid;place-content:center;font-family:var(--disp);font-weight:800;font-size:26px;color:var(--ink)}
-.learn .ring .pct small{display:block;font-size:9.5px;font-weight:800;color:var(--ink-3);letter-spacing:.07em;margin-top:1px}
+.learn .ring .pct small{display:none}   /* nhãn mạch chuyển RA NGOÀI vòng — xem .ring-nhan */
 .learn .prog-stats{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
 .learn .stat{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 15px;min-width:106px;text-align:left}
 .learn .stat .v{font-family:var(--disp);font-weight:800;font-size:20px;line-height:1.1;display:flex;align-items:baseline;gap:4px}
@@ -345,3 +345,25 @@
   .learn .stat.nhay{border-color:var(--primary)}
   .learn .stat .delta{opacity:1}
 }
+
+/* ── Sửa hero sau khi nhìn ảnh render ────────────────────────────────────────
+   1) Nhãn mạch RA NGOÀI vòng: đặt trong vòng thì chuỗi dài như "SỐ TỰ NHIÊN"
+      rộng hơn đường kính, tràn đè lên vành.
+   2) Bỏ drop-shadow trên nét vòng: khung <svg> đúng bằng vòng nên bóng bị cắt
+      thành một MẢNG VUÔNG mờ quanh nó. Đổi sang bóng tròn đặt dưới vòng.
+   3) Ba ô số liệu chia đều bề ngang, thôi lệch nhau theo độ dài nội dung. */
+.learn .ring svg{position:relative;z-index:1;overflow:visible}
+.learn .ring::after{content:"";position:absolute;inset:8px;border-radius:50%;z-index:0;
+  box-shadow:0 6px 22px -6px color-mix(in srgb,var(--primary) 55%,transparent)}
+.learn .ring .fill{filter:none}
+.learn .ring .pct{font-size:25px;line-height:1;z-index:2}
+
+.learn .prog-hop{display:flex;flex-direction:column;align-items:center;gap:7px;flex:none}
+.learn .ring-nhan{font-size:9.5px;font-weight:800;letter-spacing:.08em;color:var(--ink-3);
+  max-width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.learn .prog-stats{flex:1;min-width:0;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.learn .stat{min-width:0;padding:11px 13px}
+.learn .stat .v{font-size:22px;flex-wrap:wrap}
+.learn .stat .l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:560px){.learn .prog-stats{grid-template-columns:1fr}}

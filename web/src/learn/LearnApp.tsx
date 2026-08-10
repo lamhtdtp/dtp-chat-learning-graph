@@ -42,6 +42,7 @@ function Hero({ stats }: { stats: MyStats | null }) {
   const lbl = label.length > 16 ? label.slice(0, 15) + "…" : label;
   return (
     <section className="progress-card" aria-label="Tiến độ học tập">
+      <div className="prog-hop">
       <div className="ring">
         <svg width="106" height="106">
           <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop className="a" offset="0" /><stop className="b" offset="1" /></linearGradient></defs>
@@ -49,7 +50,9 @@ function Hero({ stats }: { stats: MyStats | null }) {
           <circle className="fill" cx="53" cy="53" r={R} fill="none" stroke="url(#rg)" strokeWidth="9"
             strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - pct / 100)} />
         </svg>
-        <div className="pct num">{pct}%<small>{lbl}</small></div>
+        <div className="pct num">{pct}%</div>
+      </div>
+      <div className="ring-nhan" title={label}>{lbl}</div>
       </div>
       <div className="prog-stats">
         <O k="" so={stats?.dat ?? 0} dv={`/${stats?.tong ?? 0} đơn vị`} nhan="Trong chương trình" />
