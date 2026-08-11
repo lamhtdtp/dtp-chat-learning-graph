@@ -207,9 +207,23 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
         </>
       )}
 
+      {/* Hỏi chung cả bài — neo null, backend ghép khái niệm + ví dụ (không quiz).
+          Đặt TRƯỚC bài kiểm tra: gỡ rối xong mới thi. Trước đây chip gợi ý nằm
+          dưới bài kiểm tra, hoá ra hỏi "chưa rõ chỗ nào?" sau khi các em đã nộp. */}
+      <div className="suggest">
+        <div className="s-label">✨ Chưa rõ chỗ nào trong bài <b>{lesson.dv}</b>? Hỏi thử:</div>
+        <div className="chips">
+          {SUGGESTS.map((q) => (
+            <button className="chip" type="button" key={q}
+              onClick={() => moThe("toan_bai", { neo: null, nhan: "Toàn bài", hoi: q })}>💬 {q}</button>
+          ))}
+        </div>
+        <The k="toan_bai" />
+      </div>
+
       <div className="divider" />
 
-      {/* ④ Kiểm tra nhanh */}
+      {/* ④ Kiểm tra nhanh — CHỐT CUỐI của bài, nằm dưới cùng */}
       {lesson.co_quiz && lesson.quiz.length > 0 ? (
         showQuiz ? (
           <>
@@ -235,18 +249,6 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
             : <div className="cta-hint">Chưa có bài kiểm tra nhanh cho đơn vị này.</div>}
         </div>
       )}
-
-      {/* Hỏi chung cả bài — neo null, backend ghép khái niệm + ví dụ (không quiz) */}
-      <div className="suggest">
-        <div className="s-label">✨ Chưa rõ chỗ nào trong bài <b>{lesson.dv}</b>? Hỏi thử:</div>
-        <div className="chips">
-          {SUGGESTS.map((q) => (
-            <button className="chip" type="button" key={q}
-              onClick={() => moThe("toan_bai", { neo: null, nhan: "Toàn bài", hoi: q })}>💬 {q}</button>
-          ))}
-        </div>
-        <The k="toan_bai" />
-      </div>
 
       {/* Bù cho việc bỏ cột chat: nơi xem lại mọi câu đã hỏi trong bài. Thẻ đóng
           rồi vẫn còn ở đây và mở lại được nguyên hội thoại. */}
