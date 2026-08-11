@@ -94,10 +94,19 @@ async def request_video(
 
             render_video_task.delay(job_id=job.id)
         except Exception as e:  # noqa: BLE001 - broker down không được làm vỡ request
-            log.warning("không đẩy được job video %s vào hàng đợi: %s", job.id, e)
+            # LOG CẢ LOẠI LỖI + traceback: `%s` của exception có thể rỗng (đã gặp
+            # thật với RuntimeError của Celery), lúc đó log ra một dòng cụt không
+            # nói được gì và người trực phải mò lại từ đầu.
+            log.warning("không đẩy được job video %s vào hàng đợi (%s): %s",
+                        job.id, type(e).__name__, e, exc_info=True)
             return ({"type": "video", "url": None, "source": "ai", "concept_key": key,
                      "caption": goi_y.get("caption") or "Video minh hoạ"},
-                    ["Đã tạo yêu cầu video nhưng hàng đợi chưa nhận — video sẽ dựng khi worker chạy lại."])
+                    # KHÔNG hứa "worker chạy lại sẽ dựng": task chưa từng được đẩy
+                    # vào hàng đợi nên worker bật lại cũng không có gì để nhận, và
+                    # không có bộ quét nào tự tìm job bỏ rơi. Phải có người đẩy lại
+                    # (python -m app.video.pregenerate --requeue).
+                    [f"Chưa đẩy được yêu cầu video vào hàng đợi (job #{job.id}). "
+                     "Nội dung khác vẫn lưu bình thường — báo bộ phận vận hành đẩy lại giúp."])
     return ({"type": "video", "url": job.video_url, "source": "ai", "concept_key": key,
              "caption": goi_y.get("caption") or "Video minh hoạ"}, [])
 

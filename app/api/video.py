@@ -3,6 +3,7 @@
 này — video chỉ là bổ sung."""
 
 import asyncio
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import FileResponse
@@ -18,6 +19,8 @@ from app.db.session import async_session_factory, get_session
 from app.video import cache as video_cache
 from app.video import storage
 from app.video.concept import is_known_concept_key
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/video", tags=["video"])
 
@@ -66,8 +69,12 @@ async def generate_video(
             from app.ingestion.celery_app import render_video_task
 
             render_video_task.delay(job_id=job.id)
-        except Exception:  # noqa: BLE001 - broker down không được làm vỡ request
-            pass
+        except Exception as e:  # noqa: BLE001 - broker down không được làm vỡ request
+            # Trước đây nuốt trọn không log một chữ: job nằm QUEUED mãi mà không
+            # có dấu vết nào để lần. Job vẫn ở DB, đẩy lại bằng
+            # `python -m app.video.pregenerate --requeue`.
+            log.warning("không đẩy được job video %s vào hàng đợi (%s): %s",
+                        job.id, type(e).__name__, e, exc_info=True)
     return _to_status(job)
 
 

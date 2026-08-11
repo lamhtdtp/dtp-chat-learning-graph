@@ -2,9 +2,16 @@
 chạy nền qua hàng đợi, KHÔNG chặn đường phục vụ chat (nạp 1 cuốn có thể mất
 phút–giờ vì OCR + embed hàng loạt).
 
-Broker + backend dùng Redis (settings.redis_url) — cùng Redis Stack với
-checkpointer/cache. Worker chạy riêng:
+Broker dùng Redis (settings.redis_url) — cùng Redis Stack với cache/hạn mức.
+Worker chạy riêng:
     celery -A app.ingestion.celery_app worker --loglevel=info
+
+KHÔNG có result backend — CỐ Ý. Không chỗ nào trong app đọc kết quả task
+(không AsyncResult, không .get(), không .ready()): trạng thái việc nền theo dõi
+qua bảng `video_jobs` ở Postgres, còn nạp sách thì xem log. Trước đây backend
+vẫn trỏ vào Redis dù chẳng ai dùng, và chính nó là thứ làm `.delay()` nổ khi
+Redis bật mật khẩu — `.delay()` chỉ định publish một message mà lại chết ở chỗ
+subscribe vào result store. Bỏ backend là bỏ hẳn mặt hỏng đó.
 """
 
 import asyncio
@@ -13,16 +20,10 @@ from celery import Celery
 
 from app.config import settings
 
-celery_app = Celery(
-    "chat_learning_ingest",
-    broker=settings.redis_url,
-    backend=settings.redis_url,
-)
+celery_app = Celery("chat_learning_ingest", broker=settings.redis_url)
 celery_app.conf.update(
     task_serializer="json",
-    result_serializer="json",
     accept_content=["json"],
-    task_track_started=True,
     # Video (Epic-09) đi queue riêng "video": worker Docker (Linux) KHÔNG có
     # công cụ media host (`say`/node/ffmpeg) nên KHÔNG được nhận task này. Chạy
     # 1 worker trên HOST: celery -A app.ingestion.celery_app worker -Q video
