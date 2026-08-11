@@ -1,3 +1,6 @@
+/** Hồ sơ người đăng nhập (GET /auth/me). */
+export interface Me { id: number; email: string; name: string; role: Role }
+
 export type Role = "hoc_sinh" | "giao_vien" | "chuyen_gia" | "admin";
 
 // ── Giáo trình có cấu trúc (mô hình mockup) ──

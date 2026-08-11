@@ -4,7 +4,7 @@ import { renderMath } from "../mathHtml";
 import type { Neo } from "../types";
 import { useSpeech } from "./useSpeech";
 
-type Luot = { hoi: string; dap: string; nguonBai: string | null; trang: number[]; loi?: boolean };
+type Luot = { hoi: string; dap: string; nguonBai: string | null; loi?: boolean };
 
 // Dùng khi GET /tutor/limits lỗi. Giữ khớp mặc định settings.chat_max_chars.
 const FALLBACK_MAX_CHARS = 500;
@@ -52,7 +52,7 @@ export function TroLyCard({
   onDong: () => void;
 }) {
   const [luots, setLuots] = useState<Luot[]>(
-    noiDungSan ? [{ hoi: "", dap: noiDungSan, nguonBai: nguonSan ?? nhan, trang: [] }] : [],
+    noiDungSan ? [{ hoi: "", dap: noiDungSan, nguonBai: nguonSan ?? nhan }] : [],
   );
   const [dangCho, setDangCho] = useState(false);
   const [input, setInput] = useState("");
@@ -78,14 +78,14 @@ export function TroLyCard({
     setDangCho(true);
     try {
       const a = await askTutor(q, "Toán", { topicId, anchor });
-      setLuots((l) => [...l, {
-        hoi: q, dap: toHtml(a.answer), nguonBai: a.nguon_bai,
-        trang: [...new Set(a.citations.map((c) => c.page_no))].slice(0, 2),
-      }]);
+      // `a.citations` (số trang SGK) CỐ Ý không hiển thị: học sinh không tra
+      // sách giấy khi đang học trên máy, mà mỗi câu trả lời lại đính 2-3 nhãn
+      // trang thành ra nhiễu. Nhãn "Bài đang học" mới là thứ các em cần biết.
+      setLuots((l) => [...l, { hoi: q, dap: toHtml(a.answer), nguonBai: a.nguon_bai }]);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) { tokenStore.clear(); location.reload(); return; }
       const msg = e instanceof ApiError ? e.message : "Không kết nối được máy chủ";
-      setLuots((l) => [...l, { hoi: q, dap: "⚠️ " + msg, nguonBai: null, trang: [], loi: true }]);
+      setLuots((l) => [...l, { hoi: q, dap: "⚠️ " + msg, nguonBai: null, loi: true }]);
     } finally {
       setDangCho(false);
     }
@@ -115,10 +115,9 @@ export function TroLyCard({
           <div className="tl-luot" key={i}>
             {l.hoi && <div className="tl-hoi">{l.hoi}</div>}
             <div className={"tl-dap" + (l.loi ? " loi" : "")} dangerouslySetInnerHTML={{ __html: l.dap }} />
-            {!l.loi && (l.nguonBai || l.trang.length > 0) && (
+            {!l.loi && l.nguonBai && (
               <div className="tl-nguon">
-                {l.nguonBai && <span className="ng bai">📖 Bài đang học · {l.nguonBai}</span>}
-                {l.trang.map((p) => <span className="ng sgk" key={p}>📚 SGK tr.{p}</span>)}
+                <span className="ng bai">📖 Bài đang học · {l.nguonBai}</span>
               </div>
             )}
           </div>
@@ -128,7 +127,7 @@ export function TroLyCard({
           <div className="tl-nhanh">
             {dapNhanh!.map((d) => (
               <button type="button" key={d.t} onClick={() => (d.tra
-                ? setLuots((l) => [...l, { hoi: d.t, dap: d.tra!, nguonBai: nhan, trang: [] }])
+                ? setLuots((l) => [...l, { hoi: d.t, dap: d.tra!, nguonBai: nhan }])
                 : hoi(d.t))}>{d.t}</button>
             ))}
           </div>

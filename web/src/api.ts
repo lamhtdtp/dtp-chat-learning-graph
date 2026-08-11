@@ -5,6 +5,7 @@ import type {
   MyStats,
   ProgressMe,
   AuthResult,
+  Me,
   Neo,
   QuizResult,
   Role,
@@ -74,7 +75,8 @@ export async function login(email: string, password: string): Promise<AuthResult
   return res;
 }
 
-export function getMe(): Promise<{ id: number; email: string; name: string; role: Role }> {
+/** Hồ sơ người đang đăng nhập. Đăng nhập chỉ trả name+role — email nằm ở đây. */
+export function getMe(): Promise<Me> {
   return req("/auth/me", { auth: true });
 }
 

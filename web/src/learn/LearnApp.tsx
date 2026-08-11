@@ -7,6 +7,7 @@ import type { CurriculumGroup, Lesson, MyStats, Role } from "../types";
 import { LessonView } from "./LessonView";
 import { useSoDoi } from "./useSoDoi";
 import { SlideView } from "./SlideView";
+import { ProfileMenu } from "./ProfileMenu";
 
 const R = 46;
 const CIRC = 2 * Math.PI * R;
@@ -62,7 +63,9 @@ function Hero({ stats }: { stats: MyStats | null }) {
   );
 }
 
-export function LearnApp({ name, role, onLogout }: { name: string; role: Role; onLogout: () => void }) {
+export function LearnApp({ name, email, role, onLogout }: {
+  name: string; email: string; role: Role; onLogout: () => void;
+}) {
   const teacher = role === "giao_vien";
   const { cycle, icon, label } = useTheme();
   const [groups, setGroups] = useState<CurriculumGroup[]>([]);
@@ -159,8 +162,10 @@ export function LearnApp({ name, role, onLogout }: { name: string; role: Role; o
             <button className="icon-btn" type="button" title={slide ? "Xem bài học" : "Xem slide"}
               onClick={() => setSlide((s) => !s)} aria-label="Đổi bài học/slide">{slide ? "📘" : "🖥️"}</button>
           )}
-          <button className="icon-btn" type="button" onClick={cycle} title={`Giao diện: ${label}`} aria-label="Đổi giao diện">{icon}</button>
-          <button className="icon-btn" type="button" onClick={onLogout} title={`Đăng xuất (${name})`} aria-label="Đăng xuất">⎋</button>
+          {/* Đổi giao diện + đăng xuất gộp vào đây: tên học sinh trước chỉ nằm
+              trong tooltip nút ⎋ nên không ai thấy mình đang đăng nhập bằng ai. */}
+          <ProfileMenu name={name} email={email} role={role} stats={stats}
+            themeIcon={icon} themeLabel={label} onCycleTheme={cycle} onLogout={onLogout} />
         </div>
 
         <Hero stats={stats} />

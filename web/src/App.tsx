@@ -5,7 +5,9 @@ import { LearnApp } from "./learn/LearnApp";
 import { useTheme } from "./hooks/useTheme";
 import type { Role } from "./types";
 
-type Session = { role: Role; name: string } | null;
+// email lấy luôn từ /auth/me của restore() — MỌI lối vào (đăng nhập mới lẫn
+// khôi phục token) đều đi qua đó, nên hồ sơ không cần gọi lại lần nữa.
+type Session = { role: Role; name: string; email: string } | null;
 
 // Vai trò CMS-only: không có gì để học ở app này.
 const CHI_CMS: Role[] = ["chuyen_gia", "admin"];
@@ -25,7 +27,7 @@ export function App() {
       .then((u) => {
         if (CHI_CMS.includes(u.role)) { tokenStore.clear(); setSession(null); setChan(CHAN_CMS); return; }
         setChan(null);
-        setSession({ role: u.role, name: u.name });
+        setSession({ role: u.role, name: u.name, email: u.email });
       })
       .catch(() => tokenStore.clear());
 
@@ -46,5 +48,5 @@ export function App() {
 
   // Học sinh & giáo viên: nền tảng giáo trình có cấu trúc (Mục lục → Bài học 4
   // phần → Tiến độ / Slide).
-  return <LearnApp name={session.name} role={session.role} onLogout={handleLogout} />;
+  return <LearnApp name={session.name} email={session.email} role={session.role} onLogout={handleLogout} />;
 }
