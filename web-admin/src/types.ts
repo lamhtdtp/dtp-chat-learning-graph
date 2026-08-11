@@ -56,6 +56,8 @@ export interface CmsAiDraft {
 }
 export interface CmsViDu { de: string; giai: string }
 export interface CmsQuiz { q: string; o: string[]; a: number; lv: string; giai?: string }
+/** Lời nhắc chủ động của trợ lý ở một mốc trong bài (sinh sẵn, cache ở topic_content). */
+export interface CmsNhac { moc: string; hoi: string; dap: string[]; dung: number; giai: string }
 export interface CmsDay {
   muc_tieu?: string;
   thoi_luong?: string;
@@ -72,6 +74,7 @@ export interface CmsTopic {
   minh_hoa: CmsMedia[];
   vi_du: CmsViDu[];
   quiz: CmsQuiz[];
+  nhac: CmsNhac[];
   day: CmsDay | null;
   nguon: string | null;
   trang_thai: string;

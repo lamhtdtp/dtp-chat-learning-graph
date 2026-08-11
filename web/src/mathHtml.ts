@@ -23,7 +23,10 @@ function tex(src: string, display: boolean): string {
 // Trích trang sách "[tr.45]" mà AI chèn vào để chứng minh bám SGK. Có ích lúc
 // biên soạn, nhưng KHÔNG hiện cho người đọc — nguồn đã nói ở chỗ khác ("Bám SGK
 // trang 45, 46"). Bỏ cả khoảng trắng đứng trước để không hở đôi dấu cách.
-const TRICH_TRANG = /\s*\[tr\.?\s*\d+\s*\]/gi;
+// Khớp cả "[Bài đang học]" / "[Bài đang học, tr.11]": prompt đã dặn đừng chèn
+// nhãn cho nội dung bài, nhưng mô hình vẫn tự chế ra — chốt chặn ở đây để một
+// lần lệch prompt không đổ thẳng cái nhãn xấu xí lên màn hình học sinh.
+const TRICH_TRANG = /\s*\[\s*(?:tr\.?\s*\d+|bài đang học[^\]]*)\s*\]/gi;
 
 /** Bỏ trích trang + đổi `$$…$$` (khối), `$…$`, `\(…\)` thành HTML KaTeX. */
 export function renderMath(html: string): string {

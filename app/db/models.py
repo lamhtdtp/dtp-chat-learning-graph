@@ -72,6 +72,11 @@ class TopicContent(Base):
     # phần ④ "Kiểm tra nhanh": trắc nghiệm sinh TỰ ĐỘNG theo ma trận (P3) rồi
     # cache tại đây — [{q, o:[…], a:<index đúng>, lv, giai}]. Không nhập tay.
     quiz_json: Mapped[str] = mapped_column(Text, default="[]")
+    # Lời nhắc CHỦ ĐỘNG của trợ lý ở các mốc trong bài (vd đọc xong khái niệm thì
+    # hỏi lại một câu kiểm tra hiểu) — [{moc, hoi, dap:[…], giai}]. Sinh MỘT LẦN
+    # lúc biên soạn rồi cache tại đây; nếu sinh online thì mỗi lần học sinh cuộn
+    # qua là một lượt LLM, đốt sạch hạn mức ngày mà em ấy chưa hỏi câu nào.
+    nhac_json: Mapped[str] = mapped_column(Text, default="[]")
     day_json: Mapped[str | None] = mapped_column(Text, default=None)   # hướng dẫn giảng dạy (GV)
     # Tư liệu THÔ chuyên gia dán vào để AI bám khi soạn (trích đoạn SGK, ghi chú
     # chuyên môn). Chỉ là đầu vào biên soạn — KHÔNG hiển thị cho học sinh.

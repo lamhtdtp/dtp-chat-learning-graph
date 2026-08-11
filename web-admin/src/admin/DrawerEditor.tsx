@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  ApiError, cmsAiIngest, cmsGenerateQuiz, cmsGetTopic, cmsLimits, cmsSaveTopic, cmsUploadVideo,
+  ApiError, cmsAiIngest, cmsGenerateNhac, cmsGenerateQuiz, cmsGetTopic, cmsLimits, cmsSaveTopic,
+  cmsUploadVideo,
   tokenStore,
 } from "../api";
-import type { CmsAiDraft, CmsMedia, CmsQuiz, CmsTopic, CmsViDu } from "../types";
+import type { CmsAiDraft, CmsMedia, CmsNhac, CmsQuiz, CmsTopic, CmsViDu } from "../types";
 import { HtmlMathEditor } from "../components/HtmlMathEditor";
 import { renderMath } from "../mathHtml";
 
@@ -38,6 +39,7 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
   const [topic, setTopic] = useState<CmsTopic | null>(null);
   const [d, setD] = useState<Draft | null>(null);
   const [quiz, setQuiz] = useState<CmsQuiz[]>([]);
+  const [nhac, setNhac] = useState<CmsNhac[]>([]);
   const [mode, setMode] = useState<"edit" | "preview">(initMode);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -54,7 +56,7 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
     setErr(e instanceof ApiError ? e.message : "Lỗi kết nối");
   };
   useEffect(() => {
-    cmsGetTopic(topicId).then((t) => { setTopic(t); setD(toDraft(t)); setQuiz(t.quiz); }).catch(handle);
+    cmsGetTopic(topicId).then((t) => { setTopic(t); setD(toDraft(t)); setQuiz(t.quiz); setNhac(t.nhac ?? []); }).catch(handle);
   }, [topicId]);
   useEffect(() => {
     cmsLimits().then((l) => setNguonMax(l.nguon_max_chars)).catch(() => { /* giữ fallback */ });
@@ -97,6 +99,11 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
   const genQuiz = async () => {
     setBusy("quiz");
     try { const r = await cmsGenerateQuiz(topicId); setQuiz(r.quiz); toast(`Đã sinh ${r.so_cau} câu`); }
+    catch (e) { handle(e); } finally { setBusy(null); }
+  };
+  const genNhac = async () => {
+    setBusy("nhac");
+    try { const r = await cmsGenerateNhac(topicId); setNhac(r.nhac); toast("Đã sinh lời nhắc"); }
     catch (e) { handle(e); } finally { setBusy(null); }
   };
   const upload = async (f: File) => {
@@ -249,6 +256,29 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
                   ))}
                   <button className="add-b" type="button" disabled={busy === "quiz"} onClick={genQuiz} style={{ marginTop: 7 }}>
                     {busy === "quiz" ? "🤖 Đang sinh…" : (quiz.length ? "🔄 Sinh lại" : "🤖 Sinh bài kiểm tra")}
+                  </button>
+                </div>
+                {/* Lời nhắc chủ động — trợ lý hỏi lại khi HS đọc xong Khái niệm.
+                    Sinh MỘT LẦN ở đây rồi cache: lúc HS học không gọi LLM, không
+                    trừ vào hạn mức lượt hỏi trong ngày của các em. */}
+                <div className="esec">
+                  <div className="esec-h"><span className="n">✨</span> Trợ lý nhắc sau phần Khái niệm</div>
+                  {nhac.length === 0
+                    ? <div style={{ fontSize: 13, color: "var(--ink-3)" }}>
+                        Chưa có. Sinh xong, học sinh đọc hết phần Khái niệm sẽ được trợ lý hỏi lại một câu.
+                      </div>
+                    : nhac.map((n, i) => (
+                      <div className="quiz-mini" key={i}>
+                        <div className="qc" dangerouslySetInnerHTML={{ __html: renderMath(n.hoi) }} />
+                        <ol>{n.dap.map((o, oi) => (
+                          <li key={oi} className={oi === n.dung ? "ok" : ""} dangerouslySetInnerHTML={{ __html: renderMath(o) }} />
+                        ))}</ol>
+                        {n.giai && <div style={{ fontSize: 12.5, color: "var(--ink-2)", marginTop: 6 }}
+                          dangerouslySetInnerHTML={{ __html: renderMath(n.giai) }} />}
+                      </div>
+                    ))}
+                  <button className="add-b" type="button" disabled={busy === "nhac"} onClick={genNhac} style={{ marginTop: 7 }}>
+                    {busy === "nhac" ? "✨ Đang sinh…" : (nhac.length ? "🔄 Sinh lại lời nhắc" : "✨ Sinh lời nhắc")}
                   </button>
                 </div>
                 {/* 5 Hướng dẫn dạy */}

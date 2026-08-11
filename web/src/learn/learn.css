@@ -1,7 +1,11 @@
 /* Giao diện học sinh — port từ ui-design/mockups/student-app.html.
-   Scope dưới .learn để không đụng LoginView (dùng styles.css cũ). Bố cục 2 cột
-   (mục lục + nội dung); KHÔNG có cột chat (đã bỏ chat ở P5). Theme theo data-theme
-   trên <html> (useTheme). */
+   Scope dưới .learn để không đụng LoginView (dùng styles.css cũ).
+
+   Bố cục 2 cột (mục lục + nội dung). Cột chat bên phải đã BỎ ở lát 3: hỏi–đáp
+   chuyển hẳn vào trong bài (.tl-card) để câu trả lời nằm ngay cạnh đoạn đang
+   đọc, thay vì bắt học sinh đưa mắt sang cột khác.
+
+   Theme theo data-theme trên <html> (useTheme). */
 .learn {
   --bg:#E9ECF7; --grid:rgba(40,52,110,.05);
   --surface:#FFFFFF; --surface-2:#F4F6FC; --surface-3:#EEF1FA; --border:#E1E5F2;
@@ -50,7 +54,7 @@
   background-color:var(--bg);
   background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
   background-size:28px 28px;
-  display:grid; grid-template-columns:288px minmax(0,1fr) 352px; grid-template-areas:"nav main chat"; height:100vh; height:100dvh; overflow:hidden; }
+  display:grid; grid-template-columns:288px minmax(0,1fr); grid-template-areas:"nav main"; height:100vh; height:100dvh; overflow:hidden; }
 .learn *{box-sizing:border-box}
 .learn h1,.learn h2,.learn h3,.learn h4{font-family:var(--disp);margin:0;text-wrap:balance;letter-spacing:-.01em}
 .learn button{font-family:inherit;cursor:pointer}
@@ -179,6 +183,12 @@
 .learn .ex-foot{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
 .learn .ex-fb{font-size:14px;font-weight:800}.learn .ex-fb.ok{color:var(--teal)}.learn .ex-fb.no{color:var(--accent-ink)}
 .learn .gen-note{font-size:12px;color:var(--ink-3);margin-top:6px}
+/* Hỏi trợ lý ngay tại câu làm sai (lát 4) */
+.learn .hoi-cau{margin-top:11px;display:inline-flex;align-items:center;gap:8px;
+  border:1px solid color-mix(in srgb,var(--primary) 45%,var(--border));background:var(--surface);
+  color:var(--primary-ink);border-radius:11px;padding:9px 14px;font:inherit;font-size:13px;
+  font-weight:700;transition:.15s}
+.learn .hoi-cau:hover{background:var(--primary-weak);transform:translateY(-1px);box-shadow:var(--shadow-sm)}
 
 .learn .lesson-empty{color:var(--ink-2);background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:26px;text-align:center;max-width:800px;margin:0 auto;box-shadow:var(--shadow-sm)}
 
@@ -210,90 +220,145 @@
 .learn .deck-bar .dots i{width:8px;height:8px;border-radius:50%;background:var(--surface-3)}
 .learn .deck-bar .dots i.on{background:var(--primary)}
 
+/* ── Hỏi trợ lý NGAY TRONG BÀI (lát 2) ───────────────────────────────────────
+   Port từ ui-design/mockups/student-chat-4-phuong-an.html (phương án B). Nút để
+   mờ khi nghỉ: rõ suốt thì 5 cái nút tranh chú ý với chính nội dung bài. */
+.learn .hoi-doan{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:6px;
+  border:1px solid var(--border);background:var(--surface);color:var(--ink-3);border-radius:20px;
+  padding:5px 11px;font-size:11.5px;font-weight:700;transition:.15s;opacity:.5;white-space:nowrap}
+.learn h3:hover .hoi-doan,.learn .vd:hover .hoi-doan,.learn .hoi-doan:hover{opacity:1}
+.learn .hoi-doan:hover{color:var(--primary);border-color:var(--primary);background:var(--primary-weak)}
+.learn .hoi-doan:focus-visible{opacity:1;outline:2px solid var(--ring);outline-offset:1px}
+.learn .vd-top{display:flex;align-items:flex-start;gap:12px}
+.learn .vd-top .q{flex:1;min-width:0;margin-bottom:0}
+
+.learn .tl-card{margin:12px 0 18px;border-radius:var(--radius-sm);background:var(--surface-2);
+  border:1px solid color-mix(in srgb,var(--teal) 30%,var(--border));border-left:3px solid var(--teal);
+  overflow:hidden;animation:tl-no-ra .28s cubic-bezier(.2,.7,.3,1)}
+@keyframes tl-no-ra{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.learn .tl-card{animation:none}}
+/* Trợ lý TỰ lên tiếng (lát 4) — đổi tông cam để phân biệt với thẻ do HS mở */
+.learn .tl-card.chu-dong{border-color:color-mix(in srgb,var(--accent) 45%,var(--border));
+  border-left-color:var(--accent);background:linear-gradient(135deg,var(--accent-weak),var(--surface-2))}
+.learn .tl-head{display:flex;align-items:center;gap:9px;padding:10px 14px;
+  border-bottom:1px solid var(--border);background:var(--surface)}
+.learn .tl-card.chu-dong .tl-head{background:transparent}
+.learn .tl-ava{width:26px;height:26px;border-radius:8px;flex:none;display:grid;place-items:center;
+  color:#fff;background:linear-gradient(140deg,var(--teal),var(--primary))}
+.learn .tl-card.chu-dong .tl-ava{background:linear-gradient(140deg,var(--accent),var(--accent-2));color:#4a2c05}
+.learn .tl-head b{font-size:13px;font-family:var(--disp)}
+.learn .tl-neo{font-size:10.5px;font-weight:700;color:var(--primary-ink);background:var(--primary-weak);
+  border:1px solid color-mix(in srgb,var(--primary) 26%,transparent);padding:2px 9px;border-radius:20px;
+  max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.learn .tl-x{margin-left:auto;flex:none;border:none;background:none;color:var(--ink-3);
+  font-size:14px;line-height:1;padding:4px 7px;border-radius:7px}
+.learn .tl-x:hover{background:var(--surface-3);color:var(--ink)}
+.learn .tl-body{padding:14px;display:flex;flex-direction:column;gap:14px}
+.learn .tl-luot{display:flex;flex-direction:column;gap:7px}
+.learn .tl-hoi{align-self:flex-end;max-width:88%;font-size:13.5px;font-weight:600;color:#fff;
+  background:linear-gradient(140deg,var(--primary),var(--primary-2));padding:9px 13px;
+  border-radius:14px;border-bottom-right-radius:5px;box-shadow:var(--shadow-primary)}
+.learn .tl-dap{font-size:14.5px;line-height:1.6}
+.learn .tl-dap.loi{color:var(--danger);font-weight:600}
+.learn .tl-dap b{color:var(--primary-ink)}
+/* Nhãn nguồn: tím = nội dung bài chuyên gia soạn, xám = SGK đối chiếu. Đây là
+   chỗ học sinh nhìn ra "trợ lý đang đọc cùng mình". */
+.learn .tl-nguon{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.learn .tl-nguon .ng{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;
+  padding:3px 9px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--ink-3)}
+.learn .tl-nguon .ng.bai{background:var(--primary-weak);color:var(--primary-ink);
+  border-color:color-mix(in srgb,var(--primary) 26%,transparent)}
+.learn .tl-in{display:flex;gap:8px;padding:0 14px 14px}
+.learn .tl-in input{flex:1;min-width:0;border:1px solid var(--border);background:var(--surface);
+  color:var(--ink);border-radius:11px;padding:10px 13px;font:inherit;font-size:13.5px}
+.learn .tl-in input:focus{outline:2px solid var(--ring);outline-offset:1px;border-color:var(--primary)}
+.learn .tl-in button{width:38px;flex:none;border-radius:11px;border:none;display:grid;place-items:center;
+  background:linear-gradient(140deg,var(--primary),var(--primary-2));color:#fff;transition:.15s}
+.learn .tl-in .tl-gui{width:38px;flex:none;border-radius:11px;border:none;display:grid;place-items:center;
+  background:linear-gradient(140deg,var(--primary),var(--primary-2));color:#fff;transition:.15s}
+.learn .tl-in .tl-gui:hover:not(:disabled){filter:brightness(1.06)}
+.learn .tl-in button:disabled,.learn .tl-in input:disabled{opacity:.5;cursor:default}
+/* Đóng thẻ = ẩn, KHÔNG unmount: mở lại từ "Đã hỏi" phải còn nguyên hội thoại. */
+.learn .tl-card.an{display:none}
+/* Nút trả lời nhanh khi trợ lý chủ động hỏi lại (lát 4) */
+.learn .tl-nhanh{display:flex;flex-wrap:wrap;gap:7px}
+.learn .tl-nhanh button{border:1px solid color-mix(in srgb,var(--accent) 45%,var(--border));
+  background:var(--surface);color:var(--ink);border-radius:20px;padding:7px 13px;
+  font:inherit;font-size:12.5px;font-weight:600;transition:.14s}
+.learn .tl-nhanh button:hover{background:var(--accent-weak);border-color:var(--accent)}
+/* Gợi ý chủ động: nút tắt hẳn đặt NGAY dưới thẻ. Đóng thẻ chỉ tắt lần này; muốn
+   tắt vĩnh viễn phải là một hành động riêng, rõ ràng, không lẫn với nút ✕. */
+.learn .nhac-boc{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:18px}
+.learn .nhac-boc .tl-card{margin-bottom:4px;width:100%}
+.learn .nhac-tat{border:none;background:none;color:var(--ink-3);font:inherit;font-size:11.5px;
+  padding:2px 4px;border-radius:6px;transition:.14s}
+.learn .nhac-tat:hover{color:var(--ink-2);text-decoration:underline}
+
+/* Thanh "Đã hỏi" — bù cho việc bỏ cột chat: chỗ duy nhất xem lại toàn bộ câu đã
+   hỏi trong bài. Nổi ở góc dưới phải, thu gọn mặc định để không che nội dung. */
+.learn .da-hoi{position:fixed;right:18px;bottom:18px;z-index:20;display:flex;flex-direction:column;
+  align-items:flex-end;gap:8px;max-width:min(340px,calc(100vw - 36px))}
+.learn .dh-nut{border:1px solid var(--border);background:var(--surface);color:var(--ink-2);
+  border-radius:22px;padding:9px 15px;font:inherit;font-size:12.5px;font-weight:700;
+  box-shadow:var(--shadow);transition:.15s}
+.learn .dh-nut:hover{color:var(--primary);border-color:var(--primary);transform:translateY(-1px)}
+.learn .dh-list{display:flex;flex-direction:column;gap:6px;width:100%;max-height:min(46vh,340px);
+  overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);
+  box-shadow:var(--shadow);padding:8px}
+.learn .dh-list button{display:flex;flex-direction:column;gap:3px;text-align:left;width:100%;
+  border:none;background:transparent;border-radius:9px;padding:8px 10px;font:inherit;transition:.13s}
+.learn .dh-list button:hover{background:var(--primary-weak)}
+.learn .dh-neo{font-size:10.5px;font-weight:800;letter-spacing:.03em;color:var(--primary-ink)}
+.learn .dh-q{font-size:12.5px;color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:2;
+  -webkit-box-orient:vertical;overflow:hidden}
+
 /* Gợi ý hỏi (dưới bài học) — bấm sẽ hỏi trợ lý bên phải */
 .learn .suggest{margin-top:26px;padding-top:22px;border-top:1px dashed var(--border)}
-.learn .suggest .s-label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--ink-2);margin-bottom:12px}
+/* KHÔNG dùng flex ở đây: nhãn có chèn tên bài (<b>), mà tên đơn vị kiến thức dài
+   tới hai dòng — flex biến mỗi mảnh văn bản thành một cột và câu vỡ làm ba khúc. */
+.learn .suggest .s-label{font-size:13px;font-weight:700;color:var(--ink-2);margin-bottom:12px;line-height:1.5}
+.learn .suggest .s-label b{color:var(--primary-ink)}
 .learn .chips{display:flex;flex-wrap:wrap;gap:9px}
 .learn .chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:20px;padding:10px 15px;font:inherit;font-size:13.5px;font-weight:500;transition:.15s cubic-bezier(.2,.7,.3,1);text-align:left}
 .learn .chip:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-weak);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
 
-/* Trợ lý học Toán (cột phải) */
-.learn .chat{grid-area:chat;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;min-width:0}
-.learn .chat-head{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:11px}
-.learn .chat-ava{width:40px;height:40px;border-radius:12px;flex:none;display:grid;place-items:center;color:#fff;font-size:18px;background:linear-gradient(140deg,var(--teal),var(--primary));box-shadow:var(--shadow-sm)}
-.learn .chat-head b{font-size:14.5px;font-family:var(--disp)}
-.learn .chat-head .on{font-size:11.5px;color:var(--teal);display:flex;align-items:center;gap:5px}
-.learn .chat-head .on::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 3px var(--teal-weak)}
-.learn .chat-log{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:14px}
-.learn .msg{max-width:92%;font-size:14px;line-height:1.55}
-.learn .msg .bubble{padding:12px 15px;border-radius:16px}
-.learn .msg.bot{align-self:flex-start}
-.learn .msg.bot .bubble{background:var(--surface-2);border:1px solid var(--border);border-bottom-left-radius:5px}
-.learn .msg.me{align-self:flex-end}
-.learn .msg.me .bubble{background:linear-gradient(140deg,var(--primary),var(--primary-2));color:#fff;border-bottom-right-radius:5px;box-shadow:var(--shadow-primary)}
-.learn .msg .bubble p{margin:0 0 8px}.learn .msg .bubble p:last-child{margin:0}
-.learn .src{margin-top:8px;font-size:11px;color:var(--ink-3);display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);padding:4px 10px;border-radius:20px}
-.learn .chat-in{border-top:1px solid var(--border);padding:14px;display:flex;gap:9px;align-items:flex-end}
-.learn .chat-in textarea{flex:1;border:1px solid var(--border);background:var(--surface-2);color:var(--ink);border-radius:13px;padding:12px 14px;font-family:inherit;font-size:14px;resize:none;max-height:110px;line-height:1.5}
-.learn .chat-in textarea:focus{outline:2px solid var(--ring);outline-offset:1px;border-color:var(--primary)}
-.learn .send{width:44px;height:44px;flex:none;border-radius:12px;border:none;background:linear-gradient(140deg,var(--primary),var(--primary-2));color:#fff;display:grid;place-items:center;box-shadow:var(--shadow-primary);transition:.15s}
-.learn .send:hover{transform:translateY(-1px);filter:brightness(1.05)}
-.learn .send:disabled{opacity:.5;cursor:default;transform:none}
+/* ── Trợ lý (lát 3: KHÔNG còn cột chat) ──────────────────────────────────────
+   Toàn bộ hỏi–đáp giờ nằm trong .tl-card chèn thẳng vào bài. Khối .chat-* / .msg
+   của cột phải cũ đã xoá cùng ChatPanel.tsx — giữ lại chỉ tổ phình file. */
+
+/* Chấm "đang trả lời" — dùng chung trong .tl-card */
 .learn .typing{display:flex;gap:4px;padding:4px 2px}
 .learn .typing i{width:7px;height:7px;border-radius:50%;background:var(--ink-3);animation:learn-blink 1.2s infinite}
 .learn .typing i:nth-child(2){animation-delay:.2s}.learn .typing i:nth-child(3){animation-delay:.4s}
 @keyframes learn-blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
-.learn .chat-quota{font-size:11px;color:var(--ink-3);text-align:center;padding:0 14px 10px}
-/* Bộ đếm ký tự ô nhập chat — chỉ hiện khi gần hết hạn mức (xem HIEN_DEM_TU) */
-.learn .chat-dem{align-self:flex-end;padding-bottom:13px;font-size:11px;font-variant-numeric:tabular-nums;color:var(--ink-3);white-space:nowrap}
-.learn .chat-dem.het{color:var(--warn);font-weight:700}
 
-/* Nút mở rộng khung chat (chỉ có tác dụng khi còn chia 3 cột — xem @media dưới) */
-.learn .chat-rong-btn{margin-left:auto;width:32px;height:32px;flex:none;border-radius:9px;
-  border:1px solid var(--border);background:var(--surface-2);color:var(--ink-3);
-  display:grid;place-items:center;transition:.14s}
-.learn .chat-rong-btn:hover{color:var(--primary);border-color:var(--primary);background:var(--surface)}
-.learn .chat-rong-btn:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
-
-/* Nhập bằng giọng nói */
-.learn .chat-in .mic{width:42px;height:42px;flex:none;border-radius:12px;border:1px solid var(--border);
+/* Nhập bằng giọng nói (nay nằm trong thẻ trợ lý) */
+.learn .tl-mic{width:38px;flex:none;border-radius:11px;border:1px solid var(--border);
   background:var(--surface-2);color:var(--ink-2);display:grid;place-items:center;transition:.14s}
-.learn .chat-in .mic:hover:not(:disabled){color:var(--primary);border-color:var(--primary)}
-.learn .chat-in .mic:disabled{opacity:.5;cursor:default}
-.learn .chat-in .mic.on{background:var(--warn);border-color:var(--warn);color:#fff;
+.learn .tl-mic:hover:not(:disabled){color:var(--primary);border-color:var(--primary)}
+.learn .tl-mic:disabled{opacity:.5;cursor:default}
+.learn .tl-mic.on{background:var(--warn);border-color:var(--warn);color:#fff;
   animation:mic-tho 1.4s ease-in-out infinite}
 @keyframes mic-tho{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--warn) 55%,transparent)}
   50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--warn) 0%,transparent)}}
-.learn .mic-live{display:flex;align-items:center;gap:9px;margin:0 14px 8px;padding:9px 12px;
-  border-radius:12px;background:var(--surface-2);border:1px solid var(--border);
-  font-size:12.5px;color:var(--ink-2);min-height:38px}
+.learn .tl-mic-live{display:flex;align-items:center;gap:9px;margin:0 14px 10px;padding:9px 12px;
+  border-radius:11px;background:var(--surface);border:1px solid var(--border);
+  font-size:12.5px;color:var(--ink-2)}
 .learn .mic-wave{display:inline-flex;align-items:flex-end;gap:3px;height:15px;flex:none}
 .learn .mic-wave i{width:3px;border-radius:2px;background:var(--warn);animation:mic-song .9s ease-in-out infinite}
 .learn .mic-wave i:nth-child(1){height:6px;animation-delay:-.2s}
 .learn .mic-wave i:nth-child(2){height:14px;animation-delay:-.1s}
 .learn .mic-wave i:nth-child(3){height:9px}
 @keyframes mic-song{0%,100%{transform:scaleY(.45)}50%{transform:scaleY(1)}}
-.learn .mic-loi{margin:0 14px 8px;padding:9px 12px;border-radius:12px;font-size:12.5px;
+.learn .tl-mic-loi{margin:0 14px 10px;padding:9px 12px;border-radius:11px;font-size:12.5px;
   background:var(--warn-weak);border:1px solid color-mix(in srgb,var(--warn) 35%,transparent);color:var(--ink-2)}
-@media (prefers-reduced-motion:reduce){
-  .learn .chat-in .mic.on,.learn .mic-wave i{animation:none}
-}
-
-/* Mở rộng cột chat. CHỈ áp khi còn chia 3 cột: dưới 1180px lưới đã xếp dọc nên
-   nới cột là vô nghĩa, và `.learn.chat-rong` (0,2,0) sẽ đè mất rule xếp dọc
-   `.learn` (0,1,0) trong media query dưới nếu không chặn ở đây. */
-@media (min-width:1181px){
-  .learn{transition:grid-template-columns .22s ease}
-  .learn.chat-rong{grid-template-columns:288px minmax(0,1fr) min(620px,46vw)}
-}
-@media (prefers-reduced-motion:reduce){.learn{transition:none}}
+@media (prefers-reduced-motion:reduce){.learn .tl-mic.on,.learn .mic-wave i{animation:none}}
 
 @media (max-width:1180px){
-  .learn{grid-template-columns:1fr;grid-template-areas:"nav" "main" "chat";height:auto;min-height:100vh;overflow:visible}
+  .learn{grid-template-columns:1fr;grid-template-areas:"nav" "main";height:auto;min-height:100vh;overflow:visible}
   .learn .col{overflow:visible}
   .learn .nav{border-right:none;border-bottom:1px solid var(--border)}
   .learn .tp-scroll{max-height:240px;overflow-y:auto}
-  .learn .chat{border-left:none;border-top:1px solid var(--border);height:80vh}
 }
 
 /* ── Thẻ tiến độ: rõ hơn + BÁO khi số đổi ────────────────────────────────────

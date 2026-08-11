@@ -9,6 +9,7 @@ import type {
   CmsTopic,
   CmsViDu,
   CmsDay,
+  CmsNhac,
   CmsQuiz,
   KetQuaHocSinh,
   Role,
@@ -117,6 +118,11 @@ export function cmsAiIngest(topicId: number, nguon = "", media = true): Promise<
 }
 export function cmsGenerateQuiz(topicId: number): Promise<{ topic_id: number; quiz: CmsQuiz[]; so_cau: number }> {
   return req(`/cms/topics/${topicId}/quiz/generate`, { auth: true, body: {} });
+}
+/** Sinh lời nhắc chủ động (trợ lý hỏi lại sau khi HS đọc xong khái niệm).
+ *  Sinh MỘT LẦN ở đây rồi cache — lúc HS đọc bài không gọi LLM, không trừ lượt hỏi. */
+export function cmsGenerateNhac(topicId: number): Promise<{ topic_id: number; nhac: CmsNhac[] }> {
+  return req(`/cms/topics/${topicId}/nhac/generate`, { auth: true, body: {} });
 }
 // Upload video: multipart -> không dùng req() (JSON). Trả minh_hoa đã cập nhật.
 export async function cmsUploadVideo(topicId: number, file: File, caption = ""): Promise<{ minh_hoa: CmsMedia[] }> {

@@ -43,6 +43,16 @@ export interface QuizResult {
   trang_thai: "dat" | "dang";
   ket_qua: QuizResultItem[];
 }
+/** Lời nhắc chủ động của trợ lý ở một mốc trong bài (sinh sẵn lúc biên soạn). */
+export interface Nhac {
+  moc: "khai_niem";
+  hoi: string;
+  dap: string[];
+  /** Chỉ số phương án đúng trong `dap` — để phản hồi ngay tại client. */
+  dung: number;
+  giai: string;
+}
+
 export interface Lesson {
   topic_id: number;
   mach: string;
@@ -52,6 +62,7 @@ export interface Lesson {
   vi_du: { de: string; giai: string }[];
   quiz: QuizQuestion[];
   co_quiz: boolean;
+  nhac: Nhac[];
   day: LessonDay | null;
   /** Tư liệu thô chuyên gia dán cho AI. CHỈ tác giả nhận; HS luôn nhận null. */
   nguon: string | null;
@@ -84,7 +95,12 @@ export interface TutorAnswer {
   citations: TutorCitation[];
   khong_tim_thay: boolean;
   remaining: number | null;
+  /** Nhãn đoạn bài học trợ lý đã dựa vào ("Ví dụ 2", "Khái niệm"…). null = chỉ có SGK. */
+  nguon_bai: string | null;
 }
+
+/** Đoạn bài học đang hỏi. Khớp với `anchor` ở backend (app/api/tutor.py). */
+export type Neo = "khai_niem" | "minh_hoa" | `vi_du:${number}` | `quiz:${number}`;
 
 // Hero gamification (GET /me/stats)
 export interface MyStats {

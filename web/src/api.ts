@@ -5,6 +5,7 @@ import type {
   MyStats,
   ProgressMe,
   AuthResult,
+  Neo,
   QuizResult,
   Role,
   TutorAnswer,
@@ -96,12 +97,30 @@ export function setProgress(topicId: number, trangThai: string): Promise<unknown
 export function submitQuiz(topicId: number, answers: number[]): Promise<QuizResult> {
   return req("/quiz/submit", { auth: true, body: { topic_id: topicId, answers } });
 }
-export function askTutor(question: string, mon = "Toán", context?: string): Promise<TutorAnswer> {
-  return req("/tutor/ask", { auth: true, body: { question, mon, context } });
+/** Hỏi trợ lý. `topicId`+`anchor` cho trợ lý đọc ĐÚNG đoạn học sinh đang mở
+ *  (xem app/api/tutor.py); thiếu chúng thì chỉ còn SGK như bản cũ. */
+export function askTutor(
+  question: string,
+  mon = "Toán",
+  opts: { topicId?: number; anchor?: Neo | null; context?: string } = {},
+): Promise<TutorAnswer> {
+  return req("/tutor/ask", {
+    auth: true,
+    body: { question, mon, topic_id: opts.topicId, anchor: opts.anchor ?? undefined, context: opts.context },
+  });
 }
-/** Giới hạn ô nhập chat (đọc từ server — settings.chat_max_chars override được bằng env). */
+/** Giới hạn ô nhập (đọc từ server — settings.chat_max_chars override được bằng env).
+ *
+ *  Cache theo phiên: một bài có thể mở nhiều thẻ trợ lý cùng lúc, mỗi thẻ tự gọi
+ *  là N request cho một con số không đổi. Lỗi thì KHÔNG cache để lần sau còn thử
+ *  lại (mạng chập một nhịp không nên khoá con số fallback đến hết phiên). */
+let _limits: Promise<{ max_chars: number }> | null = null;
 export function getTutorLimits(): Promise<{ max_chars: number }> {
-  return req("/tutor/limits", { auth: true });
+  if (!_limits) {
+    _limits = req<{ max_chars: number }>("/tutor/limits", { auth: true })
+      .catch((e) => { _limits = null; throw e; });
+  }
+  return _limits;
 }
 
 export { ApiError };

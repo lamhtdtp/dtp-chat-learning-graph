@@ -10,6 +10,7 @@ Chỉ GIÁO VIÊN / QUẢN TRỊ. Biên soạn nội dung 4 phần cho từng đ
 - PUT  /cms/topics/{topic_id}       — lưu nội dung (upsert)
 - POST /cms/topics/{topic_id}/ai-ingest       — AI soạn nháp khái niệm + ví dụ
 - POST /cms/topics/{topic_id}/quiz/generate    — sinh lại kiểm tra nhanh theo ma trận
+- POST /cms/topics/{topic_id}/nhac/generate    — sinh lời nhắc chủ động của trợ lý
 - POST /cms/topics/{topic_id}/video            — upload/thay video minh họa
 """
 import json
@@ -28,6 +29,7 @@ from app.db.models import BlueprintCell, CurriculumTopic, Grade, Subject, TopicC
 from app.db.session import get_session
 from app.lessons import ingest as ingest_svc
 from app.lessons import media as media_svc
+from app.lessons import nhac as nhac_svc
 from app.lessons import quiz as quiz_svc
 from app.llm.gateway import LLMUnavailable
 from app.video import storage
@@ -214,7 +216,7 @@ async def cms_get_topic(
         "yeu_cau_can_dat": await _yeu_cau_can_dat(session, topic),
     }
     if c is None:
-        return {**base, "khai_niem": "", "minh_hoa": [], "vi_du": [], "quiz": [],
+        return {**base, "khai_niem": "", "minh_hoa": [], "vi_du": [], "quiz": [], "nhac": [],
                 "day": None, "nguon": None, "trang_thai": "draft", "completeness": _completeness(None)}
     return {
         **base,
@@ -225,6 +227,8 @@ async def cms_get_topic(
         ),
         "vi_du": json.loads(c.vi_du_json or "[]"),
         "quiz": json.loads(c.quiz_json or "[]"),
+        # Lời nhắc chủ động đã sinh sẵn — chuyên gia xem/sinh lại được như quiz.
+        "nhac": nhac_svc.doc_nhac(c),
         "day": json.loads(c.day_json) if c.day_json else None,
         "nguon": c.nguon,
         "trang_thai": c.trang_thai,
@@ -359,6 +363,38 @@ async def cms_generate_quiz(
     c.quiz_json = json.dumps(quiz, ensure_ascii=False)
     await session.commit()
     return {"topic_id": topic_id, "quiz": quiz, "so_cau": len(quiz)}
+
+
+@router.post("/topics/{topic_id}/nhac/generate")
+async def cms_generate_nhac(
+    topic_id: int,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Sinh lời nhắc chủ động (hỏi lại sau khi HS đọc xong khái niệm) + cache.
+
+    Sinh ở ĐÂY chứ không sinh online lúc học sinh đọc: mỗi lần cuộn qua khái niệm
+    mà gọi LLM là một lượt, hạn mức ngày bay sạch trước khi em ấy kịp hỏi gì."""
+    _require_author(user)
+    if await session.get(CurriculumTopic, topic_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy đơn vị kiến thức")
+    try:
+        nhac = await nhac_svc.generate_nhac(session, topic_id)
+    except LLMUnavailable:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Hệ thống AI đang quá tải, thử lại sau nhé.")
+    if not nhac:
+        # Tách hai nguyên nhân: thiếu đầu vào là việc của chuyên gia, còn AI trả
+        # về hỏng là việc thử lại. Gộp một câu thì chuyên gia đi sửa nhầm chỗ.
+        c0 = await session.scalar(select(TopicContent).filter_by(topic_id=topic_id))
+        if not (c0 and (c0.khai_niem or "").strip()):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                                "Cần soạn phần Khái niệm trước rồi mới sinh được lời nhắc.")
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY,
+                            "AI chưa soạn được lời nhắc hợp lệ, thử lại nhé.")
+    c = await _get_or_create(session, topic_id)
+    c.nhac_json = json.dumps(nhac, ensure_ascii=False)
+    await session.commit()
+    return {"topic_id": topic_id, "nhac": nhac}
 
 
 @router.post("/topics/{topic_id}/video")

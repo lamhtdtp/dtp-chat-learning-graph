@@ -23,6 +23,7 @@ from app.db.models import (
 )
 from app.db.session import get_session
 from app.lessons import media as media_svc
+from app.lessons import nhac as nhac_svc
 from app.lessons import quiz as quiz_svc
 from app.lessons import stats as stats_svc
 from app.llm.gateway import LLMUnavailable
@@ -143,7 +144,8 @@ async def get_lesson(
     # HS chỉ đọc bản đã xuất bản; bản nháp/chờ duyệt coi như "chưa biên soạn".
     if c is None or (not author and c.trang_thai != "published"):
         return {**base, "khai_niem": "", "minh_hoa": [], "vi_du": [], "quiz": [],
-                "co_quiz": False, "day": None, "nguon": None, "trang_thai": "chua_bien_soan"}
+                "co_quiz": False, "nhac": [], "day": None, "nguon": None,
+                "trang_thai": "chua_bien_soan"}
     quiz = json.loads(c.quiz_json or "[]")
     return {
         **base,
@@ -157,6 +159,10 @@ async def get_lesson(
         # HS KHÔNG nhận đáp án/lời giải (chấm ở server) — chỉ đề + phương án.
         "quiz": quiz if author else [{"q": x["q"], "o": x["o"], "lv": x.get("lv", "de")} for x in quiz],
         "co_quiz": len(quiz) > 0,
+        # Lời nhắc chủ động của trợ lý ở các mốc trong bài (đã sinh sẵn lúc biên
+        # soạn — xem app/lessons/nhac). `giai` đi kèm để client hiện phản hồi
+        # ngay khi HS bấm chọn, KHÔNG phải gọi LLM và không tốn lượt hỏi.
+        "nhac": nhac_svc.doc_nhac(c),
         "day": json.loads(c.day_json) if c.day_json else None,
         # `nguon` là tư liệu THÔ chuyên gia dán vào cho AI, không phải nội dung
         # bài học — không giao diện HS nào hiển thị nó. Chỉ trả cho tác giả.
