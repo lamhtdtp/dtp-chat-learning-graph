@@ -13,11 +13,14 @@ logic deterministic, test được (TDD).
 """
 
 import hashlib
+import logging
 import re
 
 import redis.asyncio as aioredis
 
 from app.config import settings
+
+log = logging.getLogger(__name__)
 
 _CACHEABLE_TASKS = {"qa", "review_suggestion"}
 _TTL_SECONDS = 24 * 3600
@@ -57,12 +60,44 @@ def _redis() -> aioredis.Redis:
     return _client
 
 
+# Đã cảnh báo Redis hỏng chưa. Mỗi câu hỏi là 1 get + 1 set, Redis chết là log
+# ngập hai dòng WARNING mỗi lượt; chỉ kêu to lần đầu, im cho tới khi nối lại được.
+_da_bao = False
+
+
+def _bao_hong(viec: str, exc: Exception) -> None:
+    global _da_bao
+    if not _da_bao:
+        _da_bao = True
+        log.warning("Semantic cache hỏng (%s): %s — bỏ qua cache, vẫn trả lời bình thường.", viec, exc)
+    else:
+        log.debug("Semantic cache vẫn hỏng (%s): %s", viec, exc)
+
+
 async def get(key: str) -> str | None:
-    return await _redis().get(key)
+    """Đọc cache. Redis lỗi -> coi như KHÔNG có cache (fail-open).
+
+    Cache chỉ là thứ tiết kiệm tiền và thời gian; Redis chết mà để 500 thì học
+    sinh không hỏi được câu nào vì một hạ tầng PHỤ — đúng cái đã xảy ra trên prod
+    khi Redis bật mật khẩu còn REDIS_URL thì chưa có (AuthenticationError).
+    Hạn mức lượt/ngày đã fail-open từ trước; chỗ này bỏ sót."""
+    global _da_bao
+    try:
+        v = await _redis().get(key)
+    except Exception as exc:  # noqa: BLE001 — mất kết nối, sai mật khẩu, timeout…
+        _bao_hong("đọc", exc)
+        return None
+    _da_bao = False
+    return v
 
 
 async def set(key: str, value: str, ttl: int = _TTL_SECONDS) -> None:
-    await _redis().set(key, value, ex=ttl)
+    """Ghi cache. Redis lỗi -> bỏ qua: câu trả lời đã sinh xong rồi, không có lý
+    do gì để việc lưu lại làm hỏng lượt hỏi của học sinh."""
+    try:
+        await _redis().set(key, value, ex=ttl)
+    except Exception as exc:  # noqa: BLE001
+        _bao_hong("ghi", exc)
 
 
 async def incr_quota(key: str, ttl: int) -> int:

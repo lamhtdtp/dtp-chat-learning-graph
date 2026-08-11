@@ -38,3 +38,45 @@ async def test_cache_get_set_qua_redis_gia_lap(mocker):
     assert await cache.get("llmcache:abc") is None
     await cache.set("llmcache:abc", "câu trả lời")
     assert await cache.get("llmcache:abc") == "câu trả lời"
+
+
+async def test_redis_hong_thi_bo_qua_cache_chu_khong_nem_loi(mocker):
+    """Sự cố prod 2026-08: Redis bật mật khẩu, REDIS_URL chưa có -> mọi lượt
+    /tutor/ask thành 500 vì `cache.get` ném AuthenticationError ra thẳng endpoint.
+
+    Cache chỉ là thứ tiết kiệm tiền; hỏng thì mất cache chứ không được chặn học
+    sinh hỏi bài. (Hạn mức lượt/ngày đã fail-open từ trước, chỗ này bỏ sót.)"""
+    import redis.exceptions as rexc
+
+    fake = mocker.Mock()
+    fake.get = mocker.AsyncMock(side_effect=rexc.AuthenticationError("Authentication required."))
+    fake.set = mocker.AsyncMock(side_effect=rexc.ConnectionError("Error 111 connecting"))
+    mocker.patch("app.llm.cache._redis", return_value=fake)
+
+    assert await cache.get("llmcache:abc") is None    # coi như chưa có cache
+    await cache.set("llmcache:abc", "câu trả lời")    # không được ném ra ngoài
+
+
+async def test_bao_dong_khong_ngap_log_va_reset_khi_noi_lai(mocker, caplog):
+    """Mỗi lượt hỏi là 1 get + 1 set. Redis chết mà kêu mỗi lần thì log ngập,
+    nhưng nối lại rồi hỏng tiếp thì PHẢI kêu lại — không im luôn."""
+    import redis.exceptions as rexc
+
+    cache._da_bao = False
+    fake = mocker.Mock()
+    fake.get = mocker.AsyncMock(side_effect=rexc.ConnectionError("down"))
+    mocker.patch("app.llm.cache._redis", return_value=fake)
+
+    with caplog.at_level("WARNING", logger="app.llm.cache"):
+        await cache.get("k")
+        await cache.get("k")
+        assert len(caplog.records) == 1
+
+    fake.get = mocker.AsyncMock(return_value="ok")     # Redis sống lại
+    assert await cache.get("k") == "ok"
+
+    fake.get = mocker.AsyncMock(side_effect=rexc.ConnectionError("down lần 2"))
+    with caplog.at_level("WARNING", logger="app.llm.cache"):
+        caplog.clear()
+        await cache.get("k")
+        assert len(caplog.records) == 1
