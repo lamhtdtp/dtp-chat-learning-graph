@@ -54,6 +54,10 @@ class CurriculumTopic(Base):
     don_vi_kien_thuc: Mapped[str]
     order_index: Mapped[int]
     hoc_ky: Mapped[str | None] = mapped_column(default=None)  # "hk1" | "hk2" (đa học kỳ)
+    # Đơn vị này do LẦN NẠP MA TRẬN tự tạo, không phải chuyên gia thêm vào danh
+    # mục. Cần đánh dấu để §2.5 cảnh báo được: tên lấy nguyên từ .docx nên có thể
+    # trùng lặp/sai chính tả so với đơn vị đã có, phải người rà lại.
+    tu_ma_tran: Mapped[bool] = mapped_column(default=False)
 
 
 class TopicContent(Base):
@@ -77,6 +81,16 @@ class TopicContent(Base):
     # lúc biên soạn rồi cache tại đây; nếu sinh online thì mỗi lần học sinh cuộn
     # qua là một lượt LLM, đốt sạch hạn mức ngày mà em ấy chưa hỏi câu nào.
     nhac_json: Mapped[str] = mapped_column(Text, default="[]")
+    # ── 4 phần nội dung mới (REQ §1.1). Ba cột cũ (khai_niem/minh_hoa/vi_du) GIỮ
+    # NGUYÊN tên vì tutor._doan_bai, grounding, quiz._grounding_text và nhac đang
+    # đọc chúng — đổi tên là vỡ cả bốn chỗ.
+    khoi_dong: Mapped[str] = mapped_column(Text, default="")           # phần ① (HTML)
+    hoat_dong: Mapped[str] = mapped_column(Text, default="")           # phần ②
+    luyen_tap: Mapped[str] = mapped_column(Text, default="")           # phần ⑥
+    bai_tap: Mapped[str] = mapped_column(Text, default="")             # phần ⑦
+    # Thứ tự + ẩn/hiện 7 phần: [{"id": "...", "an": false}]. RỖNG = thứ tự chuẩn,
+    # không phần nào ẩn -> dữ liệu cũ mở bình thường, không cần backfill.
+    bo_cuc_json: Mapped[str] = mapped_column(Text, default="[]")
     day_json: Mapped[str | None] = mapped_column(Text, default=None)   # hướng dẫn giảng dạy (GV)
     # Tư liệu THÔ chuyên gia dán vào để AI bám khi soạn (trích đoạn SGK, ghi chú
     # chuyên môn). Chỉ là đầu vào biên soạn — KHÔNG hiển thị cho học sinh.
@@ -125,6 +139,33 @@ class QuizAttempt(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), index=True)
 
 
+class StudySession(Base):
+    """MỘT phiên học của học sinh trên một bài (REQ §3.6/§7).
+
+    Không bảng nào đang lưu THỜI LƯỢNG học — `VideoJob.duration_sec` là độ dài
+    video, không phải thời gian em ngồi học. Bảng này lấp đúng chỗ đó.
+
+    `so_giay` cộng dồn từ ping của client khi tab ĐANG HIỆN (§8 POST /me/phien),
+    nên nó là thời gian học thật, không phải thời gian mở tab rồi đi chơi.
+    """
+
+    __tablename__ = "study_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    topic_id: Mapped[int] = mapped_column(ForeignKey("curriculum_topics.id"), index=True)
+    mo_luc: Mapped[datetime] = mapped_column(server_default=func.now(), index=True)
+    dong_luc: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+    so_giay: Mapped[int] = mapped_column(default=0)
+    # Đếm ngay trong phiên để lịch sử học tập nói được "hỏi trợ lý n câu" mà không
+    # phải join sang chỗ khác.
+    so_hoi: Mapped[int] = mapped_column(default=0)
+    # Các phần HS đã đọc trong phiên: ["khoi_dong","kien_thuc",…]. Lưu ID chứ
+    # không lưu SỐ LƯỢNG: đọc lại phần cũ không được cộng thêm, và chuyên gia đổi
+    # bố cục thì mẫu số ("/y phần") vẫn tính lại đúng.
+    phan_doc_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
 class StudentStats(Base):
     """Gamification học sinh: điểm XP, chuỗi ngày học liên tục (streak), điểm
     tuần. 1 user → 1 dòng. Cập nhật khi HS làm bài (nộp quiz / đánh dấu hoàn
@@ -169,6 +210,12 @@ class BlueprintCell(Base):
     topic_id: Mapped[int] = mapped_column(ForeignKey("curriculum_topics.id"))
     dang_thuc: Mapped[str]
     ti_le: Mapped[float]
+    # Tên đơn vị/mạch NGUYÊN VĂN trong .docx + điểm khớp lúc nạp (REQ §2.5).
+    # Phải lưu tại thời điểm nạp: sau đó tên gốc không còn ở đâu, nên bảng đối
+    # chiếu không thể tính lại điểm — so tên đã gán với chính nó luôn ra 100%.
+    ten_nguon: Mapped[str | None] = mapped_column(default=None)
+    mach_nguon: Mapped[str | None] = mapped_column(default=None)
+    diem_khop: Mapped[float | None] = mapped_column(default=None)
     # Số nhóm tỉ lệ (từ MatrixRow.nhom_ti_le): nhiều cell cùng chia sẻ 1 mức
     # tỉ lệ chung. BẮT BUỘC lưu để cộng tổng tỉ lệ đúng 1 lần/nhóm — thiếu nó
     # thì không phân biệt được cell nào cùng nhóm và tổng bị nhân lên (eval

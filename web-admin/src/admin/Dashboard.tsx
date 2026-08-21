@@ -9,9 +9,13 @@ import type { AdminUser, CmsGroup, CmsUnit, Role } from "../types";
 import { DrawerEditor } from "./DrawerEditor";
 import { HocTapChart } from "./HocTapChart";
 import { KetQuaDrawer } from "./KetQuaDrawer";
+import { DanhMucView } from "./DanhMucView";
+import { KhoSgkView } from "./KhoSgkView";
+import { MaTranView } from "./MaTranView";
+import { TongQuanView } from "./TongQuanView";
 import { TaoTaiKhoan } from "./TaoTaiKhoan";
 
-type View = "overview" | "content" | "ingest" | "matrix" | "users" | "settings";
+type View = "overview" | "content" | "ingest" | "catalog" | "matrix" | "users" | "settings";
 type Flat = CmsUnit & { mach: string };
 
 // `chiAdmin`: nhóm chỉ quản trị thấy. Chuyên gia là vai trò CMS-only, chỉ được
@@ -23,6 +27,7 @@ const NAV: { group: string; chiAdmin?: boolean; items: { v: View; label: string;
     { v: "ingest", label: "Nạp sách bằng AI", icon: "M12 3v12m0-12l-4 4m4-4l4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" },
   ] },
   { group: "Hệ thống", chiAdmin: true, items: [
+    { v: "catalog", label: "Quản lý danh mục", icon: "M4 6h16M4 12h16M4 18h10" },
     { v: "matrix", label: "Ma trận đặc tả", icon: "M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18" },
     { v: "users", label: "Người dùng", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z" },
     { v: "settings", label: "Cài đặt", icon: "M12 15a3 3 0 100-6 3 3 0 000 6z" },
@@ -31,6 +36,7 @@ const NAV: { group: string; chiAdmin?: boolean; items: { v: View; label: string;
 const CRUMB: Record<View, [string, string]> = {
   overview: ["Nội dung", "Tổng quan"], content: ["Nội dung", "Chương trình & nội dung"],
   ingest: ["Nội dung", "Nạp sách bằng AI"], matrix: ["Hệ thống", "Ma trận đặc tả"],
+  catalog: ["Hệ thống", "Quản lý danh mục"],
   users: ["Hệ thống", "Người dùng"], settings: ["Hệ thống", "Cài đặt"],
 };
 const PILL: Record<string, [string, string]> = {
@@ -150,14 +156,22 @@ export function Dashboard({ name, role, onLogout }: {
 
               {/* Tổng quan = hai lớp: học sinh học đến đâu, rồi mới tới tình hình
                   biên soạn. Trang này trước chỉ có lớp thứ hai. */}
-              {view === "overview" && <HocTapChart />}
+              {view === "overview" && (
+                <>
+                  {/* Hai lớp: chuyên gia soạn tới đâu (TongQuanView) rồi mới tới
+                      học sinh học ra sao (HocTapChart). */}
+                  <TongQuanView mon={mon} khoi={khoi} onDi={setView} />
+                  <div style={{ height: 22 }} />
+                  <HocTapChart />
+                </>
+              )}
 
-              <div className="kpis">
+              {view === "content" && <div className="kpis">
                 <Kpi ic="ic-total" v={kpi.total} l="Đơn vị kiến thức" />
                 <Kpi ic="ic-ok" v={kpi.published} l="Đã xuất bản" trend={kpi.total ? Math.round(kpi.published / kpi.total * 100) + "%" : undefined} />
                 <Kpi ic="ic-warn" v={kpi.review} l="Chờ duyệt" />
                 <Kpi ic="ic-ai" v={kpi.ai} l="Có nội dung AI" />
-              </div>
+              </div>}
             </>
           )}
 
@@ -209,8 +223,11 @@ export function Dashboard({ name, role, onLogout }: {
           )}
 
           {view === "users" && <UsersView users={users} search={search} onPatch={patchUser} onCreated={loadUsers} />}
-          {view === "ingest" && <Stub icon="🤖" ten="Nạp sách bằng AI" />}
-          {view === "matrix" && <Stub icon="🧩" ten="Ma trận đặc tả" />}
+          {view === "ingest" && <KhoSgkView />}
+          {view === "catalog" && <DanhMucView mon={mon} khoi={khoi}
+            onSua={(id) => setDrawer({ topicId: id, mode: "edit" })} />}
+          {view === "matrix" && <MaTranView mon={mon} khoi={khoi}
+            onSua={(id) => setDrawer({ topicId: id, mode: "edit" })} />}
           {view === "settings" && <Stub icon="⚙️" ten="Cài đặt" />}
         </div>
       </div>

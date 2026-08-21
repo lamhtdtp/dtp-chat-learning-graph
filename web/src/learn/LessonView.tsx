@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Lesson, MinhHoa, Neo, QuizResult } from "../types";
+import type { Lesson, MinhHoa, Neo, PhanBoCuc, QuizResult } from "../types";
 import { renderMath } from "../mathHtml";
 import { QuizView } from "./QuizView";
 import { TroLyCard } from "./TroLyCard";
@@ -42,6 +42,18 @@ function Media({ m }: { m: MinhHoa }) {
   );
 }
 
+// Thứ tự chuẩn 7 phần — CHỈ dùng khi server không trả `bo_cuc` (bài cũ / client
+// lệch phiên bản). Nguồn thật là app/lessons/bo_cuc.py, đừng sửa lệch hai bên.
+const PHAN_CHUAN = [
+  { id: "khoi_dong", ten: "Khởi động", em: "🚀", cot: "khoi_dong" },
+  { id: "hoat_dong", ten: "Hoạt động", em: "🧩", cot: "hoat_dong" },
+  { id: "kien_thuc", ten: "Kiến thức trọng tâm", em: "💡", cot: "khai_niem" },
+  { id: "minh_hoa", ten: "Minh hoạ", em: "🎬", cot: null },
+  { id: "vi_du", ten: "Ví dụ", em: "✏️", cot: null },
+  { id: "luyen_tap", ten: "Luyện tập – Vận dụng", em: "🎯", cot: "luyen_tap" },
+  { id: "bai_tap", ten: "Bài tập", em: "📚", cot: "bai_tap" },
+];
+
 const SUGGESTS = [
   "Giải thích lại phần khái niệm dễ hiểu hơn",
   "Cho mình thêm một ví dụ",
@@ -51,8 +63,13 @@ const SUGGESTS = [
 /** Câu hỏi mở đầu khi bấm "Hỏi về đoạn này" — tự nhiên hơn là mở thẻ trống rồi
  *  bắt học sinh nghĩ ra câu hỏi. */
 const CAU_MO: Record<string, string> = {
+  kien_thuc: "Giải thích lại phần kiến thức này dễ hiểu hơn giúp mình",
   khai_niem: "Giải thích lại phần khái niệm này dễ hiểu hơn giúp mình",
   minh_hoa: "Phần minh hoạ này đang nói về điều gì?",
+  khoi_dong: "Phần khởi động này liên quan gì tới bài hôm nay?",
+  hoat_dong: "Hướng dẫn mình làm hoạt động này với",
+  luyen_tap: "Gợi ý cách làm phần luyện tập này giúp mình",
+  bai_tap: "Bài tập này bắt đầu từ đâu?",
 };
 const cauMoViDu = (i: number) => `Ví dụ ${i + 1}: giải thích từng bước giúp mình`;
 
@@ -61,6 +78,15 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
   onQuizGraded?: (r: QuizResult) => void;
 }) {
   const [showQuiz, setShowQuiz] = useState(false);
+  /** Cuộn tới một phần + loé viền 2.2s (§3.4 "↑ Đọc lại phần này").
+   *  Đặt ở LessonView vì chỉ nó biết phần nào đang render ở đâu. */
+  const docLai = (phan: string) => {
+    const el = document.getElementById(`phan-${phan}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    el.classList.add("sang");
+    window.setTimeout(() => el.classList.remove("sang"), 2200);
+  };
   // Thẻ trợ lý, khoá theo neo. State nằm ở ĐÂY chứ không ở LearnApp: đổi bài là
   // component unmount nên thẻ tự dọn — đúng hành vi mong muốn.
   // Đóng thẻ chỉ đặt `an`, KHÔNG xoá: mở lại từ thanh "Đã hỏi" phải còn nguyên
@@ -107,6 +133,111 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
   const moc = useMocDoc(!!nhacKN && !tatNhac && !teacher);
   const tatHan = () => { localStorage.setItem(KHOA_TAT_NHAC, "1"); setTatNhac(true); };
 
+  // Bố cục 7 phần. Server không trả `bo_cuc` (client cũ / bài chưa migrate) ->
+  // rơi về thứ tự chuẩn, KHÔNG để trang trắng.
+  const phanHien: PhanBoCuc[] = lesson.bo_cuc?.length
+    ? lesson.bo_cuc
+    : PHAN_CHUAN.map((x, i) => ({ ...x, an: false, so: i + 1 }));
+
+  /** HTML của các phần lưu ở cột riêng. Phần rỗng -> không render cả tiêu đề,
+   *  tránh để lại một đề mục trống trên màn hình học sinh. */
+  const htmlPhan: Record<string, string | undefined> = {
+    khoi_dong: lesson.khoi_dong, hoat_dong: lesson.hoat_dong,
+    kien_thuc: lesson.khai_niem, luyen_tap: lesson.luyen_tap, bai_tap: lesson.bai_tap,
+  };
+
+  const DeMuc = ({ p, kt }: { p: PhanBoCuc; kt?: boolean }) => (
+    <h3 className={kt ? "kt" : undefined}>
+      <span className="hi">{p.em}</span> <span className="so-phan">{p.so}.</span> {p.ten}
+      <NutHoi neo={p.id as Neo} nhan={p.ten} hoi={CAU_MO[p.id] ?? `Giải thích phần ${p.ten.toLowerCase()} giúp mình`} />
+    </h3>
+  );
+
+  const PhanNoiDung = ({ p }: { p: PhanBoCuc }) => {
+    if (p.id === "minh_hoa") {
+      if (!lesson.minh_hoa.length) return null;
+      return (
+        <>
+          <DeMuc p={p} />
+          <div className="media">{lesson.minh_hoa.map((m, i) => <Media key={i} m={m} />)}</div>
+          {gy.minh_hoa && <div className="media-note">🎓 {gy.minh_hoa}</div>}
+          <The k="minh_hoa" />
+        </>
+      );
+    }
+    if (p.id === "vi_du") {
+      if (!lesson.vi_du.length) return null;
+      return (
+        <>
+          <h3><span className="hi">{p.em}</span> <span className="so-phan">{p.so}.</span> {p.ten}</h3>
+          {lesson.vi_du.map((e, i) => {
+            const neo = `vi_du:${i + 1}` as Neo;
+            return (
+              <div key={i}>
+                <div className="vd">
+                  <div className="vd-top">
+                    <div className="q" dangerouslySetInnerHTML={{ __html: renderMath(e.de) }} />
+                    <NutHoi neo={neo} nhan={`Ví dụ ${i + 1}`} hoi={cauMoViDu(i)} ngan />
+                  </div>
+                  <div className="a" dangerouslySetInnerHTML={{ __html: renderMath(e.giai) }} />
+                </div>
+                <The k={neo} />
+              </div>
+            );
+          })}
+          {gy.vi_du && <div className="media-note">🎓 {gy.vi_du}</div>}
+        </>
+      );
+    }
+
+    const html = htmlPhan[p.id];
+    if (!html?.trim()) return null;
+
+    // Kiến thức trọng tâm: khung cam `.kttt` + `h3.kt` (§1.3) — nhấn đây là phần
+    // bắt buộc, và cũng là chỗ gắn mốc đọc + nhắc chủ động.
+    if (p.id === "kien_thuc") {
+      return (
+        <>
+          <DeMuc p={p} kt />
+          <div className="kttt" ref={moc.ref} dangerouslySetInnerHTML={{ __html: renderMath(html) }} />
+          <The k="kien_thuc" />
+          <NhacChuDong />
+        </>
+      );
+    }
+    return (
+      <>
+        <DeMuc p={p} />
+        <div dangerouslySetInnerHTML={{ __html: renderMath(html) }} />
+        <The k={p.id} />
+      </>
+    );
+  };
+
+  /** Nhắc chủ động ở mốc "đọc xong Kiến thức trọng tâm". Nội dung sinh sẵn lúc
+   *  biên soạn nên bấm là có phản hồi ngay: KHÔNG gọi LLM, KHÔNG trừ lượt hỏi. */
+  const NhacChuDong = () => {
+    if (!(moc.xong && nhacKN && !tatNhac)) return null;
+    return (
+      <div className="nhac-boc">
+        <TroLyCard topicId={lesson.topic_id} anchor="kien_thuc" nhan="Kiến thức trọng tâm" chuDong
+          noiDungSan={`<p>Bạn vừa đọc xong phần kiến thức — thử nhanh một câu nhé:</p><p><b>${renderMath(nhacKN.hoi)}</b></p>`}
+          nguonSan="Kiến thức trọng tâm"
+          dapNhanh={nhacKN.dap.map((d, i) => ({
+            t: d,
+            tra: (i === nhacKN.dung
+              ? "<p>🎉 Chính xác!</p>"
+              : `<p>Chưa đúng rồi — đáp án đúng là <b>${renderMath((nhacKN.dap[nhacKN.dung] ?? "").replace(/\s*[.!?]+\s*$/, ""))}</b>.</p>`)
+              + (nhacKN.giai ? `<p>${renderMath(nhacKN.giai)}</p>` : ""),
+          }))}
+          onDong={() => setTatNhac(true)} />
+        <button className="nhac-tat" type="button" onClick={tatHan}>
+          🔕 Đừng gợi ý kiểu này nữa
+        </button>
+      </div>
+    );
+  };
+
   const gy = (teacher && lesson.day?.goi_y) || {};
   const chuaSoan = lesson.trang_thai === "chua_bien_soan";
 
@@ -128,39 +259,12 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
       </span>
       <h1>{lesson.dv}</h1>
 
-      {/* ① Khái niệm (HTML chuyên gia; blockquote -> callout; $…$ -> KaTeX) */}
-      {lesson.khai_niem && (
-        <h3><span className="hi">💡</span> Khái niệm
-          <NutHoi neo="khai_niem" nhan="Khái niệm" hoi={CAU_MO.khai_niem} />
-        </h3>
-      )}
-      {/* ref bọc CHÍNH khối nội dung (không phải một thẻ mốc rỗng cao 0px) —
-          useMocDoc đo theo rect của khối này. */}
-      {lesson.khai_niem
-        ? <div ref={moc.ref} dangerouslySetInnerHTML={{ __html: renderMath(lesson.khai_niem) }} />
-        : <p className="lead">Chưa có nội dung khái niệm.</p>}
-      <The k="khai_niem" />
-
-      {moc.xong && nhacKN && !tatNhac && (
-        <div className="nhac-boc">
-          <TroLyCard topicId={lesson.topic_id} anchor="khai_niem" nhan="Khái niệm" chuDong
-            noiDungSan={`<p>Bạn vừa đọc xong phần khái niệm — thử nhanh một câu nhé:</p><p><b>${renderMath(nhacKN.hoi)}</b></p>`}
-            nguonSan="Khái niệm"
-            dapNhanh={nhacKN.dap.map((d, i) => ({
-              t: d,
-              tra: (i === nhacKN.dung
-                ? "<p>🎉 Chính xác!</p>"
-                // Phương án thường đã tự kết bằng dấu chấm -> cắt đi, không thì
-                // ra "…không thuộc N*.." ngay giữa câu phản hồi.
-                : `<p>Chưa đúng rồi — đáp án đúng là <b>${renderMath((nhacKN.dap[nhacKN.dung] ?? "").replace(/\s*[.!?]+\s*$/, ""))}</b>.</p>`)
-                + (nhacKN.giai ? `<p>${renderMath(nhacKN.giai)}</p>` : ""),
-            }))}
-            onDong={() => setTatNhac(true)} />
-          <button className="nhac-tat" type="button" onClick={tatHan}>
-            🔕 Đừng gợi ý kiểu này nữa
-          </button>
-        </div>
-      )}
+      {/* Render theo `bo_cuc` do SERVER tính: thứ tự + số thứ tự đều từ đó.
+          Tự suy ở FE là số hiện cho học sinh lệch với bản chuyên gia đang soạn,
+          và phần bị ẩn vẫn chiếm số. */}
+      {phanHien.map((p) => (
+        <section id={`phan-${p.id}`} key={p.id}><PhanNoiDung p={p} /></section>
+      ))}
 
       {/* Hướng dẫn giảng dạy (GV) */}
       {teacher && lesson.day && (lesson.day.muc_tieu || lesson.day.thoi_luong || lesson.day.luu_y) && (
@@ -170,41 +274,6 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
           {lesson.day.thoi_luong && <> · <b>Thời lượng:</b> {lesson.day.thoi_luong} </>}
           {lesson.day.luu_y && <> · <b>Lưu ý:</b> {lesson.day.luu_y}</>}
         </div>
-      )}
-
-      {/* ② Minh hoạ */}
-      {lesson.minh_hoa.length > 0 && (
-        <>
-          <h3><span className="hi">🎬</span> Minh hoạ
-            <NutHoi neo="minh_hoa" nhan="Minh hoạ" hoi={CAU_MO.minh_hoa} />
-          </h3>
-          <div className="media">{lesson.minh_hoa.map((m, i) => <Media key={i} m={m} />)}</div>
-          {gy.minh_hoa && <div className="media-note">🎓 {gy.minh_hoa}</div>}
-          <The k="minh_hoa" />
-        </>
-      )}
-
-      {/* ③ Ví dụ — mỗi ví dụ hỏi riêng được, trả lời nở ra ngay dưới nó */}
-      {lesson.vi_du.length > 0 && (
-        <>
-          <h3><span className="hi">✏️</span> Ví dụ</h3>
-          {lesson.vi_du.map((e, i) => {
-            const neo = `vi_du:${i + 1}` as Neo;
-            return (
-              <div key={i}>
-                <div className="vd">
-                  <div className="vd-top">
-                    <div className="q" dangerouslySetInnerHTML={{ __html: renderMath(e.de) }} />
-                    <NutHoi neo={neo} nhan={`Ví dụ ${i + 1}`} hoi={cauMoViDu(i)} ngan />
-                  </div>
-                  <div className="a" dangerouslySetInnerHTML={{ __html: renderMath(e.giai) }} />
-                </div>
-                <The k={neo} />
-              </div>
-            );
-          })}
-          {gy.vi_du && <div className="media-note">🎓 {gy.vi_du}</div>}
-        </>
       )}
 
       {/* Hỏi chung cả bài — neo null, backend ghép khái niệm + ví dụ (không quiz).
@@ -228,7 +297,9 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
         showQuiz ? (
           <>
             <h3><span className="hi">✅</span> Bài kiểm tra nhanh</h3>
-            <QuizView topicId={lesson.topic_id} quiz={lesson.quiz} onGraded={onQuizGraded} />
+            <QuizView topicId={lesson.topic_id} quiz={lesson.quiz} onGraded={onQuizGraded}
+              phanHien={phanHien} onDocLai={docLai} onHoiPhan={(id, ten) =>
+                moThe(id, { neo: id as Neo, nhan: ten, hoi: CAU_MO[id] ?? `Giải thích phần ${ten.toLowerCase()} giúp mình` })} />
           </>
         ) : (
           <div className="exercise-cta">

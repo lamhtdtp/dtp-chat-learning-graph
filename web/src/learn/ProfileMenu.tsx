@@ -20,7 +20,8 @@ function chuDaiDien(ten: string): string {
  *
  *  Trước đây tên học sinh chỉ nằm trong `title` của nút đăng xuất — không ai
  *  thấy. Gộp luôn đổi giao diện + đăng xuất vào đây để thanh trên bớt nút rời. */
-export function ProfileMenu({ name, email, role, stats, themeIcon, themeLabel, onCycleTheme, onLogout }: {
+export function ProfileMenu({ name, email, role, stats, themeIcon, themeLabel, onCycleTheme, onLogout,
+                              onHoSo, dangOHoSo }: {
   name: string;
   /** Từ /auth/me mà App đã gọi sẵn lúc khôi phục phiên — KHÔNG gọi lại ở đây. */
   email: string;
@@ -31,6 +32,10 @@ export function ProfileMenu({ name, email, role, stats, themeIcon, themeLabel, o
   themeLabel: string;
   onCycleTheme: () => void;
   onLogout: () => void;
+  /** Mở Hồ sơ học tập (REQ §3.2). */
+  onHoSo?: () => void;
+  /** Đang ở trang Hồ sơ -> tô sáng mục đang mở. */
+  dangOHoSo?: boolean;
 }) {
   const [mo, setMo] = useState(false);
   const boc = useRef<HTMLDivElement>(null);
@@ -79,6 +84,14 @@ export function ProfileMenu({ name, email, role, stats, themeIcon, themeLabel, o
             <div><b className="num">{stats?.dat ?? 0}/{stats?.tong ?? 0}</b><span>Đơn vị đạt</span></div>
           </div>
 
+          {/* Thứ tự §3.2: Hồ sơ -> Giao diện -> Đăng xuất. Đóng menu khi chọn. */}
+          {onHoSo && (
+            <button className={"hs-dong" + (dangOHoSo ? " dang" : "")} type="button" role="menuitem"
+              onClick={() => { setMo(false); onHoSo(); }}>
+              <span className="ic" aria-hidden>📈</span>
+              Hồ sơ học tập của em
+            </button>
+          )}
           <button className="hs-dong" type="button" role="menuitem" onClick={onCycleTheme}>
             <span className="ic" aria-hidden>{themeIcon}</span>
             Giao diện<span className="hs-phu">{themeLabel}</span>

@@ -22,8 +22,14 @@ function nhacCauSai(q: QuizQuestion, chon: number, dapAn: number, giai: string):
 
 /** Bài kiểm tra nhanh (trắc nghiệm) — chấm ở server, cập nhật tiến độ + XP.
  *  Style theo ex-card của mockup student-app. */
-export function QuizView({ topicId, quiz, onGraded }: {
+export function QuizView({ topicId, quiz, onGraded, phanHien, onDocLai, onHoiPhan }: {
   topicId: number; quiz: QuizQuestion[]; onGraded?: (r: QuizResult) => void;
+  /** Các phần đang hiện — để đổi id phần thành emoji + tên người đọc hiểu được. */
+  phanHien?: { id: string; ten: string; em: string }[];
+  /** Cuộn tới phần đó + loé viền (§3.4). */
+  onDocLai?: (phan: string) => void;
+  /** Mở thẻ trợ lý neo vào phần đó. */
+  onHoiPhan?: (phan: string, ten: string) => void;
 }) {
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [res, setRes] = useState<QuizResult | null>(null);
@@ -82,6 +88,22 @@ export function QuizView({ topicId, quiz, onGraded }: {
               })}
             </div>
             {res && rk?.giai && <div className="ex-giai" dangerouslySetInnerHTML={{ __html: renderMath(rk.giai) }} />}
+            {/* §3.4 — câu SAI thì chỉ thẳng phần cần đọc lại. Không có `phan`
+                (đề sinh trước khi có khoá này) thì không hiện khối rỗng. */}
+            {res && rk && !rk.dung && rk.phan && (() => {
+              const p = phanHien?.find((x) => x.id === rk.phan);
+              return (
+                <div className="sai-nhac">
+                  <div className="sn-d">📍 Câu này thuộc phần {p ? `${p.em} ${p.ten}` : rk.phan}</div>
+                  {rk.ycd && <div className="sn-y">Yêu cầu cần đạt: {rk.ycd}</div>}
+                  <div className="sn-nut">
+                    {onDocLai && <button type="button" onClick={() => onDocLai(rk.phan!)}>↑ Đọc lại phần này</button>}
+                    {onHoiPhan && <button type="button"
+                      onClick={() => onHoiPhan(rk.phan!, p?.ten ?? rk.phan!)}>💬 Hỏi trợ lý về đoạn đó</button>}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Trợ lý ở ngay chỗ học sinh vừa sai — nơi cần hỏi nhất mà trước đây
                 lại là nơi duy nhất không có cách nào hỏi. */}
@@ -102,6 +124,26 @@ export function QuizView({ topicId, quiz, onGraded }: {
           </div>
         );
       })}
+
+      {/* Gom TẤT CẢ phần cần đọc lại, khử trùng, GIỮ thứ tự trong bài — sắp theo
+          số câu sai sẽ làm mất mạch đọc của học sinh. */}
+      {res && (() => {
+        const sai = res.ket_qua.filter((k) => !k.dung && k.phan).map((k) => k.phan!);
+        const ds = (phanHien ?? []).filter((p) => sai.includes(p.id));
+        if (!ds.length) return null;
+        return (
+          <div className="on-lai">
+            <b>💡 Nên đọc lại {ds.length} phần trước khi làm lại</b>
+            <div className="ol-ds">
+              {ds.map((p) => (
+                <button className="chip" type="button" key={p.id} onClick={() => onDocLai?.(p.id)}>
+                  {p.em} {p.ten}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="ex-foot">
         {!res ? (

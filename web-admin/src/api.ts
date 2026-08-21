@@ -6,6 +6,11 @@ import type {
   CmsAiDraft,
   CmsGroup,
   CmsMedia,
+  CmsPhan,
+  CmsTongQuan,
+  DmHocKy,
+  KhoSgk,
+  MaTran,
   CmsTopic,
   CmsViDu,
   CmsDay,
@@ -103,6 +108,7 @@ export function cmsGetTopic(topicId: number): Promise<CmsTopic> {
 export function cmsSaveTopic(topicId: number, body: {
   khai_niem: string; minh_hoa: CmsMedia[]; vi_du: CmsViDu[];
   day: CmsDay | null; nguon: string | null; trang_thai: string;
+  khoi_dong?: string; hoat_dong?: string; luyen_tap?: string; bai_tap?: string;
   /** Bỏ trống = giữ nguyên cờ "AI soạn" đang có. */
   ai_soan?: boolean;
 }): Promise<{ topic_id: number; trang_thai: string; completeness: CmsTopic["completeness"] }> {
@@ -159,4 +165,31 @@ export function adminCreateUser(body: {
 /** Số liệu học tập cho trang Tổng quan (giáo viên/chuyên gia/quản trị). */
 export function adminOverview(ngay = 14): Promise<AdminOverview> {
   return req(`/admin/overview?ngay=${ngay}`, { auth: true });
+}
+
+/** Số liệu trang Tổng quan chuyên gia. */
+export function cmsTongQuan(mon = "Toán", khoi = "Lớp 6"): Promise<CmsTongQuan> {
+  return req(`/cms/tong-quan?mon=${encodeURIComponent(mon)}&khoi=${encodeURIComponent(khoi)}`, { auth: true });
+}
+
+/** Lưu thứ tự + ẩn/hiện 7 phần. Tách khỏi PUT /topics/{id} để đổi thứ tự không
+ *  ghi đè nội dung đang sửa dở. */
+export function cmsLuuBoCuc(topicId: number, bo_cuc: { id: string; an: boolean }[]):
+  Promise<{ topic_id: number; bo_cuc: CmsPhan[] }> {
+  return req(`/cms/topics/${topicId}/bo-cuc`, { method: "PUT", auth: true, body: { bo_cuc } });
+}
+/** AI soạn gợi ý cho ĐÚNG một phần (không sinh cả bài). */
+export function cmsAiPhan(topicId: number, phan: string):
+  Promise<{ topic_id: number; phan: string; html: string }> {
+  return req(`/cms/topics/${topicId}/phan/${phan}/ai`, { auth: true, body: {} });
+}
+
+export function cmsDanhMuc(mon = "Toán", khoi = "Lớp 6"): Promise<{ hoc_ky: DmHocKy[] }> {
+  return req(`/cms/danh-muc?mon=${encodeURIComponent(mon)}&khoi=${encodeURIComponent(khoi)}`, { auth: true });
+}
+export function cmsKhoSgk(): Promise<KhoSgk> {
+  return req("/cms/kho-sgk", { auth: true });
+}
+export function cmsMaTran(mon = "Toán", khoi = "Lớp 6"): Promise<MaTran> {
+  return req(`/cms/ma-tran?mon=${encodeURIComponent(mon)}&khoi=${encodeURIComponent(khoi)}`, { auth: true });
 }

@@ -24,7 +24,7 @@ import unicodedata
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import BlueprintCell, CurriculumTopic, Grade, Subject
+from app.db.models import BlueprintCell, CurriculumTopic, Grade, Subject, TopicContent
 from app.graph.grounding import has_grounding
 from app.llm import gateway, jsonfix
 from app.llm.gateway import LLMUnavailable
@@ -165,6 +165,25 @@ def _parse(raw: str) -> dict:
             "anh": anh, "video": video}
 
 
+async def _yeu_cau_can_dat(session: AsyncSession, topic: CurriculumTopic
+                           ) -> tuple[list[str], list[BlueprintCell]]:
+    """(yêu cầu cần đạt đã khử trùng, cells) của đơn vị.
+
+    Gom theo TẤT CẢ topic trùng tên trong cùng môn/khối ("twins"): mục lục khử
+    trùng theo tên nên một đơn vị có thể ứng nhiều `topic_id`, chỉ lấy một cái là
+    hụt yêu cầu cần đạt.
+    """
+    twins = list(await session.scalars(
+        select(CurriculumTopic).filter_by(
+            subject_id=topic.subject_id, grade_id=topic.grade_id,
+            mach_noi_dung=topic.mach_noi_dung, don_vi_kien_thuc=topic.don_vi_kien_thuc,
+        )
+    ))
+    ids = [t.id for t in twins] or [topic.id]
+    cells = list(await session.scalars(select(BlueprintCell).where(BlueprintCell.topic_id.in_(ids))))
+    return list(dict.fromkeys(c.yeu_cau_can_dat for c in cells if c.yeu_cau_can_dat)), cells
+
+
 async def ingest_draft(session: AsyncSession, topic_id: int, *, nguon: str = "") -> dict:
     """Nháp bám SGK cho 1 đơn vị.
 
@@ -178,15 +197,7 @@ async def ingest_draft(session: AsyncSession, topic_id: int, *, nguon: str = "")
     if topic is None:
         return empty
 
-    twins = list(await session.scalars(
-        select(CurriculumTopic).filter_by(
-            subject_id=topic.subject_id, grade_id=topic.grade_id,
-            mach_noi_dung=topic.mach_noi_dung, don_vi_kien_thuc=topic.don_vi_kien_thuc,
-        )
-    ))
-    ids = [t.id for t in twins] or [topic.id]
-    cells = list(await session.scalars(select(BlueprintCell).where(BlueprintCell.topic_id.in_(ids))))
-    ycd = list(dict.fromkeys(c.yeu_cau_can_dat for c in cells if c.yeu_cau_can_dat))
+    ycd, cells = await _yeu_cau_can_dat(session, topic)
 
     # Truy vấn ghép đơn vị + mạch + yêu cầu cần đạt: payload Qdrant KHÔNG có
     # topic_id (cố ý — xem app/ingestion/chunking.py) nên không filter theo đơn vị
@@ -234,3 +245,51 @@ async def ingest_draft(session: AsyncSession, topic_id: int, *, nguon: str = "")
     draft["thieu_sgk"] = thieu_sgk
     draft["mon"] = mon
     return draft
+
+
+# ── AI hỗ trợ theo TỪNG phần (REQ §2.2) ──────────────────────────────────────
+# Mỗi phần có vai trò sư phạm khác nhau, nên prompt khác nhau. Dùng một prompt
+# chung rồi chỉ đổi tên phần thì Khởi động ra y như Bài tập.
+_YEU_CAU_PHAN = {
+    "khoi_dong": ("Khởi động", "1–2 câu hỏi/tình huống gần gũi dẫn vào bài. KHÔNG dạy kiến thức mới, "
+                               "KHÔNG đưa đáp án — mục đích chỉ là gợi tò mò."),
+    "hoat_dong": ("Hoạt động", "1 hoạt động học sinh TỰ LÀM (cá nhân hoặc nhóm) để tự phát hiện ra "
+                               "kiến thức. Ghi rõ các bước và câu hỏi chốt ở cuối."),
+    "kien_thuc": ("Kiến thức trọng tâm", "Định nghĩa/tính chất cốt lõi, ngắn và chính xác. "
+                                         "Dùng <blockquote> cho phần cần nhớ."),
+    "luyen_tap": ("Luyện tập – Vận dụng", "3–4 bài từ nhận biết đến vận dụng, CÓ đáp số ngắn ở cuối "
+                                          "mỗi bài. Tăng dần độ khó."),
+    "bai_tap": ("Bài tập", "4–5 bài về nhà, đánh số <b>Bài n.</b> KHÔNG kèm lời giải — đây là bài "
+                           "học sinh tự làm."),
+}
+
+
+async def soan_phan(session: AsyncSession, topic_id: int, phan: str) -> str:
+    """HTML nháp cho MỘT phần, bám yêu cầu cần đạt. Trả "" nếu không soạn được."""
+    topic = await session.get(CurriculumTopic, topic_id)
+    if topic is None or phan not in _YEU_CAU_PHAN:
+        return ""
+    ten, yeu_cau = _YEU_CAU_PHAN[phan]
+    ycd, _ = await _yeu_cau_can_dat(session, topic)
+    content = await session.scalar(select(TopicContent).filter_by(topic_id=topic_id))
+    # Grounding trên KIẾN THỨC đã soạn (nếu có): phần Luyện tập phải khớp đúng lý
+    # thuyết trong bài, không phải kiến thức chung chung của mô hình.
+    kt = (content.khai_niem if content else "") or ""
+
+    prompt = (
+        f'Soạn phần "{ten}" cho đơn vị kiến thức "{topic.don_vi_kien_thuc}" '
+        f'(mạch "{topic.mach_noi_dung}"), môn Toán lớp 6.\n\n'
+        + ("YÊU CẦU CẦN ĐẠT (bám sát):\n" + "\n".join(f"- {y}" for y in ycd) + "\n\n" if ycd else "")
+        + (f"KIẾN THỨC TRỌNG TÂM ĐÃ SOẠN (phải khớp, không dạy khác đi):\n{kt}\n\n" if kt.strip() else "")
+        + f"YÊU CẦU RIÊNG CỦA PHẦN NÀY: {yeu_cau}\n\n"
+        "Trả về HTML THUẦN cho ĐÚNG phần này, không tiêu đề <h*>, không giải thích thêm. "
+        "Công thức toán đặt trong $…$."
+    )
+    raw = await gateway.complete(
+        task="lesson_ingest", messages=[{"role": "user", "content": prompt}], max_tokens=16384)
+    html = raw.strip()
+    # Model hay bọc trong ```html — bóc ra, nếu không chuyên gia thấy dấu ``` trong ô soạn.
+    if html.startswith("```"):
+        html = html.split("```")[1]
+        html = html[4:].strip() if html.lower().startswith("html") else html.strip()
+    return html

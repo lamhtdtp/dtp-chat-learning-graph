@@ -9,7 +9,9 @@ import type {
   Neo,
   QuizResult,
   Role,
+  ThoiGianHoc,
   TutorAnswer,
+  YcdMach,
 } from "./types";
 
 const TOKEN_KEY = "chat_learning_token";
@@ -126,3 +128,15 @@ export function getTutorLimits(): Promise<{ max_chars: number }> {
 }
 
 export { ApiError };
+
+/** Ping thời gian học — gửi "vừa học thêm k giây", KHÔNG gửi tổng. */
+export function pingPhien(topicId: number, giay = 30, phan_doc: string[] = []):
+  Promise<{ so_giay_phien: number }> {
+  return req("/me/phien", { auth: true, body: { topic_id: topicId, giay, phan_doc } });
+}
+export function getThoiGian(ngay = 14): Promise<ThoiGianHoc> {
+  return req(`/me/thoi-gian?ngay=${ngay}`, { auth: true });
+}
+export function getYcd(mon = "Toán", khoi = "Lớp 6"): Promise<{ mach: YcdMach[] }> {
+  return req(`/me/ycd?mon=${encodeURIComponent(mon)}&khoi=${encodeURIComponent(khoi)}`, { auth: true });
+}

@@ -4,7 +4,10 @@ import {
 } from "../api";
 import { useTheme } from "../hooks/useTheme";
 import type { CurriculumGroup, Lesson, MyStats, Role } from "../types";
+import { HoSoView } from "./HoSoView";
 import { LessonView } from "./LessonView";
+import { usePhanDaDoc } from "./usePhanDaDoc";
+import { usePingPhien } from "./usePingPhien";
 import { useSoDoi } from "./useSoDoi";
 import { SlideView } from "./SlideView";
 import { ProfileMenu } from "./ProfileMenu";
@@ -70,10 +73,19 @@ export function LearnApp({ name, email, role, onLogout }: {
   const { cycle, icon, label } = useTheme();
   const [groups, setGroups] = useState<CurriculumGroup[]>([]);
   const [cur, setCur] = useState<number | null>(null);
+  // "bai" | "ho_so" — Hồ sơ là một TRANG trong cột giữa, không phải popover, vì
+  // nó có biểu đồ + danh sách dài.
+  const [trang, setTrang] = useState<"bai" | "ho_so">("bai");
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [stats, setStats] = useState<MyStats | null>(null);
   const [slide, setSlide] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Ghi thời gian học + phần đã đọc cho bài đang mở (§3.6). Danh sách phần lấy
+  // từ `lesson.bo_cuc` — chính thứ đang render, nên "x/y" khớp cái HS thấy.
+  const phanDaDoc = usePhanDaDoc(
+    (lesson?.bo_cuc ?? []).map((p) => p.id), trang === "bai" && !!lesson);
+  usePingPhien(trang === "bai" ? cur : null, phanDaDoc);
 
   const handle = (e: unknown) => {
     if (e instanceof ApiError && e.status === 401) { tokenStore.clear(); onLogout(); return; }
@@ -94,7 +106,16 @@ export function LearnApp({ name, email, role, onLogout }: {
   };
   useEffect(() => { loadCurriculum(true); loadStats(); }, []); // eslint-disable-line
 
-  const openTopic = (id: number) => { setCur(id); setSlide(false); loadLesson(id); };
+  const openTopic = (id: number) => { setCur(id); setSlide(false); setTrang("bai"); loadLesson(id); };
+  /** Từ Hồ sơ nhảy về bài + cuộn tới đúng phần (nút "Học lại ↗"). */
+  const moBaiTuHoSo = (id: number, phan?: string) => {
+    openTopic(id);
+    if (phan) {
+      // Đợi bài render xong mới cuộn — cuộn ngay thì phần tử chưa tồn tại.
+      window.setTimeout(() => document
+        .getElementById(`phan-${phan}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 800);
+    }
+  };
   const markDone = async () => {
     if (cur == null) return;
     try { await setProgress(cur, "dat"); loadCurriculum(false); loadStats(); } catch (e) { handle(e); }
@@ -165,18 +186,23 @@ export function LearnApp({ name, email, role, onLogout }: {
           {/* Đổi giao diện + đăng xuất gộp vào đây: tên học sinh trước chỉ nằm
               trong tooltip nút ⎋ nên không ai thấy mình đang đăng nhập bằng ai. */}
           <ProfileMenu name={name} email={email} role={role} stats={stats}
-            themeIcon={icon} themeLabel={label} onCycleTheme={cycle} onLogout={onLogout} />
+            themeIcon={icon} themeLabel={label} onCycleTheme={cycle} onLogout={onLogout}
+            onHoSo={() => setTrang("ho_so")} dangOHoSo={trang === "ho_so"} />
         </div>
 
-        <Hero stats={stats} />
+        {/* Hero là số liệu của BÀI đang học -> ẩn ở trang Hồ sơ, nơi đã có 4 ô
+            thời gian chi tiết hơn. */}
+        {trang === "bai" && <Hero stats={stats} />}
 
         {err && <div className="lesson-empty">⚠️ {err}</div>}
-        {!err && (slide && lesson
-          ? <SlideView lesson={lesson} />
-          : lesson
-            ? <LessonView lesson={lesson} teacher={teacher} onMarkDone={markDone}
-                onQuizGraded={onQuizGraded} />
-            : <div className="lesson-empty">Đang tải bài học…</div>)}
+        {!err && (trang === "ho_so"
+          ? <HoSoView onMoBai={moBaiTuHoSo} />
+          : slide && lesson
+            ? <SlideView lesson={lesson} />
+            : lesson
+              ? <LessonView lesson={lesson} teacher={teacher} onMarkDone={markDone}
+                  onQuizGraded={onQuizGraded} />
+              : <div className="lesson-empty">Đang tải bài học…</div>)}
       </main>
     </div>
   );

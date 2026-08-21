@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import BlueprintCell, CurriculumTopic, TopicContent
+from app.lessons import bo_cuc
 from app.llm import gateway, jsonfix
 
 _LV = {"de", "trung_binh", "kho"}
@@ -114,7 +115,13 @@ def _parse_quiz(raw: str) -> list[dict]:
         if len(opts) < 2 or not isinstance(a, int) or not (0 <= a < len(opts)):
             continue
         lv = it.get("lv") if it.get("lv") in _LV else "de"
-        out.append({"q": q, "o": opts, "a": a, "lv": lv, "giai": str(it.get("giai", "")).strip()})
+        # `phan` + `ycd` (§3.4): để sau khi nộp còn chỉ được HS về đúng đoạn cần
+        # đọc lại. `phan` phải là id thật trong bố cục, model bịa tên khác -> bỏ,
+        # rơi về kien_thuc (phần bắt buộc, luôn có).
+        phan = it.get("phan") if it.get("phan") in bo_cuc.IDS else "kien_thuc"
+        out.append({"q": q, "o": opts, "a": a, "lv": lv,
+                    "giai": str(it.get("giai", "")).strip(),
+                    "phan": phan, "ycd": str(it.get("ycd", "")).strip()})
     return out
 
 
@@ -131,7 +138,11 @@ def _prompt(dv: str, mach: str, ycd: list[str], phan_bo: dict[str, int], noi_dun
         f"CẦN SOẠN: {yeu_cau}. Mỗi câu có ĐÚNG 4 phương án, một đáp án đúng, và 3 phương án "
         "nhiễu hợp lý (phản ánh lỗi sai thường gặp). Trả về JSON THUẦN:\n"
         '{"quiz": [{"q": "đề bài", "o": ["A","B","C","D"], "a": <chỉ số 0-3 của đáp án đúng>, '
-        '"lv": "de|trung_binh|kho", "giai": "giải thích ngắn"}]}'
+        '"lv": "de|trung_binh|kho", "giai": "giải thích ngắn", '
+        '"phan": "<id phần nội dung câu này kiểm tra>", "ycd": "<yêu cầu cần đạt tương ứng>"}]}\n'
+        f'`phan` chọn MỘT trong: {", ".join(bo_cuc.IDS)} — đúng đoạn nội dung dùng để ra câu đó, '
+        "để sau khi nộp hệ thống chỉ được học sinh về đúng phần cần đọc lại. "
+        "`ycd` lấy nguyên văn một yêu cầu cần đạt ở trên."
     )
 
 

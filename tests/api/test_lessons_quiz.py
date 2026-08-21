@@ -97,3 +97,50 @@ async def test_gamification_xp_va_stats(client, session, mocker):
     # /me/stats phản ánh XP tuần + streak
     st = (await client.get("/me/stats", headers=hs)).json()
     assert st["xp_week"] == 20 and st["streak"] == 1 and "current_mach" in st
+
+
+async def test_submit_tra_phan_va_ycd_de_chi_duong(client, session):
+    """§3.4 — mỗi câu sai phải chỉ được về đúng phần + yêu cầu cần đạt."""
+    import json as _j
+    import uuid as _u
+    from app.db.models import CurriculumTopic, Grade, Subject, TopicContent
+
+    e = f"q-{_u.uuid4().hex[:8]}@vd.vn"
+    r = await client.post("/auth/register", json={"email": e, "password": "matkhau123",
+                                                 "name": "HS", "role": "hoc_sinh"})
+    hs = {"Authorization": f"Bearer {r.json()['token']}"}
+    subj = Subject(name=f"M-{_u.uuid4().hex[:6]}"); gr = Grade(name=f"K-{_u.uuid4().hex[:6]}")
+    session.add_all([subj, gr]); await session.flush()
+    t = CurriculumTopic(subject_id=subj.id, grade_id=gr.id, mach_noi_dung="M",
+                        don_vi_kien_thuc="D", order_index=0)
+    session.add(t); await session.flush()
+    tid = t.id
+    quiz = [
+        {"q": "1+1?", "o": ["1", "2"], "a": 1, "lv": "de",
+         "phan": "luyen_tap", "ycd": "Cộng được hai số tự nhiên"},
+        {"q": "2+2?", "o": ["4", "5"], "a": 0, "lv": "de"},   # câu CŨ, thiếu 2 khoá
+    ]
+    session.add(TopicContent(topic_id=tid, trang_thai="published", quiz_json=_j.dumps(quiz)))
+    await session.commit()
+
+    b = (await client.post("/quiz/submit", headers=hs,
+                           json={"topic_id": tid, "answers": [0, 0]})).json()
+    kq = b["ket_qua"]
+    assert kq[0]["dung"] is False
+    assert kq[0]["phan"] == "luyen_tap" and kq[0]["ycd"] == "Cộng được hai số tự nhiên"
+    # Câu cũ không có `phan` -> rơi về kien_thuc chứ không phải None/rỗng
+    assert kq[1]["phan"] == "kien_thuc" and kq[1]["ycd"] == ""
+
+
+def test_parse_quiz_bo_phan_bia():
+    """Model bịa tên phần -> phải rơi về kien_thuc, không lưu id rác."""
+    import json as _j
+    from app.lessons.quiz import _parse_quiz
+
+    raw = _j.dumps({"quiz": [
+        {"q": "a", "o": ["x", "y"], "a": 0, "lv": "de", "phan": "bịa", "ycd": "Y"},
+        {"q": "b", "o": ["x", "y"], "a": 1, "lv": "de", "phan": "bai_tap"},
+    ]})
+    ds = _parse_quiz(raw)
+    assert ds[0]["phan"] == "kien_thuc" and ds[0]["ycd"] == "Y"
+    assert ds[1]["phan"] == "bai_tap"

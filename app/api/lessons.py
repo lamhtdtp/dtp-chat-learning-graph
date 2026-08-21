@@ -9,20 +9,24 @@ bài học 4 phần, tiến độ học sinh theo đơn vị kiến thức.
 Phần "Kiểm tra nhanh" KHÔNG ở đây — sinh theo ma trận (P3, tái dùng app/exam).
 """
 import json
+from datetime import timedelta
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import security
 from app.api.deps import get_current_user
 from app.db.models import (
-    CurriculumTopic, Grade, QuizAttempt, StudentProgress, Subject, TopicContent, User,
+    BlueprintCell, CurriculumTopic, Grade, QuizAttempt, StudentProgress, StudySession,
+    Subject, TopicContent, User,
 )
 from app.db.session import get_session
+from app.lessons import bo_cuc as bo_cuc_svc
 from app.lessons import media as media_svc
+from app.lessons import phien as phien_svc
 from app.lessons import nhac as nhac_svc
 from app.lessons import quiz as quiz_svc
 from app.lessons import stats as stats_svc
@@ -156,6 +160,15 @@ async def get_lesson(
             await media_svc.fill_video_urls(session, json.loads(c.minh_hoa_json or "[]"))
         ),
         "vi_du": json.loads(c.vi_du_json or "[]"),
+        # 4 phần nội dung mới (§1.1). Ba phần cũ vẫn trả ở khoá cũ để client chưa
+        # cập nhật không vỡ.
+        "khoi_dong": c.khoi_dong or "",
+        "hoat_dong": c.hoat_dong or "",
+        "luyen_tap": c.luyen_tap or "",
+        "bai_tap": c.bai_tap or "",
+        # Thứ tự + số thứ tự các phần ĐANG HIỆN. Client CHỈ render theo mảng này —
+        # tự suy thứ tự ở FE là chỗ để số lệch với bản chuyên gia đang soạn.
+        "bo_cuc": bo_cuc_svc.hien_thuc_te(c, c.bo_cuc_json),
         # HS KHÔNG nhận đáp án/lời giải (chấm ở server) — chỉ đề + phương án.
         "quiz": quiz if author else [{"q": x["q"], "o": x["o"], "lv": x.get("lv", "de")} for x in quiz],
         "co_quiz": len(quiz) > 0,
@@ -331,7 +344,10 @@ async def submit_quiz(
         dung = chon == q["a"]
         if dung:
             diem += 1
-        ket_qua.append({"dung": dung, "chon": chon, "dap_an": q["a"], "giai": q.get("giai", "")})
+        # `phan` + `ycd` để client chỉ HS về đúng đoạn cần đọc lại (§3.4). Câu cũ
+        # (sinh trước khi có 2 khoá này) -> mặc định kien_thuc, phần luôn có mặt.
+        ket_qua.append({"dung": dung, "chon": chon, "dap_an": q["a"], "giai": q.get("giai", ""),
+                        "phan": q.get("phan") or "kien_thuc", "ycd": q.get("ycd", "")})
 
     tong = len(quiz)
     dat = diem / tong >= _NGUONG_DAT
@@ -357,3 +373,203 @@ async def submit_quiz(
     }
     await session.commit()
     return out
+
+
+class PhienBody(BaseModel):
+    topic_id: int
+    giay: int = 30   # client ping mỗi ~30s khi tab đang hiện; server chặn trần
+    # Các phần HS đã cuộn qua. Server HỢP NHẤT, không ghi đè (xem phien.ping).
+    phan_doc: list[str] = []
+
+
+@router.post("/me/phien")
+async def ping_phien(
+    body: PhienBody,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Ghi thời gian học (REQ §8). Client gửi "vừa học thêm k giây", KHÔNG gửi tổng.
+
+    Nhận tổng từ client thì mở devtools là tự khai 10 tiếng học; server cộng dồn và
+    chặn trần theo khoảng ping."""
+    if await session.get(CurriculumTopic, body.topic_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy đơn vị kiến thức")
+    ph = await phien_svc.ping(session, user.id, body.topic_id, body.giay, body.phan_doc)
+    so_giay = ph.so_giay
+    await session.commit()
+    return {"topic_id": body.topic_id, "so_giay_phien": so_giay}
+
+
+@router.get("/me/thoi-gian")
+async def me_thoi_gian(
+    ngay: int = 14,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """4 ô thời gian + biểu đồ ngày + lịch sử phiên (REQ §3.6 khối 1–3)."""
+    d = await phien_svc.thoi_gian(session, user.id, max(1, min(ngay, 90)))
+    rows = (await session.execute(
+        select(StudySession, CurriculumTopic.don_vi_kien_thuc)
+        .join(CurriculumTopic, CurriculumTopic.id == StudySession.topic_id)
+        .where(StudySession.user_id == user.id)
+        .order_by(StudySession.mo_luc.desc()).limit(20))).all()
+    # Kết quả kiểm tra + tổng số phần của từng bài, gom một lượt (tránh N+1).
+    tids = {p.topic_id for p, _ in rows}
+    contents = {c.topic_id: c for c in await session.scalars(
+        select(TopicContent).where(TopicContent.topic_id.in_(tids or {0})))}
+    # Lần nộp quiz thuộc CHÍNH phiên đó. Lấy "lần gần nhất theo bài" thì kết quả
+    # hôm nay gán cả vào phiên tuần trước — nhãn nói sai về phiên đang xem.
+    qa_rows = (await session.execute(
+        select(QuizAttempt).where(QuizAttempt.user_id == user.id,
+                                  QuizAttempt.topic_id.in_(tids or {0}))
+        .order_by(QuizAttempt.created_at.desc(), QuizAttempt.id.desc()))).scalars().all()
+
+    def _quiz_cua_phien(ph) -> QuizAttempt | None:
+        """Lần nộp nằm trong khoảng phiên. Nới 5 phút sau `dong_luc`: HS nộp bài
+        rồi mới rời trang, ping cuối có thể đã dừng trước đó."""
+        tre = ph.dong_luc + timedelta(minutes=5)
+        for a in qa_rows:
+            if a.topic_id == ph.topic_id and ph.mo_luc <= a.created_at <= tre:
+                return a          # qa_rows sắp mới -> cũ, cái đầu là mới nhất
+        return None
+
+    lich_su = []
+    for p, ten in rows:
+        c = contents.get(p.topic_id)
+        # Mẫu số = số phần ĐANG HIỆN của bài đó, tính lại mỗi lần đọc: chuyên gia
+        # ẩn/thêm phần thì "x/y" phải đổi theo, không dùng số cứng 7.
+        tong_phan = len(bo_cuc_svc.hien_thuc_te(c, c.bo_cuc_json)) if c else 0
+        da_doc = [x for x in phien_svc.doc_phan(p) if x in bo_cuc_svc.IDS]
+        a = _quiz_cua_phien(p)
+        lich_su.append({
+            "topic_id": p.topic_id, "ten": (ten or "").strip(),
+            "luc": p.mo_luc.isoformat(), "phut": round((p.so_giay or 0) / 60),
+            "so_hoi": p.so_hoi or 0,
+            "doc_x": len(da_doc), "doc_y": tong_phan,
+            "quiz": {"diem": a.diem, "tong": a.tong, "dat": a.dat} if a else None,
+            "dang_hoc": phien_svc.dang_hoc(p),
+        })
+    d["lich_su"] = lich_su
+    return d
+
+
+@router.get("/me/ycd")
+async def me_ycd(
+    mon: str = "Toán", khoi: str = "Lớp 6",
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Đạt tới đâu theo yêu cầu cần đạt (REQ §3.6 khối 4).
+
+    Giữ ĐÚNG thứ tự trong ma trận, không sắp lại theo số lần sai — chuyên gia đọc
+    theo mạch, đảo thứ tự là mất mạch.
+    """
+    subject = await session.scalar(select(Subject).filter_by(name=mon))
+    grade = await session.scalar(select(Grade).filter_by(name=khoi))
+    if subject is None or grade is None:
+        return {"mach": []}
+    topics = list(await session.scalars(
+        select(CurriculumTopic).filter_by(subject_id=subject.id, grade_id=grade.id)
+        .order_by(CurriculumTopic.order_index)))
+    ids = [t.id for t in topics]
+    ten_topic = {t.id: t for t in topics}
+    prog = await _progress_map(session, user.id)
+
+    cells = list(await session.scalars(
+        select(BlueprintCell).where(BlueprintCell.topic_id.in_(ids or [0]))
+        .order_by(BlueprintCell.id)))
+    # Số lần làm sai theo ĐƠN VỊ (không theo chỉ số câu — đề sinh lại thì chỉ số
+    # trỏ sai đề, xem ghi chú ở QuizAttempt).
+    sai_rows = (await session.execute(
+        select(QuizAttempt.topic_id, func.count())
+        .where(QuizAttempt.user_id == user.id, ~QuizAttempt.dat)
+        .group_by(QuizAttempt.topic_id))).all()
+    sai = {tid: n for tid, n in sai_rows}
+
+    mach: dict[str, list] = {}
+    for c in cells:
+        t = ten_topic.get(c.topic_id)
+        if t is None:
+            continue
+        tt = prog.get(c.topic_id, "chua")
+        mach.setdefault((t.mach_noi_dung or "").strip(), []).append({
+            "ycd": c.yeu_cau_can_dat, "muc_do": c.muc_do,
+            "topic_id": c.topic_id, "don_vi": (t.don_vi_kien_thuc or "").strip(),
+            "trang_thai": tt, "sai": sai.get(c.topic_id, 0),
+        })
+    return {"mach": [{"mach": k, "ycd": v} for k, v in mach.items()]}
+
+
+# Số câu đề ôn tập. Ôn chương gọn, cuối kỳ dài hơn vì gộp cả học kỳ (REQ §3.5).
+_SO_CAU_ON = {"mach": 12, "hoc_ky": 30}
+
+
+@router.get("/on-tap")
+async def on_tap(
+    pham_vi: str, gia_tri: str, mon: str = "Toán", khoi: str = "Lớp 6",
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Trang Ôn tập chương / cuối học kỳ (REQ §3.5).
+
+    `pham_vi`: "mach" (gia_tri = tên mạch) | "hoc_ky" (gia_tri = "hk1"|"hk2").
+
+    KHÔNG phải `CurriculumTopic` mới — đây là *view* gộp các đơn vị trong phạm vi.
+    Không có 7 phần, không bài mới: chỉ gom lại + đề lấy từ blueprint_cells của
+    toàn bộ đơn vị trong phạm vi.
+    """
+    if pham_vi not in _SO_CAU_ON:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, 'pham_vi phải là "mach" hoặc "hoc_ky"')
+    subject = await session.scalar(select(Subject).filter_by(name=mon))
+    grade = await session.scalar(select(Grade).filter_by(name=khoi))
+    if subject is None or grade is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy môn/khối")
+
+    q = select(CurriculumTopic).filter_by(subject_id=subject.id, grade_id=grade.id)
+    if pham_vi == "mach":
+        q = q.filter(CurriculumTopic.mach_noi_dung == gia_tri)
+    else:
+        q = q.filter(CurriculumTopic.hoc_ky == gia_tri)
+    topics = list(await session.scalars(q.order_by(CurriculumTopic.order_index)))
+    if not topics:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Phạm vi ôn tập không có đơn vị nào")
+
+    ids = [t.id for t in topics]
+    prog = await _progress_map(session, user.id)
+    contents = {c.topic_id: c for c in await session.scalars(
+        select(TopicContent).where(TopicContent.topic_id.in_(ids)))}
+
+    # Khử trùng theo TÊN đơn vị: mục lục khử trùng nên một đơn vị có thể ứng nhiều
+    # topic_id; không khử thì danh sách ôn tập hiện lặp cùng một bài.
+    bai, da_co = [], set()
+    for t in topics:
+        ten = (t.don_vi_kien_thuc or "").strip()
+        if not ten or ten.lower() in da_co:
+            continue
+        da_co.add(ten.lower())
+        c = contents.get(t.id)
+        bai.append({
+            "topic_id": t.id, "ten": ten, "mach": (t.mach_noi_dung or "").strip(),
+            "trang_thai": prog.get(t.id, "chua"),
+            "co_noi_dung": bool(c and (c.khai_niem or "").strip()),
+        })
+    chua_xong = sum(1 for b in bai if b["trang_thai"] != "dat")
+
+    # "Cần nhớ" gom từ blockquote trong Kiến thức trọng tâm của các bài — chỗ chuyên
+    # gia đã đánh dấu là phần phải nhớ, không cần AI sinh lại.
+    can_nho = []
+    for b in bai:
+        c = contents.get(b["topic_id"])
+        for m in re.findall(r"(?is)<blockquote[^>]*>(.*?)</blockquote>", (c.khai_niem if c else "") or ""):
+            txt = re.sub(r"<[^>]+>", "", m).strip()
+            if txt:
+                can_nho.append({"topic_id": b["topic_id"], "ten": b["ten"], "y": txt})
+    ycd = await session.scalar(select(func.count()).select_from(BlueprintCell)
+                               .where(BlueprintCell.topic_id.in_(ids))) or 0
+
+    return {
+        "pham_vi": pham_vi, "gia_tri": gia_tri,
+        "so_bai": len(bai), "chua_xong": chua_xong,
+        "bai": bai, "can_nho": can_nho[:8], "ycd": ycd,
+        "so_cau_de": _SO_CAU_ON[pham_vi],
+    }

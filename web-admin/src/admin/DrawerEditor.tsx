@@ -4,7 +4,8 @@ import {
   cmsUploadVideo,
   tokenStore,
 } from "../api";
-import type { CmsAiDraft, CmsMedia, CmsNhac, CmsQuiz, CmsTopic, CmsViDu } from "../types";
+import type { CmsAiDraft, CmsMedia, CmsNhac, CmsPhan, CmsQuiz, CmsTopic, CmsViDu } from "../types";
+import { BoCucPhan } from "./BoCucPhan";
 import { HtmlMathEditor } from "../components/HtmlMathEditor";
 import { renderMath } from "../mathHtml";
 
@@ -14,13 +15,18 @@ const FALLBACK_NGUON_MAX = 5000;
 const LV: Record<string, string> = { de: "Dễ", trung_binh: "TB", kho: "Khó" };
 
 interface Draft {
-  khai_niem: string; minh_hoa: CmsMedia[]; vi_du: CmsViDu[];
+  khai_niem: string;
+  khoi_dong: string; hoat_dong: string; luyen_tap: string; bai_tap: string;
+  bo_cuc: CmsPhan[]; minh_hoa: CmsMedia[]; vi_du: CmsViDu[];
   day: { muc_tieu: string; thoi_luong: string; luu_y: string };
   nguon: string; trang_thai: string;
 }
 function toDraft(t: CmsTopic): Draft {
   return {
     khai_niem: t.khai_niem,
+    khoi_dong: t.khoi_dong ?? "", hoat_dong: t.hoat_dong ?? "",
+    luyen_tap: t.luyen_tap ?? "", bai_tap: t.bai_tap ?? "",
+    bo_cuc: t.bo_cuc ?? [],
     minh_hoa: t.minh_hoa.map((m) => ({ ...m })),
     vi_du: t.vi_du.map((e) => ({ ...e })),
     day: { muc_tieu: t.day?.muc_tieu ?? "", thoi_luong: t.day?.thoi_luong ?? "", luu_y: t.day?.luu_y ?? "" },
@@ -70,6 +76,8 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
     try {
       await cmsSaveTopic(topicId, {
         khai_niem: d.khai_niem, minh_hoa: d.minh_hoa, vi_du: d.vi_du,
+        khoi_dong: d.khoi_dong, hoat_dong: d.hoat_dong,
+        luyen_tap: d.luyen_tap, bai_tap: d.bai_tap,
         day: { muc_tieu: d.day.muc_tieu, thoi_luong: d.day.thoi_luong, luu_y: d.day.luu_y },
         nguon: d.nguon || null, trang_thai: d.trang_thai,
       });
@@ -160,6 +168,24 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
                     ))}
                   </div>
                 )}
+                {/* Bố cục 7 phần — đặt TRƯỚC các ô soạn: chuyên gia quyết định
+                    bài gồm phần nào trước, rồi mới soạn từng phần. */}
+                {d.bo_cuc.length > 0 && (
+                  <BoCucPhan topicId={topicId} banDau={d.bo_cuc} toast={toast}
+                    onAi={(phan: string, html: string) => patch({ [phan === "kien_thuc" ? "khai_niem" : phan]: html } as Partial<Draft>)} />
+                )}
+
+                {/* Ô soạn 4 phần mới. Đặt cạnh nhau để thấy cả bài một lượt. */}
+                {([["khoi_dong", "🚀 Khởi động"], ["hoat_dong", "🧩 Hoạt động"],
+                   ["luyen_tap", "🎯 Luyện tập – Vận dụng"], ["bai_tap", "📚 Bài tập"]] as const)
+                  .map(([k, ten]) => (
+                    <div className="esec" key={k}>
+                      <div className="esec-h"><span className="n">{ten.slice(0, 2)}</span> {ten.slice(3)}</div>
+                      <HtmlMathEditor value={d[k]} placeholder={`Nội dung phần ${ten.slice(3)} (HTML, công thức trong $…$)`}
+                        onChange={(v) => patch({ [k]: v } as Partial<Draft>)} />
+                    </div>
+                  ))}
+
                 {/* 1 Khái niệm */}
                 <div className="esec">
                   <div className="esec-h"><span className="n">1</span> Khái niệm, định nghĩa

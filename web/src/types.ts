@@ -21,6 +21,9 @@ export interface MinhHoa {
   caption?: string;
   source?: string;           // "ai" | "expert"
 }
+export interface PhanBoCuc {
+  id: string; ten: string; em: string; cot: string | null; an: boolean; so: number;
+}
 export interface LessonDay {
   muc_tieu?: string;
   thoi_luong?: string;
@@ -38,6 +41,10 @@ export interface QuizResultItem {
   chon: number;
   dap_an: number;
   giai: string;
+  /** Phần nội dung câu này kiểm tra — để chỉ HS về đúng đoạn cần đọc lại (§3.4). */
+  phan?: string;
+  /** Yêu cầu cần đạt tương ứng trong ma trận. */
+  ycd?: string;
 }
 export interface QuizResult {
   diem: number;
@@ -69,6 +76,14 @@ export interface Lesson {
   day: LessonDay | null;
   /** Tư liệu thô chuyên gia dán cho AI. CHỈ tác giả nhận; HS luôn nhận null. */
   nguon: string | null;
+  // 4 phần nội dung mới (REQ §1.1)
+  khoi_dong?: string;
+  hoat_dong?: string;
+  luyen_tap?: string;
+  bai_tap?: string;
+  /** Thứ tự + số thứ tự các phần ĐANG HIỆN. Server tính, client KHÔNG tự suy —
+   *  tự suy là số lệch với bản chuyên gia đang soạn. */
+  bo_cuc?: PhanBoCuc[];
   trang_thai: string;        // published | draft | chua_bien_soan
 }
 export interface ProgressGroup {
@@ -103,7 +118,12 @@ export interface TutorAnswer {
 }
 
 /** Đoạn bài học đang hỏi. Khớp với `anchor` ở backend (app/api/tutor.py). */
-export type Neo = "khai_niem" | "minh_hoa" | `vi_du:${number}` | `quiz:${number}`;
+/** Neo = đoạn học sinh đang hỏi. Phải khớp `_NEO_RE` ở app/api/tutor.py — thêm ở
+ *  một bên thôi thì FE gửi lên bị 422 hoặc BE nhận neo mà FE không tạo được. */
+export type Neo =
+  | "khoi_dong" | "hoat_dong" | "kien_thuc" | "khai_niem" | "minh_hoa"
+  | "luyen_tap" | "bai_tap"
+  | `vi_du:${number}` | `quiz:${number}`;
 
 // Hero gamification (GET /me/stats)
 export interface MyStats {
@@ -114,4 +134,23 @@ export interface MyStats {
   streak: number;
   xp_week: number;
   xp_total: number;
+}
+
+/** Hồ sơ học tập — thời gian (GET /me/thoi-gian · REQ §3.6). */
+export interface ThoiGianHoc {
+  hom_nay_phut: number; bay_ngay_phut: number; tong_phut: number; so_phien: number;
+  muc_tieu_phut: number; dat_muc_tieu: boolean;
+  bieu_do: { ngay: string; phut: number; hom_nay: boolean }[];
+  lich_su: {
+    topic_id: number; ten: string; luc: string; phut: number; so_hoi: number;
+    doc_x: number; doc_y: number;
+    quiz: { diem: number; tong: number; dat: boolean } | null;
+    dang_hoc: boolean;
+  }[];
+}
+/** Đạt tới đâu theo yêu cầu cần đạt (GET /me/ycd). */
+export interface YcdMach {
+  mach: string;
+  ycd: { ycd: string; muc_do: string; topic_id: number; don_vi: string;
+         trang_thai: string; sai: number }[];
 }

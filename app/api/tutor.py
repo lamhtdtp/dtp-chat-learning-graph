@@ -42,7 +42,9 @@ _TAC_GIA = {"chuyen_gia", "giao_vien", "admin"}
 
 # Neo = đoạn học sinh đang hỏi. Khớp CHẶT để `anchor` không thành đường tuồn chuỗi
 # tuỳ ý vào prompt. None = hỏi chung cả bài.
-_NEO_RE = re.compile(r"^(khai_niem|minh_hoa|(vi_du|quiz):([1-9]\d?))$")
+_NEO_RE = re.compile(
+    r"^(khoi_dong|hoat_dong|khai_niem|kien_thuc|minh_hoa|luyen_tap|bai_tap"
+    r"|(vi_du|quiz):([1-9]\d?))$")
 # Trần ngữ cảnh bài học trong prompt. Bài dài (nhiều ví dụ) mà nhét hết thì mỗi
 # lượt hỏi đội token vô ích, trong khi phần trả lời chỉ cần đúng đoạn đang đọc.
 _MAX_BAI = 6000
@@ -106,8 +108,24 @@ def _doan_bai(c: TopicContent, anchor: str | None) -> tuple[str, str | None]:
     kn = _bo_the(c.khai_niem)
     vd = json.loads(c.vi_du_json or "[]")
 
-    if anchor == "khai_niem":
-        return f"KHÁI NIỆM:\n{kn}", "Khái niệm"
+    # `kien_thuc` là TÊN MỚI của phần khái niệm (§1.1); `khai_niem` giữ lại cho
+    # client cũ. Hai neo cùng trỏ một chỗ.
+    if anchor in ("khai_niem", "kien_thuc"):
+        return f"KIẾN THỨC TRỌNG TÂM:\n{kn}", "Kiến thức trọng tâm"
+
+    # 4 phần mới: nội dung nằm ở cột riêng, KÈM kiến thức trọng tâm làm nền —
+    # hỏi về một bài luyện tập mà không có lý thuyết thì trả lời được rất ít.
+    if anchor in ("khoi_dong", "hoat_dong", "luyen_tap", "bai_tap"):
+        from app.lessons import bo_cuc as _bc
+
+        ten = next(x["ten"] for x in _bc.PHAN if x["id"] == anchor)
+        noi = _bo_the(_bc.noi_dung(c, anchor))
+        if not noi:
+            # Phần chưa soạn -> rơi về cả bài thay vì đưa mô hình một đoạn rỗng
+            # rồi nhận về câu trả lời bịa.
+            anchor = None
+        else:
+            return f"KIẾN THỨC TRỌNG TÂM:\n{kn}\n\n{ten.upper()}:\n{noi}", ten
 
     if anchor == "minh_hoa":
         mh = json.loads(c.minh_hoa_json or "[]")

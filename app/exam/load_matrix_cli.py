@@ -43,6 +43,17 @@ async def _main(hoc_ky: str | None, mon: str | None) -> None:
                 select(func.count()).select_from(BlueprintCell).where(BlueprintCell.blueprint_id == bp.id)
             )
             print(f"Nạp {mon_ten} {hk}: blueprint id={bp.id}, {n} ô ma trận")
+            # Cảnh báo NGAY trên terminal: đơn vị tự tạo mang tên lấy thô từ Word
+            # nên hay trùng/sai chính tả với đơn vị đã có. Im lặng thì danh mục
+            # phình thêm mà không ai biết.
+            moi = getattr(bp, "don_vi_moi", [])
+            if moi:
+                print(f"  ⚠️  TỰ TẠO {len(moi)} đơn vị kiến thức chưa có trong danh mục "
+                      f"— vào CMS › Ma trận đặc tả để rà lại tên:")
+                for t in moi[:10]:
+                    print(f"       · {t.mach_noi_dung} / {t.don_vi_kien_thuc}")
+                if len(moi) > 10:
+                    print(f"       … và {len(moi) - 10} đơn vị nữa")
         await session.commit()
     print("Đã nạp ma trận + commit.")
 

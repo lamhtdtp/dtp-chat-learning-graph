@@ -473,3 +473,210 @@ async def test_chuyen_gia_khong_quan_ly_duoc_tai_khoan(client, session):
     r = await client.post("/admin/users", headers=cg, json={
         "email": "x@vd.vn", "password": "matkhau123", "name": "X", "role": "chuyen_gia"})
     assert r.status_code == 403
+
+
+async def test_tong_quan_kpi_va_tien_do_mach(client, session):
+    """§2.1 — % mạch = phần đã soạn / (số đơn vị × 7), không phải đếm đơn vị."""
+    import json as _j
+    from app.db.models import TopicContent
+
+    gv = await _auth_noi_bo(client, session, "chuyen_gia")
+    mon, khoi = f"M-{uuid.uuid4().hex[:6]}", f"K-{uuid.uuid4().hex[:6]}"
+    subj = Subject(name=mon); gr = Grade(name=khoi)
+    session.add_all([subj, gr]); await session.flush()
+    t1 = CurriculumTopic(subject_id=subj.id, grade_id=gr.id, mach_noi_dung="Số tự nhiên",
+                         don_vi_kien_thuc="A", order_index=0)
+    t2 = CurriculumTopic(subject_id=subj.id, grade_id=gr.id, mach_noi_dung="Số tự nhiên",
+                         don_vi_kien_thuc="B", order_index=1)
+    session.add_all([t1, t2]); await session.flush()
+    # t1: soạn 2/7 phần (kiến thức + khởi động). t2: chưa gì.
+    session.add(TopicContent(topic_id=t1.id, khai_niem="<p>x</p>", khoi_dong="<p>y</p>",
+                             quiz_json=_j.dumps([{"q": "?", "o": ["a", "b"], "a": 0, "lv": "de"}])))
+    await session.commit()
+
+    b = (await client.get(f"/cms/tong-quan?mon={mon}&khoi={khoi}", headers=gv)).json()
+    assert b["kpi"]["tong_dv"] == 2 and b["kpi"]["tong_phan"] == 7
+    assert b["kpi"]["du_7_phan"] == 0 and b["kpi"]["dang_soan"] == 1
+    m = b["theo_mach"][0]
+    assert m["so_dv"] == 2 and m["da"] == 2
+    assert m["phan_tram"] == round(100 * 2 / 14)      # = 14%, KHÔNG phải 50%
+    viec = {v["mo"]: v["so"] for v in b["viec_can_lam"]}
+    assert viec["đơn vị chưa có Kiến thức trọng tâm"] == 1   # chỉ t2
+    assert viec["đơn vị chưa sinh Kiểm tra nhanh"] == 1
+
+
+async def test_tong_quan_chan_hoc_sinh(client, session):
+    hs = await _auth(client, "hoc_sinh")
+    assert (await client.get("/cms/tong-quan", headers=hs)).status_code == 403
+
+
+async def test_lessons_tra_bo_cuc_va_4_phan_moi(client, session):
+    """§8 — client render theo `bo_cuc`; ẩn một phần thì số phải liền mạch 1…n."""
+    import json as _j
+    from app.db.models import TopicContent
+
+    gv = await _auth_noi_bo(client, session, "chuyen_gia")
+    mon, khoi, tid = await _seed(session)
+    session.add(TopicContent(
+        topic_id=tid, khai_niem="<p>kt</p>", khoi_dong="<p>kd</p>", bai_tap="<p>bt</p>",
+        trang_thai="published",
+        bo_cuc_json=_j.dumps([{"id": "khoi_dong"}, {"id": "hoat_dong", "an": True},
+                              {"id": "kien_thuc"}])))
+    await session.commit()
+
+    b = (await client.get(f"/lessons/{tid}", headers=gv)).json()
+    assert b["khoi_dong"] == "<p>kd</p>" and b["bai_tap"] == "<p>bt</p>"
+    ids = [p["id"] for p in b["bo_cuc"]]
+    assert "hoat_dong" not in ids and ids[:2] == ["khoi_dong", "kien_thuc"]
+    assert [p["so"] for p in b["bo_cuc"]] == list(range(1, len(ids) + 1))
+
+
+async def test_luu_bo_cuc_va_hoc_sinh_thay_ngay(client, session):
+    """§2.2 — chuyên gia đổi thứ tự/ẩn -> /lessons trả đúng ngay, số tự tính lại."""
+    import json as _j
+    from app.db.models import TopicContent
+
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    mon, khoi, tid = await _seed(session)
+    session.add(TopicContent(topic_id=tid, khai_niem="<p>kt</p>", khoi_dong="<p>kd</p>",
+                             bai_tap="<p>bt</p>", trang_thai="published"))
+    await session.commit()
+
+    r = await client.put(f"/cms/topics/{tid}/bo-cuc", headers=cg, json={"bo_cuc": [
+        {"id": "bai_tap"}, {"id": "khoi_dong", "an": True}, {"id": "kien_thuc"}]})
+    assert r.status_code == 200
+    b = (await client.get(f"/lessons/{tid}", headers=cg)).json()
+    ids = [p["id"] for p in b["bo_cuc"]]
+    assert ids == ["bai_tap", "kien_thuc"]          # khoi_dong bị ẩn
+    assert [p["so"] for p in b["bo_cuc"]] == [1, 2]  # số liền mạch
+
+
+async def test_luu_bo_cuc_luoc_id_la(client, session):
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    mon, khoi, tid = await _seed(session)
+    await session.commit()
+    r = await client.put(f"/cms/topics/{tid}/bo-cuc", headers=cg, json={"bo_cuc": [
+        {"id": "kien_thuc"}, {"id": "<script>"}, {"id": "kien_thuc", "an": True}]})
+    assert r.status_code == 200
+    # id lạ bị lược, trùng bị khử -> phần còn lại được bổ sung vào cuối
+    ds = r.json()["bo_cuc"]
+    assert ds[0]["id"] == "kien_thuc" and len(ds) == 7
+    assert all(p["id"] != "<script>" for p in ds)
+
+
+async def test_ai_theo_phan_chi_sinh_dung_phan_do(client, session, mocker):
+    """§2.2 — "✨ AI hỗ trợ" ở hàng nào chỉ sinh phần đó, KHÔNG đè cả bài."""
+    complete = mocker.AsyncMock(return_value="```html\n<p>3 bài luyện tập</p>\n```")
+    mocker.patch("app.lessons.ingest.gateway.complete", complete)
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    mon, khoi, tid = await _seed(session)
+    await session.commit()
+
+    r = await client.post(f"/cms/topics/{tid}/phan/luyen_tap/ai", headers=cg)
+    assert r.status_code == 200
+    b = r.json()
+    assert b["phan"] == "luyen_tap" and b["html"] == "<p>3 bài luyện tập</p>"  # đã bóc ```html
+    prompt = complete.await_args.kwargs["messages"][0]["content"]
+    assert "Luyện tập – Vận dụng" in prompt and "tăng dần độ khó" in prompt.lower()
+    # KHÔNG tự lưu — chuyên gia rà rồi PUT
+    assert (await client.get(f"/cms/topics/{tid}", headers=cg)).json()["completeness"]["done"] == 0
+
+
+async def test_ai_theo_phan_chan_phan_khong_hop_le(client, session):
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    mon, khoi, tid = await _seed(session)
+    await session.commit()
+    for phan, ma in (("bịa", 400), ("minh_hoa", 400), ("vi_du", 400)):
+        r = await client.post(f"/cms/topics/{tid}/phan/{phan}/ai", headers=cg)
+        assert r.status_code == ma, f"{phan} -> {r.status_code}"
+
+
+async def test_danh_muc_cay_hk_mach_don_vi_va_node_on_tap(client, session):
+    """§2.3 — cây HK → mạch → đơn vị; node ôn tập là VIEW, không phải topic mới."""
+    from app.db.models import TopicContent
+
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    mon, khoi = f"M-{uuid.uuid4().hex[:6]}", f"K-{uuid.uuid4().hex[:6]}"
+    subj = Subject(name=mon); gr = Grade(name=khoi)
+    session.add_all([subj, gr]); await session.flush()
+    # "Số tự nhiên" -> HK1 (suy từ tên mạch); "Phân số" -> HK2
+    for i, (mach, dv) in enumerate([("Số tự nhiên", "A"), ("Số tự nhiên", "A"),
+                                    ("Số tự nhiên", "B"), ("Phân số", "C")]):
+        session.add(CurriculumTopic(subject_id=subj.id, grade_id=gr.id,
+                                    mach_noi_dung=mach, don_vi_kien_thuc=dv, order_index=i))
+    await session.flush()
+    t = await session.scalar(select(CurriculumTopic).filter_by(
+        subject_id=subj.id, don_vi_kien_thuc="A"))
+    session.add(TopicContent(topic_id=t.id, khai_niem="<p>x</p>", khoi_dong="<p>y</p>"))
+    await session.commit()
+
+    b = (await client.get(f"/cms/danh-muc?mon={mon}&khoi={khoi}", headers=cg)).json()
+    hk = {x["hoc_ky"]: x for x in b["hoc_ky"]}
+    assert set(hk) == {"hk1", "hk2"}
+    st = hk["hk1"]["mach"][0]
+    assert st["mach"] == "Số tự nhiên"
+    assert [d["ten"] for d in st["dv"]] == ["A", "B"]      # "A" trùng đã khử
+    assert st["so_dv"] == 2
+    a = st["dv"][0]
+    assert a["da_soan"] == 2 and a["tong_phan"] == 7 and a["tinh_trang"] == "dang"
+    assert st["dv"][1]["tinh_trang"] == "chua"
+    # Node ôn tập: view theo mạch (12 câu) + cuối kỳ (30 câu)
+    assert st["on_tap"] == {"pham_vi": "mach", "gia_tri": "Số tự nhiên", "so_cau": 12}
+    assert hk["hk1"]["on_tap_ky"] == {"pham_vi": "hoc_ky", "gia_tri": "hk1", "so_cau": 30}
+
+
+async def test_ma_tran_doi_chieu_dung_diem_DA_LUU(client, session):
+    """§2.5 — điểm khớp lấy từ lúc nạp, KHÔNG tính lại (tính lại luôn ra 100%)."""
+    from app.db.models import Blueprint, BlueprintCell
+
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    mon, khoi = f"M-{uuid.uuid4().hex[:6]}", f"K-{uuid.uuid4().hex[:6]}"
+    subj = Subject(name=mon); gr = Grade(name=khoi)
+    session.add_all([subj, gr]); await session.flush()
+    t = CurriculumTopic(subject_id=subj.id, grade_id=gr.id, mach_noi_dung="Số tự nhiên",
+                        don_vi_kien_thuc="Số nguyên tố", order_index=0)
+    session.add(t); await session.flush()
+    bp = Blueprint(subject_id=subj.id, grade_id=gr.id, semester="hk1")
+    session.add(bp); await session.flush()
+    session.add_all([
+        # khớp chắc chắn
+        BlueprintCell(blueprint_id=bp.id, muc_do="nhan_biet", nang_luc="NL", yeu_cau_can_dat="Y1",
+                      topic_id=t.id, dang_thuc="TN", ti_le=40.0, nhom_ti_le=1,
+                      ten_nguon="Số nguyên tố", mach_nguon="Số tự nhiên", diem_khop=1.0),
+        # cùng nhóm tỉ lệ -> KHÔNG cộng lần hai
+        BlueprintCell(blueprint_id=bp.id, muc_do="nhan_biet", nang_luc="NL", yeu_cau_can_dat="Y2",
+                      topic_id=t.id, dang_thuc="TN", ti_le=40.0, nhom_ti_le=1,
+                      ten_nguon="Số ngtố", mach_nguon="Số tự nhiên", diem_khop=0.62),
+        # nạp trước khi có cột đối chiếu -> chưa đo
+        BlueprintCell(blueprint_id=bp.id, muc_do="thong_hieu", nang_luc="NL", yeu_cau_can_dat="Y3",
+                      topic_id=t.id, dang_thuc="TL", ti_le=60.0, nhom_ti_le=2),
+    ])
+    await session.commit()
+
+    b = (await client.get(f"/cms/ma-tran?mon={mon}&khoi={khoi}", headers=cg)).json()
+    assert b["so_dong"] == 3
+    assert b["tong"] == {"khop": 1, "xem_lai": 1, "chua_gan": 0, "chua_do": 1}
+    # Tỉ lệ: nhóm 1 cộng MỘT lần (40), nhóm 2 là 60 -> tổng 100
+    assert b["ti_le"] == {"nhan_biet": 40.0, "thong_hieu": 60.0}
+    assert sum(b["ti_le"].values()) == 100.0
+    # Dòng lệch tên phải nói ra để người duyệt biết vì sao điểm thấp
+    lech = next(x for x in b["anh_xa"] if x["ycd"] == "Y2")
+    assert lech["lech_ten"] is True and lech["ten_nguon"] == "Số ngtố" and lech["diem"] == 62
+    assert next(x for x in b["anh_xa"] if x["ycd"] == "Y3")["diem"] is None
+
+
+async def test_kho_sgk_tra_danh_sach_sach_du_kho_loi(client, session, mocker):
+    """§2.4 — Qdrant lỗi thì vẫn xem được danh sách sách, không 500."""
+    from app.db.models import Book
+
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    subj = Subject(name=f"M-{uuid.uuid4().hex[:6]}"); gr = Grade(name=f"K-{uuid.uuid4().hex[:6]}")
+    session.add_all([subj, gr]); await session.flush()
+    session.add(Book(name="Cùng khám phá T1", subject_id=subj.id, grade_id=gr.id,
+                     semester="1", source_ref=f"ref-{uuid.uuid4().hex[:6]}"))
+    await session.commit()
+
+    mocker.patch("qdrant_client.AsyncQdrantClient.count", side_effect=RuntimeError("kho sập"))
+    b = (await client.get("/cms/kho-sgk", headers=cg)).json()
+    assert b["kho_loi"] is True and b["kpi"]["so_doan"] == 0
+    assert any(s["ten"] == "Cùng khám phá T1" for s in b["sach"])

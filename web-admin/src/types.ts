@@ -77,6 +77,12 @@ export interface CmsTopic {
   nhac: CmsNhac[];
   day: CmsDay | null;
   nguon: string | null;
+  // 4 phần nội dung mới + bố cục (REQ §1.2)
+  khoi_dong?: string;
+  hoat_dong?: string;
+  luyen_tap?: string;
+  bai_tap?: string;
+  bo_cuc?: CmsPhan[];
   trang_thai: string;
   completeness: CmsCompleteness;
 }
@@ -108,4 +114,45 @@ export interface AdminOverview {
   pheu: { buoc: string; so: number }[];
   chua_hoc: { topic_id: number; ten: string; mach: string }[];
   chua_hoc_tong: number;
+}
+
+/** Trang Tổng quan chuyên gia (GET /cms/tong-quan · REQ §2.1). */
+export interface CmsTongQuan {
+  kpi: { tong_dv: number; du_7_phan: number; ycd: number; dang_soan: number; tong_phan: number };
+  theo_mach: { mach: string; so_dv: number; da: number; phan_tram: number }[];
+  viec_can_lam: { so: number; mo: string; di: string }[];
+}
+
+/** Một phần trong bố cục 7 phần (CMS §2.2). */
+export interface CmsPhan { id: string; ten: string; em: string; cot: string | null; an: boolean }
+
+/** §2.3 Cây danh mục. */
+export interface DmDonVi {
+  topic_id: number; ten: string; da_soan: number; tong_phan: number; ycd: number;
+  tinh_trang: "du" | "dang" | "chua"; trang_thai: string;
+}
+export interface DmMach {
+  mach: string; so_dv: number; dv: DmDonVi[];
+  on_tap: { pham_vi: string; gia_tri: string; so_cau: number };
+}
+export interface DmHocKy {
+  hoc_ky: string; mach: DmMach[];
+  on_tap_ky: { pham_vi: string; gia_tri: string; so_cau: number };
+}
+/** §2.4 Kho SGK. */
+export interface KhoSgk {
+  kpi: { so_sach: number; so_trang: number; so_doan: number; pt_dan_nguon: number };
+  kho_loi: boolean;
+  sach: { id: number; ten: string; mon: string; khoi: string; tap: string | null; source_ref: string }[];
+}
+/** §2.5 Đối chiếu ma trận. */
+export interface MaTran {
+  tong: { khop: number; xem_lai: number; chua_gan: number; chua_do: number };
+  /** Đơn vị do lần nạp ma trận TỰ TẠO — tên lấy thô từ .docx, phải rà lại. */
+  tu_ma_tran: { topic_id: number; ten: string; mach: string }[];
+  ti_le: Record<string, number>;
+  anh_xa: { muc_do: string; ycd: string; don_vi: string; mach: string;
+            ten_nguon: string | null; lech_ten: boolean;
+            diem: number | null; loai: string | null }[];
+  so_dong: number;
 }

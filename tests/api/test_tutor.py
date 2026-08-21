@@ -222,7 +222,8 @@ async def test_qdrant_hong_van_tra_loi_duoc_bang_noi_dung_bai(client, session, m
     r = await client.post("/tutor/ask", headers=h, json={
         "question": "Số nguyên tố là gì?", "topic_id": tid, "anchor": "khai_niem"})
     assert r.status_code == 200 and r.json()["citations"] == []
-    assert r.json()["nguon_bai"] == "Khái niệm"
+    # Nhãn đổi theo REQ §1.1: phần này giờ tên "Kiến thức trọng tâm".
+    assert r.json()["nguon_bai"] == "Kiến thức trọng tâm"
 
 
 async def test_qdrant_hong_va_khong_co_bai_thi_503(client, mocker):
@@ -243,3 +244,42 @@ async def test_topic_id_khong_ton_tai_van_tra_loi_bang_sgk(client, mocker):
     r = await client.post("/tutor/ask", headers=h,
                           json={"question": "Số nguyên tố là gì?", "topic_id": 99999999})
     assert r.status_code == 200 and r.json()["nguon_bai"] is None
+
+
+def test_neo_nhan_du_7_phan():
+    """§3.3 — thiếu một phần là học sinh bấm "Hỏi về đoạn này" ở đó thì trả lời sai đoạn."""
+    from app.api.tutor import _NEO_RE
+
+    for x in ("khoi_dong", "hoat_dong", "khai_niem", "kien_thuc", "minh_hoa",
+              "luyen_tap", "bai_tap", "vi_du:1", "quiz:12"):
+        assert _NEO_RE.match(x), x
+    for x in ("bịa", "vi_du:0", "quiz:100", "khoi_dong ", "", "kien_thuc:1"):
+        assert not _NEO_RE.match(x), x
+
+
+def test_doan_bai_4_phan_moi_kem_kien_thuc_lam_nen():
+    from app.api.tutor import _doan_bai
+
+    class C:
+        khai_niem = "<p>Lý thuyết nền</p>"
+        khoi_dong = "<p>Câu hỏi mở đầu</p>"
+        hoat_dong = ""
+        luyen_tap = "<p>Bài luyện</p>"
+        bai_tap = ""
+        vi_du_json = "[]"; minh_hoa_json = "[]"; quiz_json = "[]"
+
+    txt, nhan = _doan_bai(C(), "khoi_dong")
+    assert nhan == "Khởi động"
+    assert "Câu hỏi mở đầu" in txt and "Lý thuyết nền" in txt
+
+    txt, nhan = _doan_bai(C(), "luyen_tap")
+    assert nhan == "Luyện tập – Vận dụng" and "Bài luyện" in txt
+
+    # Phần CHƯA SOẠN -> rơi về cả bài, không đưa mô hình đoạn rỗng
+    txt, nhan = _doan_bai(C(), "hoat_dong")
+    assert nhan == "Toàn bài"
+
+    # kien_thuc và khai_niem trỏ cùng chỗ
+    for a in ("kien_thuc", "khai_niem"):
+        t, n = _doan_bai(C(), a)
+        assert n == "Kiến thức trọng tâm" and "Lý thuyết nền" in t
