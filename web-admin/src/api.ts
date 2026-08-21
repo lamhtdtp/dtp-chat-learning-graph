@@ -193,3 +193,21 @@ export function cmsKhoSgk(): Promise<KhoSgk> {
 export function cmsMaTran(mon = "Toán", khoi = "Lớp 6"): Promise<MaTran> {
   return req(`/cms/ma-tran?mon=${encodeURIComponent(mon)}&khoi=${encodeURIComponent(khoi)}`, { auth: true });
 }
+
+/** Upload ẢNH minh hoạ (multipart). Trả minh_hoa đã cập nhật. */
+export async function cmsUploadAnh(topicId: number, file: File, caption = ""):
+  Promise<{ minh_hoa: CmsMedia[] }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const t = tokenStore.get();
+  const res = await fetch(
+    `${API_BASE}/cms/topics/${topicId}/anh?caption=${encodeURIComponent(caption)}`,
+    { method: "POST", headers: t ? { Authorization: `Bearer ${t}` } : {}, body: fd },
+  );
+  if (!res.ok) {
+    let detail = `Lỗi ${res.status}`;
+    try { detail = (await res.json()).detail ?? detail; } catch { /* mặc định */ }
+    throw new ApiError(res.status, detail);
+  }
+  return res.json();
+}

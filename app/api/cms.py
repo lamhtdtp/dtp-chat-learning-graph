@@ -773,3 +773,46 @@ async def cms_ma_tran(
         "anh_xa": anh_xa[:200],
         "so_dong": len(cells),
     }
+
+
+_ANH_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
+_MAX_ANH_BYTES = 8 * 1024 * 1024   # 8MB — ảnh trang sách scan cỡ này là dư
+
+
+@router.post("/topics/{topic_id}/anh")
+async def cms_upload_anh(
+    topic_id: int,
+    caption: str = "",
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Upload ẢNH minh hoạ của chuyên gia (source='expert').
+
+    Trước đây chỉ có đường upload video; "thêm ảnh" mới chỉ là dán URL, nên ảnh
+    chuyên gia tự chụp/scan không có cách nào vào hệ thống.
+    """
+    _require_author(user)
+    if await session.get(CurriculumTopic, topic_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy đơn vị kiến thức")
+    ext = _ANH_TYPES.get(file.content_type or "")
+    if ext is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Định dạng ảnh không hỗ trợ (PNG/JPG/WEBP)")
+    data = await file.read()
+    if len(data) > _MAX_ANH_BYTES:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Ảnh quá lớn (tối đa 8MB)")
+
+    # Tên theo nội dung: upload lại đúng ảnh đó thì ghi đè, không rải thêm rác.
+    import hashlib
+
+    name = f"expert_topic{topic_id}_{hashlib.sha1(data).hexdigest()[:16]}{ext}"
+    url = storage.save_image(data, name)
+
+    c = await _get_or_create(session, topic_id)
+    minh_hoa = json.loads(c.minh_hoa_json or "[]")
+    minh_hoa.append({"type": "image", "url": url,
+                     "caption": caption or "Hình minh hoạ", "source": "expert"})
+    c.minh_hoa_json = json.dumps(minh_hoa, ensure_ascii=False)
+    out = {"topic_id": topic_id, "minh_hoa": _media_for_view(minh_hoa)}
+    await session.commit()
+    return out

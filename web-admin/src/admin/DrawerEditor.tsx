@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ApiError, cmsAiIngest, cmsGenerateNhac, cmsGenerateQuiz, cmsGetTopic, cmsLimits, cmsSaveTopic,
-  cmsUploadVideo,
   tokenStore,
 } from "../api";
 import type { CmsAiDraft, CmsMedia, CmsNhac, CmsPhan, CmsQuiz, CmsTopic, CmsViDu } from "../types";
-import { BoCucPhan } from "./BoCucPhan";
-import { HtmlMathEditor } from "../components/HtmlMathEditor";
+import { MediaSoan } from "./MediaSoan";
+import { PhanSoan } from "./PhanSoan";
+import { SoanHtml } from "../components/SoanHtml";
 import { renderMath } from "../mathHtml";
 
 const STATUS: [string, string][] = [["draft", "● Nháp"], ["review", "● Chờ duyệt"], ["published", "● Đã xuất bản"]];
@@ -55,7 +55,6 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
   // Giới hạn ô tư liệu nguồn — đọc từ server (override được bằng env), fallback
   // khớp mặc định settings.cms_nguon_max_chars nếu gọi lỗi.
   const [nguonMax, setNguonMax] = useState(FALLBACK_NGUON_MAX);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const handle = (e: unknown) => {
     if (e instanceof ApiError && e.status === 401) { tokenStore.clear(); location.reload(); return; }
@@ -114,15 +113,7 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
     try { const r = await cmsGenerateNhac(topicId); setNhac(r.nhac); toast("Đã sinh lời nhắc"); }
     catch (e) { handle(e); } finally { setBusy(null); }
   };
-  const upload = async (f: File) => {
-    setBusy("video");
-    try { const r = await cmsUploadVideo(topicId, f, "Video minh họa"); patch({ minh_hoa: r.minh_hoa }); toast("Đã tải video"); }
-    catch (e) { handle(e); } finally { setBusy(null); if (fileRef.current) fileRef.current.value = ""; }
-  };
-
-  const addImg = () => d && patch({ minh_hoa: [...d.minh_hoa, { type: "image", url: "", caption: "" }] });
-  const rmMedia = (i: number) => d && patch({ minh_hoa: d.minh_hoa.filter((_, j) => j !== i) });
-  const setMedia = (i: number, p: Partial<CmsMedia>) => d && patch({ minh_hoa: d.minh_hoa.map((m, j) => j === i ? { ...m, ...p } : m) });
+  // Upload/xoá/sửa media giờ do MediaSoan lo trọn (kéo-thả + lưới thumbnail).
   const addVd = () => d && patch({ vi_du: [...d.vi_du, { de: "", giai: "" }] });
   const rmVd = (i: number) => d && patch({ vi_du: d.vi_du.filter((_, j) => j !== i) });
   const setVd = (i: number, p: Partial<CmsViDu>) => d && patch({ vi_du: d.vi_du.map((e, j) => j === i ? { ...e, ...p } : e) });
@@ -168,27 +159,10 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
                     ))}
                   </div>
                 )}
-                {/* Bố cục 7 phần — đặt TRƯỚC các ô soạn: chuyên gia quyết định
-                    bài gồm phần nào trước, rồi mới soạn từng phần. */}
-                {d.bo_cuc.length > 0 && (
-                  <BoCucPhan topicId={topicId} banDau={d.bo_cuc} toast={toast}
-                    onAi={(phan: string, html: string) => patch({ [phan === "kien_thuc" ? "khai_niem" : phan]: html } as Partial<Draft>)} />
-                )}
-
-                {/* Ô soạn 4 phần mới. Đặt cạnh nhau để thấy cả bài một lượt. */}
-                {([["khoi_dong", "🚀 Khởi động"], ["hoat_dong", "🧩 Hoạt động"],
-                   ["luyen_tap", "🎯 Luyện tập – Vận dụng"], ["bai_tap", "📚 Bài tập"]] as const)
-                  .map(([k, ten]) => (
-                    <div className="esec" key={k}>
-                      <div className="esec-h"><span className="n">{ten.slice(0, 2)}</span> {ten.slice(3)}</div>
-                      <HtmlMathEditor value={d[k]} placeholder={`Nội dung phần ${ten.slice(3)} (HTML, công thức trong $…$)`}
-                        onChange={(v) => patch({ [k]: v } as Partial<Draft>)} />
-                    </div>
-                  ))}
-
-                {/* 1 Khái niệm */}
+                {/* Gợi ý AI cho CẢ BÀI (khái niệm + ví dụ + minh hoạ) — khác
+                    "✨ AI hỗ trợ" từng phần ở trong mỗi hàng bên dưới. */}
                 <div className="esec">
-                  <div className="esec-h"><span className="n">1</span> Khái niệm, định nghĩa
+                  <div className="esec-h"><span className="n">✨</span> Gợi ý AI cho cả bài
                     <button className="ai-btn" type="button" disabled={busy === "ai"} onClick={aiIngest}>
                       ✨ {busy === "ai" ? "Đang soạn + sinh ảnh…" : "Gợi ý AI"}
                     </button>
@@ -206,9 +180,7 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
                   {ai?.loi_media.map((m, i) => (
                     <div className="warn-box" key={i} style={{ marginBottom: 9 }}>⚠️ {m}</div>
                   ))}
-                  <HtmlMathEditor value={d.khai_niem} placeholder="Nhập khái niệm (HTML thuần: <p>, <b>… — công thức đặt trong $…$)"
-                    onChange={(v) => patch({ khai_niem: v })} />
-                  <label className="lbl" style={{ marginTop: 8 }}>
+                  <label className="lbl" style={{ marginTop: 4 }}>
                     Tư liệu nguồn cho AI (tuỳ chọn — ưu tiên hơn ngữ liệu tự tra)
                     {d.nguon.length >= nguonMax * 0.7 && (
                       <span className={"lbl-dem" + (d.nguon.length >= nguonMax ? " het" : "")}>
@@ -216,55 +188,45 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
                       </span>
                     )}
                   </label>
-                  {/* textarea chứ không phải input 1 dòng: đây là chỗ dán nguyên
-                      trích đoạn SGK. maxLength chặn tại chỗ, server chặn lần nữa. */}
                   <textarea value={d.nguon} maxLength={nguonMax} style={{ minHeight: 64 }}
                     placeholder="Dán trích đoạn SGK để AI bám theo (để trống thì AI tự tra trong kho sách)…"
                     onChange={(e) => patch({ nguon: e.target.value })} />
                 </div>
-                {/* 2 Minh hoạ */}
-                <div className="esec">
-                  <div className="esec-h"><span className="n">2</span> Minh họa</div>
-                  {d.minh_hoa.map((m, i) => (
-                    <div className="mini-item" key={i}>
-                      <div className="mh">{m.type === "video" ? "🎬 Video" : "🖼️ Hình"} {i + 1}
-                        {m.source === "expert" && <span className="badge-ai" style={{ marginLeft: 6 }}>chuyên gia</span>}
-                        {m.source === "ai" && <span className="badge-ai" style={{ marginLeft: 6 }}>AI</span>}
-                        <button className="rm" type="button" onClick={() => rmMedia(i)}>×</button></div>
-                      {/* url_xem = URL đã ký (chỉ để xem). Ảnh/video nội bộ không có
-                          nó thì không tải được; video AI chưa render xong -> url rỗng. */}
-                      {m.type === "image" && (m.url_xem || m.url) && (
-                        <img className="mh-thumb" src={m.url_xem || m.url || ""} alt={m.caption || "Hình minh hoạ"} />
-                      )}
-                      {m.type === "video" && (m.url_xem
-                        ? <video className="mh-thumb" controls src={m.url_xem} />
-                        : m.concept_key && <div className="mh-pending">⏳ Video AI đang dựng — mở lại đơn vị này sau để xem.</div>
-                      )}
-                      <input type="text" value={m.url ?? ""} placeholder="URL/đường dẫn" onChange={(e) => setMedia(i, { url: e.target.value })} />
-                      <input type="text" value={m.caption ?? ""} placeholder="Chú thích" style={{ marginTop: 7 }} onChange={(e) => setMedia(i, { caption: e.target.value })} />
-                    </div>
-                  ))}
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button className="add-b" type="button" onClick={addImg}>＋ Thêm ảnh/URL</button>
-                    <button className="add-b" type="button" disabled={busy === "video"} onClick={() => fileRef.current?.click()} style={{ flex: "none", width: "auto", padding: "10px 14px" }}>
-                      {busy === "video" ? "⬆️ Đang tải…" : "⬆️ Video"}
-                    </button>
-                    <input ref={fileRef} type="file" accept="video/mp4,video/webm,video/quicktime" style={{ display: "none" }}
-                      onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
-                  </div>
-                </div>
-                {/* 3 Ví dụ */}
-                <div className="esec">
-                  <div className="esec-h"><span className="n">3</span> Ví dụ</div>
-                  {d.vi_du.map((e, i) => (
-                    <div className="mini-item" key={i}>
-                      <div className="mh">Ví dụ {i + 1}<button className="rm" type="button" onClick={() => rmVd(i)}>×</button></div>
-                      <HtmlMathEditor value={e.de} placeholder="Đề bài" minHeight={52} onChange={(v) => setVd(i, { de: v })} />
-                      <HtmlMathEditor value={e.giai} placeholder="Lời giải" minHeight={52} style={{ marginTop: 7 }} onChange={(v) => setVd(i, { giai: v })} />
-                    </div>
-                  ))}
-                  <button className="add-b" type="button" onClick={addVd}>＋ Thêm ví dụ</button>
-                </div>
+
+                {/* Bố cục 7 phần GỘP LUÔN nội dung: mỗi hàng vừa đổi thứ tự/ẩn/hiện
+                    vừa là chỗ soạn phần đó. Trước đây danh sách bố cục ở trên, các
+                    ô soạn ở dưới -> phải nhớ hàng thứ mấy ứng với ô nào. */}
+                {d.bo_cuc.length > 0 && (
+                  <PhanSoan
+                    topicId={topicId} banDau={d.bo_cuc} toast={toast}
+                    giaTri={{
+                      khoi_dong: d.khoi_dong, hoat_dong: d.hoat_dong, khai_niem: d.khai_niem,
+                      luyen_tap: d.luyen_tap, bai_tap: d.bai_tap,
+                    }}
+                    onDoi={(cot, html) => patch({ [cot]: html } as Partial<Draft>)}
+                    mediaSlot={
+                      <MediaSoan topicId={topicId} ds={d.minh_hoa} toast={toast}
+                        onDoi={(moi) => patch({ minh_hoa: moi })} />
+                    }
+                    viDuSlot={
+                      <>
+                        {d.vi_du.map((e, i) => (
+                          <div className="mini-item" key={i}>
+                            <div className="mh">Ví dụ {i + 1}
+                              <button className="rm" type="button" onClick={() => rmVd(i)}>×</button></div>
+                            <SoanHtml value={e.de} placeholder="Đề bài" minHeight={54}
+                              onChange={(v) => setVd(i, { de: v })} />
+                            <div style={{ height: 7 }} />
+                            <SoanHtml value={e.giai} placeholder="Lời giải" minHeight={54}
+                              onChange={(v) => setVd(i, { giai: v })} />
+                          </div>
+                        ))}
+                        <button className="add-b" type="button" onClick={addVd}>＋ Thêm ví dụ</button>
+                      </>
+                    }
+                  />
+                )}
+
                 {/* 4 Kiểm tra nhanh */}
                 <div className="esec">
                   <div className="esec-h"><span className="n">4</span> Bài kiểm tra nhanh</div>

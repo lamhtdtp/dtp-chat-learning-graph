@@ -680,3 +680,26 @@ async def test_kho_sgk_tra_danh_sach_sach_du_kho_loi(client, session, mocker):
     b = (await client.get("/cms/kho-sgk", headers=cg)).json()
     assert b["kho_loi"] is True and b["kpi"]["so_doan"] == 0
     assert any(s["ten"] == "Cùng khám phá T1" for s in b["sach"])
+
+
+async def test_upload_anh_chuyen_gia(client, session, mocker):
+    """Ảnh chuyên gia tự chụp/scan phải vào được hệ thống, không chỉ dán URL."""
+    import io
+
+    mocker.patch("app.api.cms.storage.save_image",
+                 side_effect=lambda data, name: f"/video/files/{name}")
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    mon, khoi, tid = await _seed(session)
+    await session.commit()
+
+    files = {"file": ("trang.png", io.BytesIO(b"\x89PNG-that"), "image/png")}
+    r = await client.post(f"/cms/topics/{tid}/anh?caption=Trang+45", headers=cg, files=files)
+    assert r.status_code == 200
+    mh = r.json()["minh_hoa"][-1]
+    assert mh["type"] == "image" and mh["source"] == "expert" and mh["caption"] == "Trang 45"
+    assert mh["url"].startswith("/video/files/") and mh["url_xem"].startswith(mh["url"] + "?exp=")
+
+    # Định dạng lạ bị chặn với lời nhắc rõ ràng
+    bad = {"file": ("a.gif", io.BytesIO(b"GIF89a"), "image/gif")}
+    r2 = await client.post(f"/cms/topics/{tid}/anh", headers=cg, files=bad)
+    assert r2.status_code == 400 and "PNG/JPG/WEBP" in r2.json()["detail"]

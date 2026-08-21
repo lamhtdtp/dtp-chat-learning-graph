@@ -466,3 +466,70 @@
 .admin .mt-dsm{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-top:10px}
 .admin .mt-dsm .act.txt{max-width:230px;overflow:hidden;text-overflow:ellipsis;display:inline-block;
   white-space:nowrap;height:auto;padding:5px 11px}
+
+/* ── Ô soạn nội dung render trực tiếp (SoanHtml) ─────────────────────────────*/
+.admin .sh{border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);overflow:hidden}
+.admin .sh:focus-within{border-color:var(--primary);box-shadow:0 0 0 2px var(--ring)}
+.admin .sh-bar{display:flex;align-items:center;gap:3px;padding:5px 7px;background:var(--surface-2);
+  border-bottom:1px solid var(--border);flex-wrap:wrap}
+.admin .sh-bar button{width:27px;height:27px;border:none;background:transparent;border-radius:var(--r-xs);
+  color:var(--ink-2);font-size:12.5px;display:grid;place-items:center}
+.admin .sh-bar button:hover{background:var(--surface-3);color:var(--ink)}
+.admin .sh-v{width:1px;height:17px;background:var(--border);margin:0 3px}
+.admin .sh-ghi{margin-left:auto;font-size:10.5px;color:var(--ink-3);padding-right:4px}
+.admin .sh-o{padding:11px 13px;font-size:14px;line-height:1.6;outline:none;overflow-y:auto;max-height:340px}
+.admin .sh-o:empty::before{content:attr(data-rong);color:var(--ink-3)}
+.admin .sh-o>:first-child{margin-top:0}
+.admin .sh-o>:last-child{margin-bottom:0}
+.admin .sh-o blockquote{margin:8px 0;padding:8px 12px;border-left:3px solid var(--primary);
+  background:var(--primary-weak);border-radius:0 var(--r-xs) var(--r-xs) 0}
+.admin .sh-o ul,.admin .sh-o ol{padding-left:22px;margin:6px 0}
+
+/* ── Bố cục 7 phần GỘP nội dung (PhanSoan) ──────────────────────────────────*/
+.admin .ps-o{border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-2);
+  margin-bottom:10px;overflow:hidden;transition:.14s}
+.admin .ps-o.an{opacity:.62}
+.admin .ps-o.nb{border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.admin .ps-o.nb .ps-dau{background:color-mix(in srgb,var(--warn-weak) 70%,var(--surface-2))}
+.admin .ps-o.nb .ps-so{background:var(--primary);border-color:var(--primary);color:#fff}
+.admin .ps-dau{display:flex;align-items:center;gap:10px;padding:9px 12px}
+.admin .ps-so{width:24px;height:24px;flex:none;border-radius:7px;display:grid;place-items:center;
+  font-size:11.5px;font-weight:800;background:var(--surface-3);border:1px solid var(--border);color:var(--ink-2)}
+.admin .ps-em{font-size:17px;flex:none}
+.admin .ps-tx{flex:1;min-width:0}
+.admin .ps-ten{font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:8px}
+.admin .ps-mo{font-size:11.5px;color:var(--ink-3);margin-top:1px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.admin .ps-trong{font-size:10.5px;font-weight:700;color:var(--slate);background:var(--slate-weak);
+  padding:2px 8px;border-radius:var(--r-pill)}
+.admin .ps-o .ai-btn{margin-left:0;flex:none}
+.admin .ps-than{padding:0 12px 12px}
+
+/* ── Khu Minh hoạ (MediaSoan) ───────────────────────────────────────────────*/
+.admin .mz{display:flex;align-items:center;gap:13px;padding:14px 16px;cursor:pointer;
+  border:2px dashed var(--border-2);border-radius:var(--r-sm);background:var(--surface-2);transition:.14s}
+.admin .mz:hover{border-color:var(--primary)}
+.admin .mz.keo{border-color:var(--primary);background:var(--primary-weak)}
+.admin .mz.busy{cursor:default;opacity:.75}
+.admin .mz-em{font-size:26px;flex:none}
+.admin .mz b{font-size:13.5px;color:var(--ink)}
+.admin .mz-mo{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+.admin .mz-phu{display:flex;align-items:center;gap:10px;margin-top:9px}
+.admin .mz-phu .badge-man{margin-left:auto}
+.admin .mz-url{display:flex;gap:8px;margin-top:8px}
+/* Lưới thumbnail */
+.admin .mzg{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:11px;margin-top:12px}
+.admin .mzi-xem{position:relative;aspect-ratio:16/10;border:1px solid var(--border);
+  border-radius:var(--r-sm);background:var(--surface-3);overflow:hidden;display:grid;place-items:center}
+.admin .mzi-xem img,.admin .mzi-xem video{width:100%;height:100%;object-fit:cover;display:block}
+.admin .mzi-cho{font-size:11.5px;color:var(--ink-3);text-align:center;padding:0 8px}
+.admin .mzi-loai{position:absolute;top:5px;left:5px;font-size:12px;background:rgba(0,0,0,.55);
+  border-radius:var(--r-xs);padding:1px 5px}
+.admin .mzi-ng{position:absolute;bottom:5px;left:5px;font-size:10px;font-weight:700;color:#fff;
+  background:rgba(0,0,0,.55);border-radius:var(--r-pill);padding:2px 7px}
+/* Nút bỏ chỉ hiện khi trỏ vào — tránh bấm nhầm khi đang cuộn */
+.admin .mzi-bo{position:absolute;top:5px;right:5px;width:22px;height:22px;border:none;
+  border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:11px;opacity:0;transition:.14s}
+.admin .mzi:hover .mzi-bo{opacity:1}
+.admin .mzi-bo:hover{background:var(--warn);color:#111}
+.admin .mzi-cap{margin-top:6px;font-size:12px!important;padding:6px 9px!important}
