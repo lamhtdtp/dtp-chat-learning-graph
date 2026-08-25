@@ -9,6 +9,7 @@
 #   ./deploy.sh seed --media                    # soạn lại nội dung bằng AI
 #   ./deploy.sh video-up            # bật worker render video (queue 'video')
 #   ./deploy.sh pregen-video        # dựng sẵn video cho các khái niệm (inline)
+#   ./deploy.sh requeue-video       # cứu job video mồ côi sau khi sửa REDIS_URL
 #   ./deploy.sh logs api            # xem log 1 service
 #   ./deploy.sh ps | down | restart | build | exec ...
 set -euo pipefail
@@ -51,6 +52,8 @@ case "$cmd" in
                $DC up -d --build video ;;
   pregen-video)# dựng sẵn video cho mọi khái niệm (đồng bộ, không cần worker sống)
                $DC run --rm video python -m app.video.pregenerate --inline ;;
+  requeue-video)# CỨU HỘ: đẩy lại job QUEUED bị mồ côi vì broker chết lúc tạo
+               $DC run --rm worker python -m app.video.pregenerate --requeue ;;
 
   health)      curl -fsS "${PUBLIC_API_URL:-http://localhost:8000}/health" && echo ;;
 
@@ -70,12 +73,15 @@ deploy.sh — lệnh vận hành server dev
   migrate                 alembic upgrade head (chạy trên RDS qua container api)
   ingest <cli args...>    nạp SGK -> Qdrant (vd: ingest --tap 1 --sach cung_kham_pha_tap_1 --pages 5-8)
   seed-matrix [args]      nạp ma trận đặc tả (yêu cầu cần đạt) + ánh xạ đơn vị
-  seed [args]             soạn nội dung bài học bằng AI. Cờ hay dùng:
-                            --media   sinh luôn ảnh minh hoạ + đặt hàng video
-                            --force   SOẠN LẠI cả bài đã có (ghi đè chữ, giữ ảnh)
+  seed [args]             soạn nội dung bài học bằng AI. KHÔNG cờ = chỉ 2/7 mục!
+                            --phan    + Khởi động/Hoạt động/Luyện tập/Bài tập
+                            --media   + ảnh minh hoạ, đặt hàng video
+                            --force   SOẠN LẠI cả cái đã có (ghi đè chữ, giữ ảnh)
                             --publish xuất bản luôn (mặc định để nháp)
+                          => đủ 7 mục: ./deploy.sh seed --phan --media
   video-up                bật worker render video (queue 'video')
   pregen-video            dựng sẵn video các khái niệm (inline)
+  requeue-video           đẩy lại job video QUEUED mồ côi (Redis chết lúc tạo job)
   health                  gọi /health (PUBLIC_API_URL hoặc localhost:8000)
 USAGE
     ;;

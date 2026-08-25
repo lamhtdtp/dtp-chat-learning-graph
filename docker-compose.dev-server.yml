@@ -6,15 +6,20 @@
 #
 # Khác base: base mặc định trỏ Postgres về host (host.docker.internal) cho môi
 # trường dev máy cá nhân. Override này lấy thẳng DATABASE_URL từ .env (endpoint
-# RDS) và cho phép REDIS_URL trỏ Redis ngoài (nếu Redis đó CÓ RediSearch).
+# RDS) và cho phép REDIS_URL trỏ Redis ngoài (Redis thường là đủ).
 services:
   api:
     environment:
       # RDS: postgresql+asyncpg://USER:PASS@<rds-endpoint>:5432/<db>  (SSL: thêm ?ssl=require)
       DATABASE_URL: ${DATABASE_URL}
-      # Trống -> dùng redis-stack bundled (khuyến nghị). Trỏ Redis ngoài CHỈ khi
-      # Redis đó có module RediSearch (Redis Stack / Redis Cloud), KHÔNG phải
-      # ElastiCache Redis thường.
+      # Trống -> dùng redis bundled. Trỏ Redis NGOÀI cũng được: app chỉ cần
+      # get/set/incr/expire + Celery broker, KHÔNG cần RediSearch nữa (yêu cầu đó
+      # mất từ khi bỏ checkpointer LangGraph ở P5).
+      #
+      # ĐỪNG copy REDIS_URL từ .env.example vào .env trên server: giá trị ở đó là
+      # redis://localhost:6380 (cổng HOST map ra) — trong mạng compose Redis nghe
+      # 6379. Sửa host thành `redis` mà để nguyên 6380 là lỗi đã gặp thật:
+      # "Error 111 connecting to redis:6380". Cứ để trống cho mặc định dưới đây.
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
 
   worker:

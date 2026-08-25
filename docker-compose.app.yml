@@ -12,7 +12,11 @@
 # (API nhiều request nhỏ; worker batch nặng — nguyên tắc infra-observability).
 services:
   redis:
-    image: redis/redis-stack-server:latest # có RediSearch (checkpointer LangGraph cần)
+    # redis-stack chỉ vì lịch sử (checkpointer LangGraph đã bỏ ở P5). App hiện chỉ
+    # dùng get/set/incr/expire + Celery broker -> Redis THƯỜNG 6/7 là đủ, kể cả
+    # ElastiCache. Đổi image thành `redis:7-alpine` được, hoặc trỏ REDIS_URL sang
+    # Redis ngoài rồi không khởi động service này (xem docs/RUNBOOK-DEPLOY.md §2b).
+    image: redis/redis-stack-server:latest
     volumes:
       - redisdata:/data
     # Publish ra host để worker VIDEO (Epic-09) chạy trên host truy cập được

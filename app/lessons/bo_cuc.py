@@ -96,6 +96,12 @@ def ghi(bo_cuc: list[dict]) -> str:
     return json.dumps(out, ensure_ascii=False)
 
 
+def cot_cua(phan_id: str) -> str | None:
+    """Tên cột lưu HTML của một phần. None = phần đó lưu ở cột JSON riêng
+    (minh_hoa/vi_du) hoặc id không hợp lệ."""
+    return _THEO_ID.get(phan_id, {}).get("cot")
+
+
 def noi_dung(c, phan_id: str) -> str:
     """Nội dung HTML của một phần (rỗng nếu phần đó lưu ở cột JSON riêng)."""
     cot = _THEO_ID.get(phan_id, {}).get("cot")

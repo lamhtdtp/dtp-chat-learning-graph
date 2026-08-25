@@ -17,6 +17,12 @@ GIỮ LẠI: minh hoạ đã có (ảnh/video chuyên gia upload lẫn AI đã s
 thái xuất bản — hai thứ tốn công/tốn tiền nhất, không đáng mất khi soạn lại chữ.
 Thêm --publish thì mới đổi trạng thái đơn vị cũ sang 'published'.
 
+--phan soạn thêm 4 phần mà luồng chính KHÔNG sinh: Khởi động, Hoạt động,
+Luyện tập – Vận dụng, Bài tập. Không có cờ này thì mỗi đơn vị chỉ ra 2/7 mục
+(Kiến thức trọng tâm + Ví dụ) và bài học sinh nhìn thấy sẽ trống 4 mục. Mỗi phần
+một lần gọi model riêng -> +4 request/đơn vị. Bỏ qua phần đã có nội dung, nên
+chạy lại chỉ bù phần còn thiếu; kèm --force thì soạn lại cả phần đã có.
+
 --media sinh luôn minh hoạ: ảnh gọi model sinh ảnh NGAY (ghi vào storage), video
 ngắn chỉ ĐẶT HÀNG job rồi worker queue 'video' dựng sau. Media THÊM vào phần đã
 có, khử trùng theo url/concept_key nên chạy lại không nhân bản. Tốn thêm ~3
@@ -31,6 +37,7 @@ from sqlalchemy import select
 
 from app.db.models import CurriculumTopic, Grade, Subject, TopicContent
 from app.db.session import async_session_factory
+from app.lessons import bo_cuc as bo_cuc_svc
 from app.lessons import ingest as ingest_svc
 from app.lessons import media as media_svc
 from app.lessons import quiz as quiz_svc
@@ -53,7 +60,37 @@ async def _sinh_media(session, topic, draft, cu_minh_hoa: list[dict]) -> tuple[l
     return cu_minh_hoa + moi, loi + loi_vid
 
 
-async def seed(*, mon: str, khoi: str, publish: bool, force: bool, media: bool) -> None:
+# Bốn phần mà `ingest_draft` KHÔNG sinh (nó chỉ lo Kiến thức trọng tâm + Ví dụ).
+# Mỗi phần một lần gọi model riêng qua `ingest.soan_phan`, vì mỗi phần có yêu cầu
+# rất khác nhau (Khởi động không được đưa đáp án, Bài tập không được kèm lời giải)
+# — nhồi cả bốn vào một prompt là ra bốn khối lai lai giống nhau.
+_PHAN_THEM = ("khoi_dong", "hoat_dong", "luyen_tap", "bai_tap")
+
+
+async def _soan_phan_them(session, topic, c, force: bool) -> tuple[int, list[str]]:
+    """Soạn 4 phần còn lại. Bỏ qua phần đã có nội dung (trừ khi --force)."""
+    xong, loi = 0, []
+    for pid in _PHAN_THEM:
+        cot = bo_cuc_svc.cot_cua(pid)
+        if cot is None:
+            continue
+        if (getattr(c, cot, "") or "").strip() and not force:
+            continue
+        try:
+            html = await ingest_svc.soan_phan(session, topic.id, pid)
+        except LLMUnavailable:
+            loi.append(f"{pid}: AI quá tải")
+            continue
+        if html:
+            setattr(c, cot, html)
+            xong += 1
+        else:
+            loi.append(f"{pid}: AI không soạn được")
+    return xong, loi
+
+
+async def seed(*, mon: str, khoi: str, publish: bool, force: bool, media: bool,
+               phan: bool) -> None:
     trang_thai = "published" if publish else "draft"
     async with async_session_factory() as session:
         subject = await session.scalar(select(Subject).filter_by(name=mon))
@@ -101,17 +138,25 @@ async def seed(*, mon: str, khoi: str, publish: bool, force: bool, media: bool) 
                 # Cờ AI là cột riêng — KHÔNG nhét chuỗi đánh dấu vào `nguon` nữa,
                 # ô đó dành cho tư liệu chuyên gia dán vào.
                 c.ai_soan = True
+                so_phan, loi_phan = 0, []
+                if phan:
+                    # flush trước: `soan_phan` đọc lại `khai_niem` từ DB để phần
+                    # Luyện tập bám đúng lý thuyết vừa soạn, không phải kiến thức
+                    # chung chung của mô hình.
+                    await session.flush()
+                    so_phan, loi_phan = await _soan_phan_them(session, t, c, force)
                 loi_media: list[str] = []
                 if media:
                     mh, loi_media = await _sinh_media(
                         session, t, draft, json.loads(c.minh_hoa_json or "[]"))
                     c.minh_hoa_json = json.dumps(mh, ensure_ascii=False)
                 await session.commit()
-                for m_ in loi_media:
+                for m_ in loi_media + loi_phan:
                     print(f"    ⚠️  {m_}")
                 ok += 1
                 print(f"  ✓ {label} — khái niệm {'có' if draft.get('khai_niem') else 'trống'}, "
                       f"{len(draft.get('vi_du', []))} ví dụ, {len(quiz)} câu quiz"
+                      + (f", +{so_phan} phần" if phan else "")
                       + (" · bám SGK" if not draft.get("thieu_sgk") else " · ⚠️ KHÔNG bám SGK"))
             except LLMUnavailable:
                 await session.rollback()
@@ -135,9 +180,12 @@ def main() -> None:
                     help="Soạn LẠI cả đơn vị đã có nội dung (ghi đè chữ, giữ minh hoạ)")
     ap.add_argument("--media", action="store_true",
                     help="Sinh luôn ảnh minh hoạ + đặt hàng video ngắn (tốn ~3 request/đơn vị)")
+    ap.add_argument("--phan", action="store_true",
+                    help="Soạn cả Khởi động / Hoạt động / Luyện tập / Bài tập "
+                         "(+4 request/đơn vị). Không có cờ này thì chỉ ra 2/7 mục.")
     args = ap.parse_args()
     asyncio.run(seed(mon=args.mon, khoi=args.khoi, publish=args.publish,
-                     force=args.force, media=args.media))
+                     force=args.force, media=args.media, phan=args.phan))
 
 
 if __name__ == "__main__":
