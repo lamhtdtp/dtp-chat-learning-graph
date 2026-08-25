@@ -23,6 +23,14 @@ Luyện tập – Vận dụng, Bài tập. Không có cờ này thì mỗi đơ
 một lần gọi model riêng -> +4 request/đơn vị. Bỏ qua phần đã có nội dung, nên
 chạy lại chỉ bù phần còn thiếu; kèm --force thì soạn lại cả phần đã có.
 
+--bo-qua N / --gioi-han N chia lô theo hạn mức ngày. Cần cho --force: cờ đó làm
+lại MỌI bài nên không tự biết đã tới đâu, chạy nhiều ngày sẽ lặp lại lô đầu mãi.
+Ví dụ 21 đơn vị, ~5 đơn vị/ngày:
+    ngày 1: --force --phan --media --gioi-han 5
+    ngày 2: --force --phan --media --bo-qua 5 --gioi-han 5
+    ...
+Không dùng --force thì KHÔNG cần chia lô: lượt sau tự bỏ qua phần đã có.
+
 --media sinh luôn minh hoạ: ảnh gọi model sinh ảnh NGAY (ghi vào storage), video
 ngắn chỉ ĐẶT HÀNG job rồi worker queue 'video' dựng sau. Media THÊM vào phần đã
 có, khử trùng theo url/concept_key nên chạy lại không nhân bản. Tốn thêm ~3
@@ -100,7 +108,7 @@ async def _soan_phan_them(session, topic, c, force: bool) -> tuple[int, list[str
 
 
 async def seed(*, mon: str, khoi: str, publish: bool, force: bool, media: bool,
-               phan: bool) -> None:
+               phan: bool, bo_qua: int = 0, gioi_han: int = 0) -> None:
     trang_thai = "published" if publish else "draft"
     async with async_session_factory() as session:
         subject = await session.scalar(select(Subject).filter_by(name=mon))
@@ -131,7 +139,18 @@ async def seed(*, mon: str, khoi: str, publish: bool, force: bool, media: bool,
             if can_chu or can_phan or can_media:
                 todo.append(t)
                 viec[t.id] = (can_chu, can_phan, can_media)
-        n_chu = sum(1 for v in viec.values() if v[0])
+        # Chia lô: --force làm lại MỌI bài nên không tự biết đã tới đâu
+        # (topic_content không có cột thời gian). Hạn mức 50 request/ngày mà chạy
+        # `--force` nhiều ngày thì ngày nào cũng bắt đầu từ bài 1 -> không bao giờ
+        # xong. Dùng --bo-qua/--gioi-han để mỗi ngày làm đúng một lô kế tiếp.
+        tong_chon = len(todo)
+        if bo_qua:
+            todo = todo[bo_qua:]
+        if gioi_han:
+            todo = todo[:gioi_han]
+        if bo_qua or gioi_han:
+            print(f"Lô này: bỏ qua {bo_qua}, làm {len(todo)} / {tong_chon} đơn vị được chọn")
+        n_chu = sum(1 for t in todo if viec[t.id][0])
         print(f"Tổng {len(topics)} đơn vị · đã có nội dung {len(cu)} · sẽ xử {len(todo)} "
               f"(soạn lại chữ: {n_chu} · bổ sung phần/media: {len(todo) - n_chu})")
         ghi_de = sum(1 for t in todo if t.id in cu and viec[t.id][0])
@@ -222,9 +241,14 @@ def main() -> None:
     ap.add_argument("--phan", action="store_true",
                     help="Soạn cả Khởi động / Hoạt động / Luyện tập / Bài tập "
                          "(+4 request/đơn vị). Không có cờ này thì chỉ ra 2/7 mục.")
+    ap.add_argument("--bo-qua", type=int, default=0, metavar="N",
+                    help="Bỏ N đơn vị đầu (chia lô theo hạn mức ngày)")
+    ap.add_argument("--gioi-han", type=int, default=0, metavar="N",
+                    help="Chỉ làm N đơn vị trong lượt này")
     args = ap.parse_args()
     asyncio.run(seed(mon=args.mon, khoi=args.khoi, publish=args.publish,
-                     force=args.force, media=args.media, phan=args.phan))
+                     force=args.force, media=args.media, phan=args.phan,
+                     bo_qua=args.bo_qua, gioi_han=args.gioi_han))
 
 
 if __name__ == "__main__":

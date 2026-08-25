@@ -130,3 +130,53 @@ class _Bao:
 
     async def __aexit__(self, *a):
         return False
+
+
+async def _ba_bai(session, mon, khoi):
+    subj = Subject(name=mon); gr = Grade(name=khoi)
+    session.add_all([subj, gr]); await session.flush()
+    ids = []
+    for i in range(3):
+        t = CurriculumTopic(subject_id=subj.id, grade_id=gr.id, mach_noi_dung="M",
+                            don_vi_kien_thuc=f"Bài {i}", order_index=i)
+        session.add(t); await session.flush()
+        session.add(TopicContent(topic_id=t.id, khai_niem=f"<p>cũ {i}</p>",
+                                 minh_hoa_json="[]", trang_thai="published"))
+        ids.append(t.id)
+    await session.commit()
+    return ids
+
+
+async def test_chia_lo_force_khong_lam_lai_lo_truoc(db_session, mon_khoi, mocker):
+    """--force làm lại MỌI bài nên phải chia lô được, không thì nhiều ngày lặp lô đầu mãi."""
+    mon, khoi = mon_khoi
+    ids = await _ba_bai(db_session, mon, khoi)
+    m = _mock(mocker)
+    mocker.patch.object(S, "async_session_factory", lambda: _Bao(db_session))
+
+    # Lô 1: chỉ bài đầu
+    await S.seed(mon=mon, khoi=khoi, publish=False, force=True, media=False,
+                 phan=False, gioi_han=1)
+    assert m["ingest"].await_count == 1
+
+    # Lô 2: bỏ 1, làm 2 bài còn lại — KHÔNG chạm lại bài đầu
+    await S.seed(mon=mon, khoi=khoi, publish=False, force=True, media=False,
+                 phan=False, bo_qua=1, gioi_han=2)
+    assert m["ingest"].await_count == 3
+    goi = [c.kwargs.get("topic_id", c.args[1] if len(c.args) > 1 else None)
+           for c in m["ingest"].await_args_list]
+    assert goi == ids, "phải theo đúng order_index, mỗi bài đúng một lần"
+
+
+async def test_khong_force_thi_khong_can_chia_lo(db_session, mon_khoi, mocker):
+    """Lượt sau tự bỏ qua bài đã có -> chạy lại nhiều ngày vẫn tiến lên."""
+    mon, khoi = mon_khoi
+    await _ba_bai(db_session, mon, khoi)
+    m = _mock(mocker)
+    mocker.patch.object(S, "async_session_factory", lambda: _Bao(db_session))
+
+    await S.seed(mon=mon, khoi=khoi, publish=False, force=False, media=False, phan=True)
+    assert m["phan"].await_count == 12          # 3 bài × 4 phần
+    # lượt hai: 4 phần đã có -> không còn việc gì
+    await S.seed(mon=mon, khoi=khoi, publish=False, force=False, media=False, phan=True)
+    assert m["phan"].await_count == 12
