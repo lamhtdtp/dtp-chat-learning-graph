@@ -93,8 +93,16 @@ def _prompt(dv: str, mach: str, mon_ten: str, khoi_ten: str,
         f"{nguon_block}{nguon_tay}\n"
         "Trả JSON THUẦN:\n"
         '{"khai_niem": "<HTML: vài thẻ <p>, có thể <b>/<blockquote>, KHÔNG tiêu đề>", '
-        '"vi_du": [{"de": "đề bài", "giai": "lời giải từng bước (HTML ngắn)"}]}\n'
-        "Soạn 2–3 ví dụ từ dễ đến vận dụng."
+        '"vi_du": [{"de": "đề bài", "giai": "lời giải từng bước (HTML ngắn)", '
+        '"anh_prompt": "<CHỈ khi ví dụ KHÔNG hiểu được nếu thiếu hình vẽ>"}]}\n'
+        "Soạn 2–3 ví dụ từ dễ đến vận dụng.\n"
+        "QUY TẮC HÌNH: ví dụ nào nhắc tới \"hình bên\", \"hình vẽ\", \"các hình sau\" hoặc "
+        "là bài hình học cần quan sát thì PHẢI có `anh_prompt` — câu lệnh TIẾNG ANH tả "
+        "hình cần vẽ, nền phẳng, phong cách sách giáo khoa, ghi rõ không có chữ/số trong "
+        "hình. Nếu đề có ĐẶT TÊN điểm/đỉnh (M, N, P, ABC…) thì phải tả rõ từng "
+        "chữ in hoa nằm cạnh điểm nào, font serif — thiếu nhãn là học sinh không "
+        "gọi tên được đoạn thẳng. Ví dụ chỉ tính toán bằng số thì BỎ TRỐNG "
+        "`anh_prompt`, đừng vẽ hình vô ích."
     )
 
 
@@ -146,7 +154,13 @@ def _parse(raw: str) -> dict:
     vi_du = []
     for e in data.get("vi_du", []) if isinstance(data.get("vi_du"), list) else []:
         if isinstance(e, dict) and str(e.get("de", "")).strip():
-            vi_du.append({"de": str(e["de"]).strip(), "giai": str(e.get("giai", "")).strip()})
+            v = {"de": str(e["de"]).strip(), "giai": str(e.get("giai", "")).strip()}
+            # Ví dụ hình học không đọc được nếu thiếu hình. AI chỉ trả `anh_prompt`
+            # cho ví dụ THẬT SỰ cần hình; sinh ảnh là việc riêng (mỗi ảnh 1 lần gọi
+            # API, quota 50/ngày) nên để chuyên gia bấm, không sinh hàng loạt.
+            if str(e.get("anh_prompt", "")).strip():
+                v["anh_prompt"] = str(e["anh_prompt"]).strip()
+            vi_du.append(v)
 
     anh = []
     for a in data.get("anh", []) if isinstance(data.get("anh"), list) else []:

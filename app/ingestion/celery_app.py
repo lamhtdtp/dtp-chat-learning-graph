@@ -50,6 +50,19 @@ def ingest_book_task(
     )
 
 
+@celery_app.task(name="nap_sach")
+def nap_sach_task(*, job_id: int) -> int:
+    """Nạp một tập sách theo job đã tạo ở CMS (REQ §2.4).
+
+    Khác `ingest_book` (đường CLI, không ghi tiến độ): task này ghi tiến độ theo
+    TRANG vào `book_jobs` để CMS hiện “đang ở trang 63/149” và tạm dừng được.
+    """
+    from app.ingestion.nap_sach_job import chay
+
+    job = asyncio.run(chay(job_id=job_id))
+    return job.so_doan if job else 0
+
+
 @celery_app.task(name="render_video")
 def render_video_task(*, job_id: int) -> str | None:
     """Sinh video AI cho 1 job (Epic-09). Chạy nền, KHÔNG chặn đường chat.

@@ -6,26 +6,31 @@
 <title>Mockup · Nạp sách bằng AI</title>
 <style>
 /* MOCKUP TĨNH — không phải code của app. Mở trực tiếp bằng trình duyệt.
-   Token màu lấy theo web-admin/src/admin/admin.css để nhìn đúng như trong CMS. */
+   Token màu lấy theo web-admin/src/admin/admin.css để nhìn đúng như trong CMS.
+
+   Số liệu là SỐ THẬT của dự án, không phải số bịa:
+   data/books/maths/6/1 = 151 trang png · tập 2 = 143 · english/6 = 132.
+   data_processed/ đang có 426 tệp .md cache OCR. */
 :root{
   --bg:#0A0E1B; --surface:#121829; --surface-2:#171E31; --surface-3:#1E2740;
   --border:#26304A; --border-2:#313d5c; --ink:#EAEEFA; --ink-2:#A3ADC7; --ink-3:#6C7691;
   --primary:#FB923C; --primary-2:#FDBA74; --primary-weak:#3A2412; --primary-ink:#FED7AA;
   --ok:#34D399; --ok-weak:#0E2E22; --warn:#FBBF24; --warn-weak:#332409;
+  --err:#F87171; --err-weak:#3A1618;
   --slate:#7C86A3; --slate-weak:#1C2334; --ai:#60A5FA; --ai-weak:#122544;
-  --r:14px; --r-sm:10px; --r-xs:8px; --r-pill:999px;
+  --r:14px; --r-sm:10px; --r-pill:999px;
   --disp:ui-rounded,"SF Pro Rounded","Segoe UI",system-ui,sans-serif;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:14.5px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;padding:28px}
 h1,h3{font-family:var(--disp);margin:0;letter-spacing:-.01em}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em;background:var(--surface-3);padding:1px 5px;border-radius:5px}
 .wrap{max-width:1180px;margin:0 auto}
 .head{display:flex;align-items:flex-end;gap:16px;margin-bottom:20px;flex-wrap:wrap}
 .head h1{font-size:24px}
 .ps{color:var(--ink-2);font-size:14px;margin-top:3px}
 .sp{flex:1}
 .badge-ai{font-size:11px;font-weight:700;color:var(--ai);background:var(--ai-weak);padding:4px 10px;border-radius:var(--r-pill)}
-.badge-man{font-size:11.5px;color:var(--ink-3)}
 .grid2{display:grid;grid-template-columns:1.1fr .9fr;gap:16px;align-items:start}
 @media(max-width:940px){.grid2{grid-template-columns:1fr}}
 .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
@@ -33,53 +38,75 @@ h1,h3{font-family:var(--disp);margin:0;letter-spacing:-.01em}
 .panel-h h3{font-size:15px}
 .ghi{margin-left:auto;font-size:11.5px;color:var(--ink-3)}
 .pad{padding:14px}
+.tnum{font-variant-numeric:tabular-nums}
 
 /* Khung kéo thả */
 .dz{border:2px dashed var(--border-2);border-radius:var(--r);padding:30px;text-align:center;color:var(--ink-2);background:var(--surface-2)}
 .dz .em{font-size:34px}
 .dz b{font-size:15px;color:var(--ink);display:block;margin-top:6px}
-.dz-mo{margin-top:4px;font-size:13px;max-width:420px;margin-inline:auto}
+.dz-mo{margin-top:4px;font-size:13px;max-width:470px;margin-inline:auto}
 .dz-loai{margin-top:9px;font-size:11.5px;color:var(--ink-3)}
 
-/* Dòng tệp */
+/* Dòng tệp / dòng trang */
 .tep{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--border)}
 .tep:last-child{border-bottom:none}
-.tep-ic{font-size:19px}
+.tep-ic{font-size:19px;flex:none}
 .nm{font-size:13px;font-weight:600}
 .mach{font-size:11.5px;color:var(--ink-3)}
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:var(--r-pill);margin-left:auto;white-space:nowrap}
 .pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
 .p-xong{background:var(--ok-weak);color:var(--ok)} .p-duyet{background:var(--warn-weak);color:var(--warn)}
-.p-nhap{background:var(--slate-weak);color:var(--slate)}
-.rm{border:none;background:transparent;color:var(--ink-3);font-size:17px;cursor:pointer}
+.p-nhap{background:var(--slate-weak);color:var(--slate)} .p-loi{background:var(--err-weak);color:var(--err)}
+.rm{border:none;background:transparent;color:var(--ink-3);font-size:17px;cursor:pointer;flex:none}
 
 /* Bộ chọn */
 .bar{display:flex;gap:14px;flex-wrap:wrap}
 .bar label{display:flex;flex-direction:column;gap:5px;font-size:11.5px;font-weight:700;color:var(--ink-2)}
-.bar select{min-width:150px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:var(--r-sm);padding:9px 12px;font:inherit;font-size:13.5px;font-weight:600}
+.bar select,.bar input{min-width:140px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:var(--r-sm);padding:9px 12px;font:inherit;font-size:13.5px;font-weight:600}
+.o-so{width:92px;text-align:center;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:var(--r-sm);padding:7px;font:inherit;font-size:13px;flex:none}
 
-/* 4 bước */
-.nb{display:flex;gap:11px;padding:10px 0;border-bottom:1px solid var(--border)}
-.nb:last-of-type{border-bottom:none}
-.nb-ic{width:24px;height:24px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;background:var(--surface-3);color:var(--ink-3);border:1px solid var(--border)}
-.nb.xong .nb-ic{background:var(--ok);border-color:var(--ok);color:#0A0E1B}
-.nb.dang .nb-ic{background:var(--primary);border-color:var(--primary);color:#0A0E1B}
-.nb-ten{font-size:13.5px;font-weight:700}
-.nb.cho .nb-ten{color:var(--ink-3);font-weight:600}
-.nb-mo{font-size:11.5px;color:var(--ink-3);margin-top:1px}
-.nb-track{height:6px;border-radius:var(--r-pill);background:var(--surface-3);overflow:hidden;margin-top:8px}
-.nb-track i{display:block;height:100%;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--primary),var(--primary-2))}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;width:100%;margin-top:14px;border:none;border-radius:11px;font:inherit;font-weight:700;font-size:14px;padding:11px 18px;background:linear-gradient(140deg,var(--primary),var(--primary-2));color:#0A0E1B;cursor:pointer}
+/* Hộp nhắc */
+.hop{display:flex;gap:11px;align-items:flex-start;border-radius:var(--r-sm);padding:11px 13px;font-size:12.5px;line-height:1.5}
+.hop .t{display:block;font-weight:700;margin-bottom:3px}
+.h-ok{background:var(--ok-weak);color:var(--ok);border:1px solid var(--ok)}
+.h-canh{background:var(--warn-weak);color:var(--warn);border:1px solid var(--warn)}
+.h-tin{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--border)}
+.hop .em{font-size:16px;line-height:1.2;flex:none}
+
+/* Dải ô trang — mỗi ô 1 trang, thấy ngay chỗ hổng */
+.dai{display:flex;flex-wrap:wrap;gap:3px;padding:12px 14px}
+.o{width:13px;height:13px;border-radius:3px;background:var(--surface-3)}
+.o.xong{background:var(--ok)} .o.dang{background:var(--primary)}
+.o.loi{background:var(--err)} .o.thieu{background:var(--err-weak);border:1px dashed var(--err)}
+.chu-giai{display:flex;gap:14px;flex-wrap:wrap;padding:0 14px 13px;font-size:11.5px;color:var(--ink-3)}
+.chu-giai span{display:inline-flex;align-items:center;gap:5px}
+.chu-giai i{width:10px;height:10px;border-radius:3px;display:inline-block}
+
+/* Tiến trình theo TRANG, không phải % mờ */
+.tt{padding:14px}
+.tt-so{font-family:var(--disp);font-size:26px;font-weight:800;letter-spacing:-.02em}
+.tt-so small{font-size:14px;font-weight:600;color:var(--ink-3)}
+.tt-mo{font-size:12.5px;color:var(--ink-2);margin-top:2px}
+.track{height:8px;border-radius:var(--r-pill);background:var(--surface-3);overflow:hidden;margin:11px 0 2px}
+.track i{display:block;height:100%;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--primary),var(--primary-2))}
+.hang{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;border:none;border-radius:11px;font:inherit;font-weight:700;font-size:14px;padding:11px 18px;background:linear-gradient(140deg,var(--primary),var(--primary-2));color:#0A0E1B;cursor:pointer}
+.btn2{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--border-2);border-radius:11px;font:inherit;font-weight:700;font-size:13px;padding:10px 15px;background:transparent;color:var(--ink-2);cursor:pointer}
+.full{width:100%;margin-top:12px}
 
 /* Đối chiếu OCR */
 .ocr{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px}
 @media(max-width:900px){.ocr{grid-template-columns:1fr}}
-.ocr-nhan{font-size:11px;font-weight:800;letter-spacing:.04em;color:var(--ink-3);margin-bottom:6px}
-.ocr-anh{height:132px;display:grid;place-items:center;background:var(--surface-3);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--ink-3);font-size:13px}
-.ocr-txt{height:132px;overflow:auto;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;font-size:12.5px;line-height:1.6;color:var(--ink-2)}
+.ocr-nhan{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.04em;color:var(--ink-3);margin-bottom:6px}
+.ocr-anh{height:238px;display:grid;place-items:center;background:var(--surface-3);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--ink-3);font-size:13px}
+.ocr-txt{height:238px;overflow:auto;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;font-size:12.5px;line-height:1.65;color:var(--ink-2);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.ocr-txt em{color:var(--err);font-style:normal;background:var(--err-weak);border-radius:3px;padding:0 3px}
 
-.man{margin-bottom:34px}
-.man-nhan{font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--primary);margin-bottom:10px}
+.man{margin-bottom:36px}
+.man-nhan{font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--primary);margin-bottom:4px}
+.man-mo{font-size:12.5px;color:var(--ink-3);margin-bottom:12px;max-width:790px;line-height:1.6}
+hr.chia{border:none;border-top:1px solid var(--border);margin:32px 0}
 </style>
 </head>
 <body>
@@ -89,119 +116,356 @@ h1,h3{font-family:var(--disp);margin:0;letter-spacing:-.01em}
     <div><h1>Nạp sách bằng AI</h1>
       <div class="ps">Ảnh trang sách hoặc PDF → OCR → cắt đoạn → đưa vào kho SGK</div></div>
     <div class="sp"></div>
-    <span class="badge-ai">MOCKUP — chỉ giao diện</span>
+    <span class="badge-ai">MOCKUP — chỉ giao diện, không phải code app</span>
   </div>
 
-  <!-- ══ MÀN 1: trước khi chạy ══ -->
+  <div class="hop h-tin" style="margin-bottom:30px">
+    <span class="em">📌</span>
+    <div><span class="t">Bốn ràng buộc thật quyết định thiết kế này</span>
+      ① Một tập sách là <b>151 ảnh trang</b> (Toán 6 tập 1), không phải một tệp.
+      ② Mỗi trang là <b>một lần gọi vision LLM</b> → cả tập mất ~22 phút và 149 lượt gọi.
+      ③ <b>Số trang lấy từ tên tệp</b> — sai thứ tự là dẫn nguồn “[tr.9]” trỏ sai bài.
+      ④ Cache OCR đã có sẵn 426 tệp nên <b>chạy lại từ giữa gần như miễn phí</b>.
+    </div>
+  </div>
+
+  <!-- ══════════ MÀN 1 ══════════ -->
   <div class="man">
-    <div class="man-nhan">MÀN 1 · CHỌN SÁCH</div>
+    <div class="man-nhan">MÀN 1 · CHỌN TỆP — VIỆC KHÓ NHẤT LÀ SOÁT SỐ TRANG</div>
+    <div class="man-mo">
+      Kéo cả thư mục ảnh vào cũng được. Ngay khi nhận tệp, UI phải trả lời đúng một câu:
+      <b>151 trang này đã đủ và đúng thứ tự chưa?</b> — vì không ai đủ kiên nhẫn mở 151 tệp ra đếm tay,
+      mà nạp sai thứ tự thì phải làm lại cả quyển.
+    </div>
     <div class="grid2">
       <div>
         <div class="dz">
           <div class="em">📚</div>
-          <b>Kéo sách vào đây</b>
-          <div class="dz-mo">hoặc bấm để chọn: một tệp PDF cả quyển, hoặc nhiều ảnh trang sách</div>
-          <div class="dz-loai">PDF · PNG · JPG · WEBP · tối đa 200MB/tệp</div>
+          <b>Kéo cả quyển sách vào đây</b>
+          <div class="dz-mo">một tệp PDF cả tập, hoặc chọn nhiều ảnh trang, hoặc kéo thẳng cả thư mục</div>
+          <div class="dz-loai">PDF · PNG · JPG · WEBP — tên tệp nên là số trang: <code>045.png</code></div>
         </div>
+
         <div class="panel" style="margin-top:14px">
-          <div class="panel-h"><h3>Tệp đã chọn</h3><span class="ghi">3 tệp · 134 trang</span></div>
+          <div class="panel-h"><h3>Đã nhận 151 ảnh trang</h3>
+            <span class="ghi">số trang đọc từ tên tệp</span></div>
+          <div class="dai">
+            <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+            <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+            <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+            <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+            <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o thieu"></span><span class="o thieu"></span><span class="o xong"></span><span class="o xong"></span>
+            <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+            <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+            <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+            <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+            <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+            <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+            <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+            <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+            <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+            <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o loi"></span><span class="o loi"></span>
+            <span class="o loi"></span>
+          </div>
+          <div class="chu-giai">
+            <span><i style="background:var(--ok)"></i> 148 trang đọc được số</span>
+            <span><i style="background:var(--err-weak);border:1px dashed var(--err)"></i> thiếu trang 47, 48</span>
+            <span><i style="background:var(--err)"></i> 3 tệp không có số trang</span>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:14px">
+          <div class="panel-h"><h3>3 tệp không đoán được số trang</h3>
+            <span class="ghi">gán tay hoặc bỏ</span></div>
           <div style="padding:6px 14px 12px">
-            <div class="tep"><span class="tep-ic">📄</span>
-              <div><div class="nm">Toan6-CungKhamPha-Tap1.pdf</div><div class="mach">24.6 MB · 132 trang</div></div>
-              <span class="pill p-nhap">Chờ</span><button class="rm">×</button></div>
             <div class="tep"><span class="tep-ic">🖼️</span>
-              <div><div class="nm">trang-045.png</div><div class="mach">1.2 MB · 1 trang</div></div>
-              <span class="pill p-nhap">Chờ</span><button class="rm">×</button></div>
+              <div style="flex:1;min-width:0"><div class="nm">IMG_20250812_094512.jpg</div>
+                <div class="mach">2.4 MB · tên không chứa số</div></div>
+              <input class="o-so" placeholder="trang?"><button class="rm">×</button></div>
             <div class="tep"><span class="tep-ic">🖼️</span>
-              <div><div class="nm">trang-046.png</div><div class="mach">1.1 MB · 1 trang</div></div>
-              <span class="pill p-nhap">Chờ</span><button class="rm">×</button></div>
+              <div style="flex:1;min-width:0"><div class="nm">bia-sau.png</div>
+                <div class="mach">0.9 MB · bìa, không phải trang bài</div></div>
+              <span class="pill p-nhap">Bỏ qua</span><button class="rm">×</button></div>
+            <div class="tep"><span class="tep-ic">🖼️</span>
+              <div style="flex:1;min-width:0"><div class="nm">Scan (2).png</div>
+                <div class="mach">1.8 MB · tên không chứa số</div></div>
+              <input class="o-so" placeholder="trang?"><button class="rm">×</button></div>
           </div>
         </div>
       </div>
+
       <div>
         <div class="panel">
           <div class="panel-h"><h3>Sách này thuộc</h3></div>
           <div class="pad">
             <div class="bar">
-              <label>Môn<select><option>Toán</option><option>Ngữ văn</option><option>Tiếng Anh</option></select></label>
-              <label>Lớp<select><option>Lớp 6</option><option>Lớp 7</option></select></label>
-              <label>Bộ sách<select><option>Cùng khám phá · Tập 1</option><option>Kết nối tri thức</option></select></label>
+              <label>Môn học<select><option>Toán</option><option>Tiếng Anh</option></select></label>
+              <label>Khối<select><option>Lớp 6</option><option>Lớp 7</option></select></label>
+              <label>Tập<select><option>Tập 1</option><option>Tập 2</option></select></label>
             </div>
-            <div class="badge-man" style="margin-top:10px">Nhãn này gắn vào từng đoạn trong kho — trợ lý dùng nó để chỉ trả lời trong đúng sách của lớp.</div>
+            <div class="bar" style="margin-top:13px">
+              <label style="flex:1;min-width:0">Mã sách
+                <span style="font-weight:500;color:var(--ink-3)">— đi vào dẫn nguồn của từng đoạn</span>
+                <input value="cung_kham_pha_tap_1" style="width:100%;min-width:0"></label>
+            </div>
+            <div class="hop h-canh" style="margin-top:13px">
+              <span class="em">⚠️</span>
+              <div><span class="t">Mã sách này đã có 151 trang trong kho</span>
+                Nạp tiếp sẽ <b>ghi đè</b> những trang cùng số. Muốn giữ bản cũ thì đổi mã sách.</div>
+            </div>
           </div>
         </div>
+
         <div class="panel" style="margin-top:14px">
-          <div class="panel-h"><h3>Tiến trình</h3></div>
+          <div class="panel-h"><h3>Trước khi bấm nạp</h3></div>
           <div class="pad">
-            <div class="nb cho"><span class="nb-ic">1</span><div><div class="nb-ten">OCR từng trang</div><div class="nb-mo">Ảnh/PDF → văn bản + công thức</div></div></div>
-            <div class="nb cho"><span class="nb-ic">2</span><div><div class="nb-ten">Cắt đoạn</div><div class="nb-mo">Theo mục · bài · trang</div></div></div>
-            <div class="nb cho"><span class="nb-ic">3</span><div><div class="nb-ten">Sinh embedding</div><div class="nb-mo">Vector hoá từng đoạn</div></div></div>
-            <div class="nb cho"><span class="nb-ic">4</span><div><div class="nb-ten">Đưa vào kho SGK</div><div class="nb-mo">Ghi Qdrant + gắn môn/khối/sách</div></div></div>
-            <button class="btn">✨ Bắt đầu nạp</button>
+            <div class="hop h-tin">
+              <span class="em">💰</span>
+              <div><span class="t">149 trang × 1 lượt gọi AI ≈ 22 phút</span>
+                OCR đọc sai công thức thì cả quyển phải làm lại — nên đọc thử vài trang trước.</div>
+            </div>
+            <button class="btn2 full">🔍 Đọc thử 3 trang</button>
+            <button class="btn full">▶ Nạp cả tập (149 trang)</button>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ══ MÀN 2: đang chạy ══ -->
+  <hr class="chia">
+
+  <!-- ══════════ MÀN 2 ══════════ -->
   <div class="man">
-    <div class="man-nhan">MÀN 2 · ĐANG XỬ LÝ</div>
-    <div class="grid2">
-      <div class="panel">
-        <div class="panel-h"><h3>Tệp đã chọn</h3><span class="ghi">3 tệp · 134 trang</span></div>
-        <div style="padding:6px 14px 12px">
-          <div class="tep"><span class="tep-ic">📄</span>
-            <div><div class="nm">Toan6-CungKhamPha-Tap1.pdf</div><div class="mach">24.6 MB · 132 trang</div></div>
-            <span class="pill p-duyet">Đang xử lý</span></div>
-          <div class="tep"><span class="tep-ic">🖼️</span>
-            <div><div class="nm">trang-045.png</div><div class="mach">1.2 MB · 1 trang</div></div>
-            <span class="pill p-xong">Xong</span></div>
-          <div class="tep"><span class="tep-ic">🖼️</span>
-            <div><div class="nm">trang-046.png</div><div class="mach">1.1 MB · 1 trang</div></div>
-            <span class="pill p-duyet">Đang xử lý</span></div>
+    <div class="man-nhan">MÀN 2 · ĐỌC THỬ — MÀN TIẾT KIỆM NHẤT CẢ LUỒNG</div>
+    <div class="man-mo">
+      3 lượt gọi AI thay vì 149, chỉ để biết OCR có đọc nổi công thức của quyển này không.
+      Ảnh mờ hay OCR nhầm <code>2³·5</code> thành <code>235</code> thì sửa nguồn ảnh rồi thử lại —
+      chưa mất gì. Không có màn này thì lỗi chỉ lộ ra sau 22 phút.
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h3>Đối chiếu kết quả đọc thử</h3>
+        <span class="ghi">trang 12 · 47 · 96</span></div>
+      <div class="ocr">
+        <div>
+          <div class="ocr-nhan">ẢNH GỐC — TRANG 47</div>
+          <div class="ocr-anh">🖼️ 047.png</div>
+        </div>
+        <div>
+          <div class="ocr-nhan">AI ĐỌC ĐƯỢC
+            <span class="pill p-duyet" style="margin:0">2 chỗ cần soát</span></div>
+          <div class="ocr-txt">## Bài 9. Ước và bội<br><br>
+            Nếu số tự nhiên a chia hết cho số tự nhiên b<br>
+            thì a là <b>bội</b> của b, b là <b>ước</b> của a.<br><br>
+            Ví dụ: 24 ⋮ 6 nên 24 là bội của 6.<br><br>
+            Tính: <em>235</em> ← nhầm, phải là 2³·5<br><br>
+            <em>[không nhận được hình vẽ góc dưới]</em>
+          </div>
         </div>
       </div>
-      <div class="panel">
-        <div class="panel-h"><h3>Tiến trình</h3><span class="ghi">trang 58/134</span></div>
-        <div class="pad">
-          <div class="nb xong"><span class="nb-ic">✓</span><div><div class="nb-ten">OCR từng trang</div><div class="nb-mo">Ảnh/PDF → văn bản + công thức</div></div></div>
-          <div class="nb dang"><span class="nb-ic">●</span><div style="flex:1"><div class="nb-ten">Cắt đoạn</div><div class="nb-mo">Theo mục · bài · trang</div>
-            <div class="nb-track"><i style="width:62%"></i></div></div></div>
-          <div class="nb cho"><span class="nb-ic">3</span><div><div class="nb-ten">Sinh embedding</div><div class="nb-mo">Vector hoá từng đoạn</div></div></div>
-          <div class="nb cho"><span class="nb-ic">4</span><div><div class="nb-ten">Đưa vào kho SGK</div><div class="nb-mo">Ghi Qdrant + gắn môn/khối/sách</div></div></div>
-          <div class="badge-man" style="margin-top:14px;text-align:center">Chạy nền — đóng trang vẫn tiếp tục.</div>
+      <div style="padding:0 14px 14px">
+        <div class="hop h-canh">
+          <span class="em">🔎</span>
+          <div><span class="t">Nhận được “Bài mấy” ở 3/3 trang thử</span>
+            Đây là chỉ số đáng nhìn nhất, hơn cả số đoạn: trang nào không nhận được chương/bài
+            thì đoạn tri thức mất ngữ cảnh, sau này AI soạn bài sẽ dẫn nguồn chung chung.</div>
+        </div>
+        <div class="hang">
+          <button class="btn">▶ Ổn rồi, nạp cả tập</button>
+          <button class="btn2">🔁 Thử 3 trang khác</button>
+          <button class="btn2">✏️ Sửa tay trang này</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ══ MÀN 3: xong + đối chiếu ══ -->
+  <hr class="chia">
+
+  <!-- ══════════ MÀN 3 ══════════ -->
   <div class="man">
-    <div class="man-nhan">MÀN 3 · XONG · ĐỐI CHIẾU OCR</div>
+    <div class="man-nhan">MÀN 3 · ĐANG NẠP — ĐẾM THEO TRANG, ĐÓNG TAB VẪN CHẠY</div>
+    <div class="man-mo">
+      Chạy nền qua Celery (dự án đã có sẵn cờ <code>--queue</code>) nên đóng tab hay đăng xuất
+      thì việc vẫn tiếp. Tiến trình đếm <b>theo trang</b> chứ không phải phần trăm mơ hồ:
+      người soạn cần biết đang ở trang nào mới đoán được còn bao lâu.
+    </div>
     <div class="grid2">
       <div class="panel">
-        <div class="panel-h"><h3>Tiến trình</h3><span class="pill p-xong" style="margin-left:auto">Hoàn tất</span></div>
+        <div class="panel-h"><h3>Toán · Lớp 6 · Tập 1</h3>
+          <span class="pill p-duyet">Đang đọc</span></div>
+        <div class="tt">
+          <div class="tt-so tnum">63<small> / 149 trang</small></div>
+          <div class="tt-mo">còn khoảng 12 phút · 4 trang lỗi sẽ thử lại ở cuối</div>
+          <div class="track"><i style="width:42%"></i></div>
+        </div>
+        <div class="dai" style="padding-top:2px">
+          <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+          <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o loi"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+          <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o loi"></span><span class="o xong"></span><span class="o xong"></span>
+          <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+          <span class="o xong"></span><span class="o xong"></span><span class="o loi"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+          <span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o loi"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span><span class="o xong"></span>
+          <span class="o xong"></span><span class="o xong"></span><span class="o dang"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span>
+          <span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span>
+          <span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span>
+          <span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span>
+          <span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span>
+          <span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span>
+          <span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span>
+          <span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span><span class="o"></span>
+        </div>
+        <div style="padding:0 14px 14px">
+          <div class="hop h-tin">
+            <span class="em">💾</span>
+            <div><span class="t">Trang đã đọc thì không đọc lại</span>
+              Mỗi trang xong được ghi cache ngay. Tạm dừng rồi chạy lại chỉ tốn tiền
+              từ trang đang dở — 62 trang vừa làm không mất.</div>
+          </div>
+          <div class="hang">
+            <button class="btn2">⏸ Tạm dừng</button>
+            <button class="btn2">✕ Huỷ, giữ 62 trang đã đọc</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h3>Đang chạy trong nền</h3><span class="ghi">3 việc</span></div>
+        <div style="padding:6px 14px 14px">
+          <div class="tep"><span class="tep-ic">📘</span>
+            <div style="flex:1;min-width:0"><div class="nm">Toán 6 · Tập 1</div>
+              <div class="mach tnum">63/149 trang · bắt đầu 14:02</div></div>
+            <span class="pill p-duyet">Đang đọc</span></div>
+          <div class="tep"><span class="tep-ic">📗</span>
+            <div style="flex:1;min-width:0"><div class="nm">Tiếng Anh 6</div>
+              <div class="mach tnum">132/132 trang · đang cắt đoạn</div></div>
+            <span class="pill p-duyet">Cắt đoạn</span></div>
+          <div class="tep"><span class="tep-ic">📘</span>
+            <div style="flex:1;min-width:0"><div class="nm">Toán 6 · Tập 2</div>
+              <div class="mach tnum">143/143 trang · xong 09:41</div></div>
+            <span class="pill p-xong">Trong kho</span></div>
+          <div class="hop h-tin" style="margin-top:12px">
+            <span class="em">🔔</span>
+            <div>Xong sẽ có thông báo. Không cần ngồi đợi ở trang này.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="chia">
+
+  <!-- ══════════ MÀN 4 ══════════ -->
+  <div class="man">
+    <div class="man-nhan">MÀN 4 · XONG RỒI — CHỈ SOÁT NHỮNG TRANG ĐÁNG NGỜ</div>
+    <div class="man-mo">
+      Nạp xong không có nghĩa là đúng. Thay vì bắt người soạn lật 149 trang, UI lọc sẵn
+      <b>những trang có dấu hiệu sai</b>: không nhận được “Bài mấy”, gần như trắng,
+      hoặc ít chữ bất thường so với các trang khác.
+    </div>
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-h"><h3>11 trang nên xem lại</h3><span class="ghi">trong 149 trang</span></div>
+        <div style="padding:6px 14px 12px">
+          <div class="tep"><span class="tep-ic">⚠️</span>
+            <div style="flex:1;min-width:0"><div class="nm tnum">Trang 47</div>
+              <div class="mach">không nhận được “Bài mấy” → đoạn mất ngữ cảnh</div></div>
+            <span class="pill p-duyet">Soát</span></div>
+          <div class="tep"><span class="tep-ic">⚠️</span>
+            <div style="flex:1;min-width:0"><div class="nm tnum">Trang 48</div>
+              <div class="mach">không nhận được “Bài mấy”</div></div>
+            <span class="pill p-duyet">Soát</span></div>
+          <div class="tep"><span class="tep-ic">📄</span>
+            <div style="flex:1;min-width:0"><div class="nm tnum">Trang 96</div>
+              <div class="mach">chỉ 18 chữ — có thể là trang hình, hoặc ảnh mờ</div></div>
+            <span class="pill p-duyet">Soát</span></div>
+          <div class="tep"><span class="tep-ic">🛑</span>
+            <div style="flex:1;min-width:0"><div class="nm tnum">Trang 132</div>
+              <div class="mach">đọc lỗi 3 lần — AI quá tải</div></div>
+            <span class="pill p-loi">Đọc lại</span></div>
+          <div class="tep"><span class="tep-ic">📄</span>
+            <div style="flex:1;min-width:0"><div class="nm tnum">Trang 150–151</div>
+              <div class="mach">trang trắng / mục lục cuối sách</div></div>
+            <span class="pill p-nhap">Bỏ qua</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h3>Kho sau khi nạp</h3></div>
         <div class="pad">
-          <div class="nb xong"><span class="nb-ic">✓</span><div><div class="nb-ten">OCR từng trang</div><div class="nb-mo">134 trang</div></div></div>
-          <div class="nb xong"><span class="nb-ic">✓</span><div><div class="nb-ten">Cắt đoạn</div><div class="nb-mo">1.248 đoạn</div></div></div>
-          <div class="nb xong"><span class="nb-ic">✓</span><div><div class="nb-ten">Sinh embedding</div><div class="nb-mo">1.248 vector</div></div></div>
-          <div class="nb xong"><span class="nb-ic">✓</span><div><div class="nb-ten">Đưa vào kho SGK</div><div class="nb-mo">Toán · Lớp 6 · Cùng khám phá Tập 1</div></div></div>
-          <button class="btn">🔄 Nạp quyển khác</button>
+          <div class="tep" style="padding-top:0">
+            <div style="flex:1"><div class="nm">Trang vào kho</div>
+              <div class="mach">bỏ 2 trang trắng, 1 trang lỗi</div></div>
+            <div class="tt-so tnum" style="font-size:20px">146</div></div>
+          <div class="tep">
+            <div style="flex:1"><div class="nm">Đoạn tri thức</div>
+              <div class="mach">cắt theo bài · trung bình 5 đoạn/trang</div></div>
+            <div class="tt-so tnum" style="font-size:20px">731</div></div>
+          <div class="tep">
+            <div style="flex:1"><div class="nm">Gán được chương/bài</div>
+              <div class="mach">còn 11 trang chưa gán</div></div>
+            <div class="tt-so tnum" style="font-size:20px;color:var(--warn)">93%</div></div>
+          <div class="hop h-ok" style="margin-top:13px">
+            <span class="em">✅</span>
+            <div><span class="t">Kho đã dùng được</span>
+              Từ giờ “Gợi ý AI” trong trình soạn tra được quyển này và dẫn đúng số trang.</div>
+          </div>
+          <div class="hang">
+            <button class="btn">📖 Xem sách trong kho</button>
+            <button class="btn2">↗ Sang biên soạn nội dung</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="chia">
+
+  <!-- ══════════ SO SÁNH ══════════ -->
+  <div class="man">
+    <div class="man-nhan">SO VỚI TRANG HIỆN TẠI — BỎ GÌ, THÊM GÌ</div>
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-h"><h3>Nên bỏ</h3></div>
+        <div style="padding:6px 14px 12px">
+          <div class="tep"><span class="tep-ic">🗑️</span>
+            <div><div class="nm">Badge “Nạp bằng CLI · UI upload chưa nối”</div>
+              <div class="mach">nói thẳng với người dùng rằng trang này chưa dùng được</div></div></div>
+          <div class="tep"><span class="tep-ic">🗑️</span>
+            <div><div class="nm">Panel “4 bước khi nạp một quyển” (tĩnh)</div>
+              <div class="mach">mô tả pipeline: OCR → chia đoạn → vector hoá → đối chiếu.
+                Chuyên gia biên soạn không cần biết “vector hoá” — thay bằng tiến trình thật theo trang</div></div></div>
+          <div class="tep"><span class="tep-ic">🗑️</span>
+            <div><div class="nm">Hướng dẫn chạy <code>python -m app.ingestion.cli</code></div>
+              <div class="mach">người soạn nội dung không mở terminal</div></div></div>
         </div>
       </div>
       <div class="panel">
-        <div class="panel-h"><h3>Đối chiếu kết quả OCR</h3><span class="ghi">trang 45</span></div>
-        <div class="ocr">
-          <div><div class="ocr-nhan">ẢNH GỐC</div><div class="ocr-anh">🖼️ trang-045.png</div></div>
-          <div><div class="ocr-nhan">VĂN BẢN ĐÃ NHẬN DẠNG</div>
-            <div class="ocr-txt"><b>2. Số nguyên tố</b><br>
-              Số nguyên tố là số tự nhiên lớn hơn 1, chỉ có hai ước là 1 và chính nó.<br>
-              Ví dụ: 2; 3; 5; 7; 11; … là các số nguyên tố.</div></div>
+        <div class="panel-h"><h3>Nên thêm</h3></div>
+        <div style="padding:6px 14px 12px">
+          <div class="tep"><span class="tep-ic">➕</span>
+            <div><div class="nm">Dải ô trang</div>
+              <div class="mach">thấy ngay chỗ thiếu trang và trang lỗi, không phải đếm tay 151 tệp</div></div></div>
+          <div class="tep"><span class="tep-ic">➕</span>
+            <div><div class="nm">Đọc thử 3 trang trước khi nạp cả tập</div>
+              <div class="mach">3 lượt gọi AI thay vì 149 để biết OCR có đọc nổi công thức</div></div></div>
+          <div class="tep"><span class="tep-ic">➕</span>
+            <div><div class="nm">Job nền + nạp tiếp từ trang đang dở</div>
+              <div class="mach">Celery đã có, cache OCR đã có 426 tệp — chỉ là chưa phơi ra UI</div></div></div>
+          <div class="tep"><span class="tep-ic">➕</span>
+            <div><div class="nm">KPI “gán được chương/bài”</div>
+              <div class="mach">chỉ số chất lượng thật; số đoạn nhiều mà không gán được bài thì vô nghĩa</div></div></div>
         </div>
-        <div style="padding:0 14px 14px"><div class="badge-man">Sai chỗ nào thì sửa trực tiếp rồi lưu — kho SGK cập nhật theo bản đã sửa.</div></div>
       </div>
     </div>
+  </div>
+
+  <div class="hop h-canh">
+    <span class="em">🔧</span>
+    <div><span class="t">Backend còn thiếu gì để làm được</span>
+      Màn 1 và 2 làm được ngay: pipeline <code>ingest_book</code> đã đủ, chỉ cần một endpoint
+      nhận tệp và một endpoint đọc thử theo danh sách trang.
+      Màn 3 và 4 cần thêm <b>bảng theo dõi job nạp sách</b> — hiện chưa có
+      (video đã có <code>video_jobs</code>, sách thì chưa) — nên chưa hiện được
+      “đang ở trang 63/149” hay danh sách trang đáng ngờ.</div>
   </div>
 
 </div>

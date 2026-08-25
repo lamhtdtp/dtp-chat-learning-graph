@@ -6,6 +6,7 @@ import {
 import type { CmsAiDraft, CmsMedia, CmsNhac, CmsPhan, CmsQuiz, CmsTopic, CmsViDu } from "../types";
 import { MediaSoan } from "./MediaSoan";
 import { PhanSoan } from "./PhanSoan";
+import { AnhViDu, canHinh } from "./AnhViDu";
 import { SoanHtml } from "../components/SoanHtml";
 import { renderMath } from "../mathHtml";
 
@@ -219,6 +220,8 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
                             <div style={{ height: 7 }} />
                             <SoanHtml value={e.giai} placeholder="Lời giải" minHeight={54}
                               onChange={(v) => setVd(i, { giai: v })} />
+                            <AnhViDu topicId={topicId} chiSo={i} e={e} toast={toast}
+                              onDoi={(pt) => setVd(i, pt)} />
                           </div>
                         ))}
                         <button className="add-b" type="button" onClick={addVd}>＋ Thêm ví dụ</button>
@@ -281,19 +284,60 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
               <div className="pv">
                 <div className="pv-crumb">{topic.mach} › đơn vị kiến thức</div>
                 <div className="pv-title">{topic.dv}</div>
-                <div className="pv-sec"><h4>📖 Khái niệm</h4><div className="bd" dangerouslySetInnerHTML={{ __html: d.khai_niem ? renderMath(d.khai_niem) : "(chưa có nội dung)" }} /></div>
-                <div className="pv-sec"><h4>🎬 Minh họa</h4><div className="pv-media">
-                  {d.minh_hoa.length ? d.minh_hoa.map((m, i) => <div className="pv-chip" key={i}>{m.type === "video" ? "🎬 " : "🖼️ "}{m.caption || "(media)"}</div>) : <div className="pv-chip">(chưa có)</div>}
-                </div></div>
-                <div className="pv-sec"><h4>✏️ Ví dụ</h4><div className="bd">
-                  {d.vi_du.length ? d.vi_du.map((e, i) => (
-                    <div key={i} style={{ marginBottom: i < d.vi_du.length - 1 ? 12 : 0 }}>
-                      <div dangerouslySetInnerHTML={{ __html: `<b>Ví dụ ${i + 1}.</b> ${renderMath(e.de)}` }} />
-                      {e.giai && <div dangerouslySetInnerHTML={{ __html: `→ ${renderMath(e.giai)}` }} />}
+                {/* Xem trước theo ĐÚNG bố cục 7 phần, số thứ tự như học sinh
+                    thấy. Trước đây hardcode 4 mục nên 4 phần mới không hiện —
+                    chuyên gia soạn Khởi động/Hoạt động/Luyện tập/Bài tập xong bấm
+                    Xem trước thì tưởng mất nội dung. */}
+                {(() => {
+                  const html: Record<string, string> = {
+                    khoi_dong: d.khoi_dong, hoat_dong: d.hoat_dong, kien_thuc: d.khai_niem,
+                    luyen_tap: d.luyen_tap, bai_tap: d.bai_tap,
+                  };
+                  // Bỏ phần ẩn + phần rỗng, rồi đánh số 1…n liền mạch — khớp
+                  // bo_cuc.hien_thuc_te ở server, không để lỗ số.
+                  const hien = d.bo_cuc.filter((p) => !p.an && (
+                    p.id === "minh_hoa" ? d.minh_hoa.length > 0
+                      : p.id === "vi_du" ? d.vi_du.length > 0
+                      : !!html[p.id]?.trim()));
+                  if (!hien.length) {
+                    return <div className="pv-sec"><div className="bd">
+                      Chưa có phần nào được soạn. Về tab <b>✍️ Biên soạn</b> để bắt đầu.
+                    </div></div>;
+                  }
+                  return hien.map((p, i) => (
+                    <div className="pv-sec" key={p.id}>
+                      <h4>{p.em} {i + 1}. {p.ten}</h4>
+                      {p.id === "minh_hoa" ? (
+                        <div className="pv-media">
+                          {d.minh_hoa.map((m, k) => (
+                            <div className="pv-chip" key={k}>
+                              {m.type === "video" ? "🎬 " : "🖼️ "}{m.caption || "(media)"}
+                            </div>
+                          ))}
+                        </div>
+                      ) : p.id === "vi_du" ? (
+                        <div className="bd">
+                          {d.vi_du.map((e, k) => (
+                            <div key={k} style={{ marginBottom: k < d.vi_du.length - 1 ? 12 : 0 }}>
+                              <div dangerouslySetInnerHTML={{ __html: `<b>Ví dụ ${k + 1}.</b> ${renderMath(e.de)}` }} />
+                              {/* Hình đứng NGAY dưới đề, trước lời giải — đúng thứ tự đọc. */}
+                              {(e.anh_xem || e.anh)
+                                ? <img className="pv-hinh" src={e.anh_xem || e.anh} alt={`Hình ví dụ ${k + 1}`} />
+                                : canHinh(e) && <div className="pv-thieu">⚠️ Thiếu hình vẽ</div>}
+                              {e.giai && <div dangerouslySetInnerHTML={{ __html: `→ ${renderMath(e.giai)}` }} />}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="bd" dangerouslySetInnerHTML={{ __html: renderMath(html[p.id]) }} />
+                      )}
                     </div>
-                  )) : "(chưa có)"}
+                  ));
+                })()}
+                {/* Kiểm tra nhanh luôn ở CUỐI, sau cả Bài tập (§1.3) */}
+                <div className="pv-sec"><h4>✅ Kiểm tra nhanh</h4><div className="bd">
+                  {quiz.length ? `${quiz.length} câu trắc nghiệm (sinh theo ma trận)` : "(chưa sinh)"}
                 </div></div>
-                <div className="pv-sec"><h4>✅ Kiểm tra nhanh</h4><div className="bd">{quiz.length ? `${quiz.length} câu trắc nghiệm (sinh theo ma trận)` : "(chưa sinh)"}</div></div>
               </div>
             )}
         </div>

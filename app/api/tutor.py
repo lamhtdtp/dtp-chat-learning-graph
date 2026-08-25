@@ -23,10 +23,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api import security
 from app.api.deps import get_current_user
 from app.config import settings
 from app.db.models import CurriculumTopic, QuizAttempt, TopicContent, User
 from app.db.session import get_session
+from app.exam import diem_khop
 from app.graph.grounding import KHONG_TIM_THAY
 from app.graph.nodes.qa import qa_node
 from app.llm import cache as llm_cache
@@ -81,6 +83,14 @@ class Citation(BaseModel):
     nguon: str
 
 
+class AnhKem(BaseModel):
+    """Hình minh hoạ đính theo câu trả lời."""
+
+    url: str            # đã ký, xem được trong hạn
+    caption: str
+    tu: str             # nguồn trong bài: "Minh hoạ" | "Ví dụ 2"
+
+
 class AskResponse(BaseModel):
     answer: str
     citations: list[Citation]
@@ -89,6 +99,103 @@ class AskResponse(BaseModel):
     # Nhãn nguồn "nội bộ" để client hiển thị (vd "Ví dụ 2"). None = không dựa vào
     # nội dung bài, chỉ có SGK.
     nguon_bai: str | None = None
+    # Hình của CHÍNH bài đang học, đính khi câu hỏi/câu trả lời nói tới hình vẽ.
+    anh: list[AnhKem] = []
+
+
+# Dấu hiệu câu hỏi/câu trả lời đang nói về HÌNH. Không có hàng rào này thì bài
+# nào có ảnh là câu nào cũng đính ảnh, kể cả hỏi "luỹ thừa là gì" — nhiễu hơn là
+# giúp. Cố ý không nhờ LLM quyết định: thêm một lượt gọi model cho việc mà vài từ
+# khoá làm được là đắt vô ích.
+_DAU_HINH = re.compile(
+    r"hình|vẽ|sơ đồ|đồ thị|biểu đồ|quan sát|trục đối xứng|tâm đối xứng"
+    r"|tam giác|tứ giác|hình vuông|chữ nhật|hình thoi|bình hành|thang cân"
+    r"|đường thẳng|đoạn thẳng|tia |góc |điểm ", re.IGNORECASE)
+# Tỉ lệ TỪ của caption xuất hiện trong câu hỏi + câu trả lời.
+#
+# CỐ Ý không dùng SequenceMatcher như chỗ khớp tên đơn vị: nó chia cho tổng độ
+# dài hai chuỗi, nên caption 90 ký tự so với câu trả lời 1500 ký tự cho tỉ lệ
+# ≤ 0.11 dù trùng từng chữ — đo thật thì tính năng không bao giờ chạy. Độ phủ từ
+# không phụ thuộc độ dài.
+_NGUONG_ANH = 0.25
+_MAX_ANH = 2
+# Từ quá ngắn/quá phổ thông thì không nói lên độ liên quan.
+_BO_TU = {"là", "và", "của", "các", "một", "có", "cho", "trong", "với", "hình",
+          "sau", "này", "đó", "thì", "hay", "nào", "về", "ở", "từ", "được"}
+
+
+def _phu_tu(caption: str, van: str) -> float:
+    """Bao nhiêu phần từ của caption xuất hiện trong văn bản câu hỏi + trả lời."""
+    tu = {t for t in diem_khop.chuan(caption).split() if len(t) > 1 and t not in _BO_TU}
+    if not tu:
+        return 0.0
+    co = set(diem_khop.chuan(van).split())
+    return len(tu & co) / len(tu)
+
+
+def _anh_cua_bai(c: TopicContent) -> list[tuple[str, str, str]]:
+    """(url thô, caption, nhãn nguồn) của mọi hình trong bài — minh hoạ + hình ví dụ.
+
+    Chỉ lấy ẢNH: video đã có thẻ phát riêng trong bài, đính lại vào câu trả lời
+    chat thì học sinh phải xem hai lần cùng một thứ.
+    """
+    ra: list[tuple[str, str, str]] = []
+    for m in json.loads(c.minh_hoa_json or "[]"):
+        url = (m.get("url") or "").strip()
+        if url and m.get("type") != "video":
+            ra.append((url, (m.get("caption") or "Hình minh hoạ").strip(), "Minh hoạ"))
+    for i, e in enumerate(json.loads(c.vi_du_json or "[]"), start=1):
+        url = (e.get("anh") or "").strip()
+        if url:
+            # Caption của hình ví dụ = đề bài: đó là thứ tả đúng hình đang vẽ gì.
+            ra.append((url, _bo_the(e.get("de", ""))[:120] or f"Hình ví dụ {i}", f"Ví dụ {i}"))
+    return ra
+
+
+def _chon_anh(c: TopicContent | None, anchor: str | None, cau_hoi: str,
+              tra_loi: str) -> list[AnhKem]:
+    """Hình nên đính theo câu trả lời. Rỗng nếu bài không có hình hoặc không liên quan.
+
+    Ba tầng, chặt trước lỏng sau:
+      1. `anchor` — học sinh bấm "Hỏi" ngay ở Ví dụ 2 thì hình của Ví dụ 2 chắc
+         chắn đúng, không cần đoán.
+      2. Câu HỎI có nói về hình không (không xét câu trả lời — xem ghi chú dưới).
+      3. Trong các hình của bài, chọn cái có caption phủ nhiều từ của câu
+         hỏi + câu trả lời nhất.
+    """
+    if c is None:
+        return []
+    ds = _anh_cua_bai(c)
+    if not ds:
+        return []
+
+    if anchor and anchor.startswith("vi_du:"):
+        nhan = f"Ví dụ {anchor.split(':')[1]}"
+        cua_vd = [x for x in ds if x[2] == nhan]
+        if cua_vd:
+            return [AnhKem(url=security.sign_media(u), caption=cap, tu=tu)
+                    for u, cap, tu in cua_vd[:_MAX_ANH]]
+    if anchor == "minh_hoa":
+        mh = [x for x in ds if x[2] == "Minh hoạ"]
+        if mh:
+            return [AnhKem(url=security.sign_media(u), caption=cap, tu=tu)
+                    for u, cap, tu in mh[:_MAX_ANH]]
+
+    # Chỉ xét CÂU HỎI, không xét câu trả lời: bài hình học thì câu trả lời nào
+    # cũng nhắc lại tên bài ("…về hình có trục đối xứng") nên lọc theo câu trả lời
+    # là mở cửa cho mọi câu, kể cả "bài này có mấy phần?" (đã gặp thật). Ý muốn
+    # của học sinh nằm ở câu hỏi.
+    if not _DAU_HINH.search(cau_hoi):
+        return []
+    van = f"{cau_hoi} {tra_loi}"
+    diem = sorted(((_phu_tu(cap, van), u, cap, tu) for u, cap, tu in ds), key=lambda x: -x[0])
+    chon = [x[1:] for x in diem if x[0] >= _NGUONG_ANH][:_MAX_ANH]
+    # Không caption nào khớp nhưng câu hỏi RÕ RÀNG về hình (đã qua `_DAU_HINH`) và
+    # bài này có hình -> vẫn đưa hình đầu tiên. Caption kiểu "Hình minh hoạ" không
+    # trùng chữ nào cả; im lặng ở đây nghĩa là tính năng gần như không bao giờ chạy.
+    if not chon:
+        chon = ds[:1]
+    return [AnhKem(url=security.sign_media(u), caption=cap, tu=tu) for u, cap, tu in chon]
 
 
 def _bo_the(s: str) -> str:
@@ -188,9 +295,10 @@ async def ask(
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             f"Câu hỏi quá dài (tối đa {settings.chat_max_chars} ký tự).")
     anchor = body.anchor if (body.anchor and _NEO_RE.match(body.anchor)) else None
-    bai_hoc, nguon_bai, ten_dv = "", None, body.context
+    bai_hoc, nguon_bai, ten_dv, noi_dung = "", None, body.context, None
     if body.topic_id is not None:
-        bai_hoc, nguon_bai, ten_dv = await _ngu_canh_bai(session, user, body.topic_id, anchor, ten_dv)
+        bai_hoc, nguon_bai, ten_dv, noi_dung = await _ngu_canh_bai(
+            session, user, body.topic_id, anchor, ten_dv)
 
     remaining = await _enforce_limit(user)
 
@@ -228,26 +336,33 @@ async def ask(
             if c.page_no not in seen:
                 seen.add(c.page_no)
                 cits.append(Citation(page_no=c.page_no, nguon=c.nguon))
+    # Không đính hình khi trợ lý đã nói "không có trong sách": kèm một cái hình
+    # vào câu từ chối thì đọc thành trả lời nửa vời.
+    anh = [] if ktf else _chon_anh(noi_dung, anchor, q, answer)
     return AskResponse(answer=answer, citations=cits[:3], khong_tim_thay=ktf,
-                       remaining=remaining, nguon_bai=None if ktf else nguon_bai)
+                       remaining=remaining, nguon_bai=None if ktf else nguon_bai,
+                       anh=anh)
 
 
 async def _ngu_canh_bai(
     session: AsyncSession, user: User, topic_id: int, anchor: str | None, ten_cu: str | None,
-) -> tuple[str, str | None, str | None]:
-    """Đọc nội dung đơn vị đang mở -> (ngữ cảnh, nhãn nguồn, tên đơn vị).
+) -> tuple[str, str | None, str | None, TopicContent | None]:
+    """Đọc nội dung đơn vị đang mở -> (ngữ cảnh, nhãn nguồn, tên đơn vị, bản nội dung).
+
+    Trả luôn bản nội dung để chỗ gọi lấy hình mà không phải truy vấn lần hai —
+    và để hình đi theo ĐÚNG luật quyền ở dưới (chưa xuất bản thì không có gì).
 
     Topic/nội dung không có thì trả rỗng chứ KHÔNG 404: câu hỏi vẫn trả lời được
     bằng SGK như trước, chặn ở đây chỉ tổ làm hỏng trải nghiệm vì một cái id cũ."""
     topic = await session.get(CurriculumTopic, topic_id)
     if topic is None:
-        return "", None, ten_cu
+        return "", None, ten_cu, None
     ten_dv = re.sub(r"\s+", " ", (topic.don_vi_kien_thuc or "").strip()) or ten_cu
 
     c = await session.scalar(select(TopicContent).filter_by(topic_id=topic_id))
     # Học sinh chỉ được ngữ cảnh từ bản ĐÃ XUẤT BẢN — cùng luật với GET /lessons.
     if c is None or (user.role not in _TAC_GIA and c.trang_thai != "published"):
-        return "", None, ten_dv
+        return "", None, ten_dv, None
 
     if anchor and anchor.startswith("quiz:") and user.role not in _TAC_GIA:
         # Chưa nộp bài mà hỏi "câu 3 đáp án gì" thì trợ lý sẽ trả lời thật — hỏi
@@ -260,4 +375,4 @@ async def _ngu_canh_bai(
                 "Bạn làm bài kiểm tra nhanh xong rồi hỏi mình về câu này nhé!")
 
     doan, nhan = _doan_bai(c, anchor)
-    return doan[:_MAX_BAI], nhan, ten_dv
+    return doan[:_MAX_BAI], nhan, ten_dv, c

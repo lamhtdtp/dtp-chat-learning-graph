@@ -167,7 +167,7 @@
 .learn .stat .v .u{font-size:11.5px;color:var(--ink-3);font-weight:700}
 .learn .stat .l{font-size:11px;color:var(--ink-3);margin-top:3px;font-weight:500}
 .learn .stat.streak .v{color:var(--accent)}
-.learn .stat.xp .v{color:var(--teal)}
+.learn .stat.ycd .v{color:var(--teal)}
 
 .learn .lesson{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:clamp(22px,3.2vw,40px);max-width:800px;margin:0 auto}
 .learn .eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--primary-ink);background:var(--primary-weak);padding:6px 12px;border-radius:20px;margin-bottom:15px}
@@ -202,6 +202,8 @@
 .learn .vd{border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:10px;background:var(--surface-2);transition:.15s}
 .learn .vd:hover{border-color:color-mix(in srgb,var(--primary) 35%,var(--border))}
 .learn .vd .q{font-weight:700;margin-bottom:4px}
+/* Hình của ví dụ: nền trắng cố định — hình SGK là nét đen, để nền tối thì mất nét. */
+.learn .vd .vd-hinh{display:block;max-width:100%;max-height:300px;object-fit:contain;margin:10px auto;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff}
 .learn .vd .a{font-size:14px;color:var(--ink-2)}
 .learn .vd .a b{color:var(--primary-ink)}
 
@@ -423,7 +425,7 @@
 .learn .stat::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;border-radius:3px;
   background:var(--primary);opacity:.5;transition:opacity .18s}
 .learn .stat.streak::before{background:var(--accent)}
-.learn .stat.xp::before{background:var(--teal)}
+.learn .stat.ycd::before{background:var(--teal)}
 .learn .stat:hover{transform:translateY(-2px);border-color:var(--border);box-shadow:var(--shadow-sm)}
 .learn .stat:hover::before{opacity:1}
 .learn .stat .v{font-size:21px}
@@ -442,7 +444,7 @@
   18%  {transform:scale(1.045)}
   100% {background:var(--surface-2);border-color:var(--border);transform:scale(1)}
 }
-.learn .stat.xp.nhay{animation-name:stat-sang-teal}
+.learn .stat.ycd.nhay{animation-name:stat-sang-teal}
 @keyframes stat-sang-teal{
   0%   {background:var(--teal-weak);border-color:var(--teal);transform:scale(1)}
   18%  {transform:scale(1.045)}
@@ -456,7 +458,7 @@
   70%{opacity:1} 100%{opacity:0;transform:translateY(-5px)}
 }
 @media (prefers-reduced-motion:reduce){
-  .learn .stat.nhay,.learn .stat.streak.nhay,.learn .stat.xp.nhay,.learn .stat .delta{animation:none}
+  .learn .stat.nhay,.learn .stat.streak.nhay,.learn .stat.ycd.nhay,.learn .stat .delta{animation:none}
   .learn .stat.nhay{border-color:var(--primary)}
   .learn .stat .delta{opacity:1}
 }
@@ -564,3 +566,193 @@
 .learn .hsls-nh.ok{background:var(--teal-weak);color:var(--teal)}
 .learn .hsls-nh.no{background:var(--accent-weak);color:var(--accent-ink)}
 .learn .hsls-nh.dang{background:var(--primary-weak);color:var(--primary-ink);font-weight:700}
+
+/* ═══ Sidebar theo mockup gia-su-dtp-demo (lộ trình · tiến độ mạch · trạng thái) ═══ */
+.learn .tp-lotrinh{display:flex;align-items:center;gap:10px;padding:11px 20px 12px;border-bottom:1px solid var(--border)}
+.learn .tp-lotrinh .em{font-size:16px;flex:none}
+.learn .tp-lotrinh b{display:block;font-family:var(--disp);font-weight:800;font-size:13.5px;line-height:1.2}
+.learn .tp-lotrinh span{font-size:11.5px;color:var(--ink-3)}
+
+.learn .tp-group-head{padding:0 6px}
+.learn .tp-group-head .tp-group-title{padding:2px 0 7px}
+/* Đếm "2/3" đẩy sang phải cùng hàng tên mạch */
+.learn .tp-dem{margin-left:auto;font-size:10.5px;font-weight:800;color:var(--ink-3);background:var(--surface-2);border-radius:20px;padding:2px 7px;letter-spacing:0}
+.learn .tp-bar{height:3px;border-radius:20px;background:var(--surface-3);overflow:hidden;margin-bottom:9px}
+.learn .tp-bar i{display:block;height:100%;border-radius:20px;background:var(--primary);transition:width .45s cubic-bezier(.2,.7,.3,1)}
+
+/* Ô trạng thái đổi từ vuông sang TRÒN cho khớp mockup; ba trạng thái khác nhau
+   cả hình lẫn màu nên không phụ thuộc màu để phân biệt. */
+.learn .tp-item .ic{border-radius:50%;font-size:11px}
+.learn .tp-item.current .ic{color:var(--primary);border-color:var(--primary);font-size:9px}
+.learn .flag.xem{background:var(--primary);box-shadow:none}
+
+/* ═══ Thân bài theo mockup ═══ */
+/* Badge "3/6" đứng sau tên mục, không phải "3." đứng trước */
+.learn .lesson h3 .so-phan{margin:0 0 0 auto;font-size:11px;font-weight:800;color:var(--ink-3);
+  background:var(--surface-2);border:1px solid var(--border);border-radius:20px;padding:2px 8px;flex:none}
+.learn h3.kt .so-phan{color:var(--accent-ink);background:var(--accent-weak);border-color:transparent}
+
+/* HOẠT ĐỘNG & LUYỆN TẬP — mockup vẽ bước có nhãn + hộp đáp án.
+   Định dạng NGAY TRÊN html chuyên gia đã soạn, không đổi cấu trúc dữ liệu.
+   Hình dạng thật trong dữ liệu (đã kiểm):
+     hoat_dong: <p><b>Hoạt động nhóm:</b> ...</p>
+     luyen_tap: <p>1) So sánh ...</p><p>2) Viết tập hợp ...</p>
+   nên bám vào <p> + <b> mở đầu, chứ KHÔNG bám <ol>/<blockquote> — bài nào cũng
+   không có hai thẻ đó, rule sẽ chết mà không ai biết. */
+.learn .phan-hoat_dong .bd > p,
+.learn .phan-bai_tap .bd > p,
+.learn .phan-luyen_tap .bd > p{padding:12px 14px;border:1px solid var(--border);
+  border-radius:12px;background:var(--surface);margin:0 0 9px}
+.learn .phan-hoat_dong .bd > p:last-child,
+.learn .phan-bai_tap .bd > p:last-child,
+.learn .phan-luyen_tap .bd > p:last-child{margin-bottom:0}
+/* Nhãn mở đầu ("Hoạt động nhóm:", "Luyện tập", "Vận dụng") thành chip */
+.learn .phan-hoat_dong .bd > p > b:first-child,
+.learn .phan-hoat_dong .bd > p > strong:first-child,
+.learn .phan-luyen_tap .bd > p > b:first-child,
+.learn .phan-luyen_tap .bd > p > strong:first-child,
+.learn .phan-bai_tap .bd > p > b:first-child,
+.learn .phan-bai_tap .bd > p > strong:first-child{display:inline-block;font-size:10px;
+  font-weight:900;letter-spacing:.05em;text-transform:uppercase;color:var(--primary-ink);
+  background:var(--primary-weak);border-radius:20px;padding:3px 9px;margin-right:8px;vertical-align:2px}
+/* Nếu về sau chuyên gia soạn bằng danh sách thì cũng ra bước đánh số + hộp đáp án */
+.learn .phan-hoat_dong .bd ol{list-style:none;counter-reset:bhd;padding:0;margin:0;
+  display:flex;flex-direction:column;gap:11px}
+.learn .phan-hoat_dong .bd ol > li{counter-increment:bhd;position:relative;padding-left:34px;font-weight:600}
+.learn .phan-hoat_dong .bd ol > li::before{content:counter(bhd);position:absolute;left:0;top:-1px;
+  width:22px;height:22px;border-radius:7px;background:var(--primary);color:#fff;display:grid;
+  place-items:center;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums}
+.learn .phan-hoat_dong .bd blockquote{margin:8px 0 0;padding:10px 13px;border:1px solid var(--border);
+  border-left-width:1px;border-radius:10px;background:var(--surface-2);color:var(--ink-2);font-weight:500}
+
+/* Chip ⏱ thời gian học hôm nay trên thanh trên (mockup) */
+.learn .chip-gio{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-2);
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:6px 12px;flex:none}
+.learn .chip-gio b{font-weight:700;color:var(--ink)}
+
+/* ═══ Ôn tập chương (§3.5) ═══ */
+/* Thẻ ở cuối mỗi mạch trong sidebar — teal để tách khỏi các đơn vị (mockup) */
+.learn .tp-ontap{display:flex;align-items:center;gap:10px;width:100%;text-align:left;margin:7px 0 2px;
+  padding:9px 11px;border:1px solid color-mix(in srgb,var(--teal) 32%,transparent);
+  border-radius:10px;background:color-mix(in srgb,var(--teal) 9%,transparent);
+  color:var(--ink-2);font-size:12.5px;transition:.15s}
+.learn .tp-ontap:hover,.learn .tp-ontap.dang{background:color-mix(in srgb,var(--teal) 17%,transparent);
+  border-color:var(--teal)}
+.learn .tp-ontap .ic{font-size:14px;flex:none}
+.learn .tp-ontap b{display:block;font-weight:700;font-size:12.5px;color:var(--teal-ink,var(--ink))}
+.learn .tp-ontap span{font-size:11px;color:var(--ink-3)}
+
+.learn .ot-top{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.learn .ot-dong{margin-left:auto;border:1px solid var(--border);background:var(--surface);
+  color:var(--ink-2);border-radius:20px;padding:6px 13px;font-size:12.5px;font-weight:600}
+.learn .ot-dong:hover{border-color:var(--primary);color:var(--primary-ink)}
+.learn .ot-sub{color:var(--ink-2);font-size:13.5px;margin:2px 0 18px}
+
+.learn .ot-bai{display:flex;flex-direction:column;gap:7px}
+.learn .ot-row{display:flex;align-items:center;gap:11px;width:100%;text-align:left;
+  border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:11px 13px;
+  font-size:13.5px;color:var(--ink);transition:.15s}
+.learn .ot-row:hover{border-color:var(--primary);background:var(--surface-2)}
+.learn .ot-pill{flex:none;font-size:10.5px;font-weight:800;border-radius:20px;padding:3px 9px}
+.learn .ot-dat{background:color-mix(in srgb,var(--teal) 16%,transparent);color:var(--teal)}
+.learn .ot-dang{background:var(--primary-weak);color:var(--primary-ink)}
+.learn .ot-chua{background:var(--surface-3);color:var(--ink-3)}
+.learn .ot-ten{flex:1;min-width:0;font-weight:600}
+.learn .ot-ghi{font-size:11px;color:var(--ink-3);flex:none}
+.learn .ot-mui{color:var(--ink-3);flex:none}
+
+.learn .ot-nho{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+.learn .ot-nho li{border:1px solid var(--border);border-left:3px solid var(--accent);
+  border-radius:10px;padding:10px 13px;background:var(--surface);font-size:13.5px}
+.learn .ot-nho em{display:block;margin-top:4px;font-size:11.5px;color:var(--ink-3);font-style:normal}
+
+.learn .ot-mo{border:1px dashed var(--border-strong,var(--border));border-radius:14px;
+  padding:18px;text-align:center;background:var(--surface-2)}
+.learn .ot-mo p{margin:0 0 13px;font-size:13px;color:var(--ink-2)}
+
+.learn .ot-de{display:flex;flex-direction:column;gap:12px}
+.learn .ot-cau{border:1px solid var(--border);border-radius:14px;padding:14px 16px;background:var(--surface)}
+.learn .ot-cau.dung{border-color:color-mix(in srgb,var(--teal) 45%,transparent)}
+.learn .ot-cau.sai{border-color:color-mix(in srgb,var(--warn) 55%,transparent)}
+.learn .ot-ch{display:flex;align-items:center;gap:9px;margin-bottom:7px;font-size:12px}
+.learn .ot-ch b{font-size:13px}
+.learn .ot-lv{font-size:10.5px;font-weight:800;background:var(--surface-3);color:var(--ink-3);
+  border-radius:20px;padding:2px 8px}
+.learn .ot-tu{margin-left:auto;font-size:11px;color:var(--ink-3);max-width:44%;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.learn .ot-q{font-weight:600;margin-bottom:10px}
+.learn .ot-opts{display:flex;flex-direction:column;gap:7px}
+.learn .ot-opt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  border:1px solid var(--border);background:var(--surface);border-radius:10px;padding:9px 12px;
+  font-size:13.5px;color:var(--ink);transition:.13s}
+.learn .ot-opt:hover:not(:disabled){border-color:var(--primary);background:var(--surface-2)}
+.learn .ot-opt.chon{border-color:var(--primary);background:var(--primary-weak);color:var(--primary-ink)}
+.learn .ot-opt.dung{border-color:var(--teal);background:color-mix(in srgb,var(--teal) 11%,transparent);color:var(--teal)}
+.learn .ot-opt.sai{border-color:var(--warn);background:color-mix(in srgb,var(--warn) 11%,transparent);color:var(--warn)}
+.learn .ot-az{flex:none;width:24px;height:24px;border-radius:7px;border:1.5px solid currentColor;
+  display:grid;place-items:center;font-size:11.5px;font-weight:800}
+.learn .ot-dau{margin-left:auto;font-weight:800}
+.learn .ot-giai{margin-top:9px;padding-top:9px;border-top:1px solid var(--border);
+  font-size:13px;color:var(--ink-2)}
+.learn .ot-nop,.learn .ot-kq{display:flex;align-items:center;gap:13px;flex-wrap:wrap;
+  border:1px solid var(--border);border-radius:14px;padding:13px 16px;background:var(--surface-2)}
+.learn .ot-kq.dat{border-color:var(--teal);background:color-mix(in srgb,var(--teal) 10%,transparent)}
+.learn .ot-kq.chua{border-color:var(--warn);background:color-mix(in srgb,var(--warn) 10%,transparent)}
+.learn .ot-kq .btn-primary,.learn .ot-nop .btn-primary{margin-left:auto}
+.learn .ot-loi{font-size:12.5px;color:var(--warn);margin:8px 0}
+.learn .ot-it{font-size:12.5px;color:var(--warn);margin:0 0 12px}
+
+/* ═══ Hồ sơ · thời gian học — bám mockup gia-su-dtp-demo ═══ */
+/* Ô "Hôm nay" nổi bật khi đạt mục tiêu: bốn ô phẳng như nhau thì cái quan trọng
+   nhất chìm nghỉm giữa ba cái kia. */
+.learn .hs4-o.dat{background:var(--teal-weak,var(--surface-2));
+  border-color:color-mix(in srgb,var(--teal) 40%,transparent)}
+.learn .hs4-o.dat b{color:var(--teal)}
+
+.learn .hsbd-dau{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+  max-width:800px;margin:0 auto 7px;padding:0 2px}
+.learn .hsbd-dau b{font-size:13px;font-weight:800;color:var(--primary-ink)}
+.learn .hsbd-cg{font-size:11.5px;color:var(--ink-3)}
+/* Đường mục tiêu giờ không mang nhãn nữa nên để nét mảnh, xám, đứng sau cột */
+.learn .hsbd-mt{border-top-color:color-mix(in srgb,var(--ink-3) 55%,transparent)}
+.learn .hsbd-c span.nay{color:var(--accent-ink);font-weight:800}
+
+/* Lịch sử: mỗi phiên là một THẺ, ngày/giờ xuống hai dòng (mockup) */
+.learn .hsls{display:flex;align-items:flex-start;gap:14px;flex-wrap:nowrap;
+  max-width:800px;margin:0 auto 9px;padding:12px 15px;border:1px solid var(--border);
+  border-radius:14px;background:var(--surface)}
+.learn .hsls.dang{border-color:color-mix(in srgb,var(--teal) 45%,transparent);
+  background:color-mix(in srgb,var(--teal) 7%,var(--surface))}
+.learn .hsls-luc{display:flex;flex-direction:column;gap:1px;min-width:74px;flex:none}
+.learn .hsls-luc b{font-size:12.5px;font-weight:700;color:var(--primary-ink)}
+.learn .hsls-luc i{font-style:normal;font-size:11.5px;color:var(--ink-3)}
+.learn .hsls-than{flex:1;min-width:0}
+.learn .hsls-ten{padding:0;text-align:left;display:block;margin-bottom:7px}
+.learn .hsls-tags{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+
+/* Thanh tiến độ mạch ở khối yêu cầu cần đạt */
+.learn .pmach-h .bar-track{flex:1;height:8px;border-radius:20px;background:var(--surface-3);overflow:hidden}
+.learn .pmach-h .bar-fill{height:100%;border-radius:20px;background:var(--primary);transition:width .45s}
+.learn .pmach-h .num{font-size:14px;font-weight:800;color:var(--primary-ink);flex:none}
+
+/* Gợi ý nằm TRONG hộp chat trợ lý (thay 3 chip rời trước đây) */
+.learn .tl-goiy{display:flex;flex-wrap:wrap;gap:8px}
+.learn .tl-goiy button{border:1px solid var(--border);background:var(--surface);
+  color:var(--ink-2);border-radius:20px;padding:8px 13px;font:inherit;font-size:12.5px;
+  font-weight:600;transition:.14s;text-align:left}
+.learn .tl-goiy button:hover{border-color:var(--primary);background:var(--primary-weak);
+  color:var(--primary-ink)}
+/* Chú thích nhỏ trong ô số liệu hero ("12/34 yêu cầu") */
+.learn .prog-stats .stat .l .g{display:block;font-size:10.5px;color:var(--ink-3);margin-top:1px}
+/* Ô "Yêu cầu cần đạt": dấu % phải LIỀN số ("6%") — gap 4px của .stat .v là cho
+   đơn vị dạng chữ ("đơn vị"). */
+.learn .stat.ycd .v{gap:0}
+.learn .stat.ycd .v .u{font-size:13px;font-weight:800;color:inherit}
+
+/* Hình đính theo câu trả lời của trợ lý (lấy từ bài đang học) */
+.learn .tl-anh{display:grid;gap:9px;margin-top:9px}
+.learn .tl-anh figure{margin:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)}
+/* Nền TRẮNG cố định: hình SGK là nét đen, để nền tối thì mất nét. */
+.learn .tl-anh img{display:block;width:100%;max-height:260px;object-fit:contain;background:#fff}
+.learn .tl-anh figcaption{font-size:11.5px;line-height:1.45;color:var(--ink-3);padding:8px 11px;border-top:1px solid var(--border)}
+.learn .tl-anh figcaption b{color:var(--primary-ink);font-weight:700}

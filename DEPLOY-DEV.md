@@ -1,5 +1,7 @@
 # Hướng dẫn deploy lên server DEV
 
+> **Lên bản mới trên server đã cài rồi?** Dùng [docs/RUNBOOK-DEPLOY.md](docs/RUNBOOK-DEPLOY.md) — deploy → migrate → dọn dữ liệu → dựng lại nội dung bằng AI. File này là cài server TỪ ĐẦU.
+
 Triển khai **Chat Learning Toán** lên 1 server **Ubuntu chạy Docker**, dùng:
 
 - **1 Ubuntu** + Docker (chạy: API, Celery worker, web/nginx, **Qdrant**, và **Redis Stack**)

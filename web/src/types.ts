@@ -52,6 +52,11 @@ export interface QuizResult {
   dat_yeu_cau: boolean;
   trang_thai: "dat" | "dang";
   ket_qua: QuizResultItem[];
+  /** Server vẫn luôn trả 3 khoá này (xem POST /quiz/submit) — trước đây type
+   *  bỏ sót nên chỗ nào muốn hiện "+XP" đều phải ép kiểu. */
+  xp?: number;
+  xp_week?: number;
+  streak?: number;
 }
 /** Lời nhắc chủ động của trợ lý ở một mốc trong bài (sinh sẵn lúc biên soạn). */
 export interface Nhac {
@@ -69,7 +74,7 @@ export interface Lesson {
   dv: string;
   khai_niem: string;
   minh_hoa: MinhHoa[];
-  vi_du: { de: string; giai: string }[];
+  vi_du: { de: string; giai: string; anh?: string }[];
   quiz: QuizQuestion[];
   co_quiz: boolean;
   nhac: Nhac[];
@@ -108,6 +113,8 @@ export interface AuthResult {
 
 // Trợ lý hỏi–đáp bám SGK (POST /tutor/ask)
 export interface TutorCitation { page_no: number; nguon: string }
+/** Hình của chính bài đang học, đính theo câu trả lời khi câu hỏi nói về hình. */
+export interface AnhKem { url: string; caption: string; tu: string }
 export interface TutorAnswer {
   answer: string;
   citations: TutorCitation[];
@@ -115,6 +122,7 @@ export interface TutorAnswer {
   remaining: number | null;
   /** Nhãn đoạn bài học trợ lý đã dựa vào ("Ví dụ 2", "Khái niệm"…). null = chỉ có SGK. */
   nguon_bai: string | null;
+  anh: AnhKem[];
 }
 
 /** Đoạn bài học đang hỏi. Khớp với `anchor` ở backend (app/api/tutor.py). */
@@ -126,12 +134,20 @@ export type Neo =
   | `vi_du:${number}` | `quiz:${number}`;
 
 // Hero gamification (GET /me/stats)
+export interface MachTienDo { mach: string; em: string; phan_tram: number }
 export interface MyStats {
   overall: number;
   dat: number;
   tong: number;
-  current_mach: { mach: string; em: string; phan_tram: number } | null;
+  /** Mạch chưa xong đầu tiên — chỉ dùng khi chưa mở bài nào. */
+  current_mach: MachTienDo | null;
+  /** Tiến độ TỪNG mạch, để vòng tiến độ theo đúng bài đang mở. */
+  mach: MachTienDo[];
   streak: number;
+  /** % theo yêu cầu cần đạt (mỗi ô ma trận là một yêu cầu). */
+  ycd_dat: number;
+  ycd_tong: number;
+  ycd_phan_tram: number;
   xp_week: number;
   xp_total: number;
 }
@@ -154,3 +170,21 @@ export interface YcdMach {
   ycd: { ycd: string; muc_do: string; topic_id: number; don_vi: string;
          trang_thai: string; sai: number }[];
 }
+
+/** Trang Ôn tập chương / cuối kỳ (GET /on-tap — REQ §3.5). */
+export interface OnTap {
+  pham_vi: "mach" | "hoc_ky";
+  gia_tri: string;
+  so_bai: number; chua_xong: number; ycd: number;
+  /** Số câu THẬT gom được (bài chưa có đề thì không góp câu). */
+  so_cau_de: number;
+  so_cau_toi_da: number;
+  so_bai_co_de: number;
+  bai: { topic_id: number; ten: string; mach: string;
+         trang_thai: "dat" | "dang" | "chua"; co_noi_dung: boolean }[];
+  can_nho: { topic_id: number; ten: string; y: string }[];
+}
+/** Một câu của đề ôn tập — KHÔNG kèm đáp án (server chấm). */
+export interface CauOnTap { topic_id: number; idx: number; bai: string;
+  q: string; o: string[]; lv: "de" | "trung_binh" | "kho" }
+export interface DeOnTap { pham_vi: string; gia_tri: string; so_cau: number; cau: CauOnTap[] }

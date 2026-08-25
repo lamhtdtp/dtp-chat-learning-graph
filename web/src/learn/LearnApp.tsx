@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ApiError, getCurriculum, getLesson, getMyStats, setProgress, tokenStore,
+  ApiError, getCurriculum, getLesson, getMyStats, getThoiGian, setProgress, tokenStore,
 } from "../api";
 import { useTheme } from "../hooks/useTheme";
 import type { CurriculumGroup, Lesson, MyStats, Role } from "../types";
 import { HoSoView } from "./HoSoView";
+import { OnTapView } from "./OnTapView";
 import { LessonView } from "./LessonView";
 import { usePhanDaDoc } from "./usePhanDaDoc";
 import { usePingPhien } from "./usePingPhien";
@@ -23,8 +24,10 @@ const HK1_MACH = new Set([
 
 /** Một ô số liệu. Đổi giá trị -> đếm tăng dần + loé sáng + hiện "+n" ngay bên
  *  cạnh, để học sinh thấy công mình vừa bỏ ra được ghi nhận. */
-function O({ k, so, dv, duoi, nhan }: {
+function O({ k, so, dv, duoi, nhan, ghi }: {
   k: string; so: number; dv?: string; duoi?: string; nhan: string;
+  /** Chú thích nhỏ dưới nhãn, vd "12/34 yêu cầu". */
+  ghi?: string;
 }) {
   const { hien, nhay, delta } = useSoDoi(so);
   return (
@@ -34,14 +37,19 @@ function O({ k, so, dv, duoi, nhan }: {
         {dv && <span className="u">{dv}</span>}
         {delta > 0 && <span className="delta">+{delta}</span>}
       </div>
-      <div className="l">{nhan}</div>
+      <div className="l">{nhan}{ghi && <span className="g">{ghi}</span>}</div>
     </div>
   );
 }
 
-function Hero({ stats }: { stats: MyStats | null }) {
-  const pct = stats?.current_mach?.phan_tram ?? stats?.overall ?? 0;
-  const label = (stats?.current_mach?.mach ?? "Toán 6").toUpperCase();
+function Hero({ stats, mach }: { stats: MyStats | null; mach?: string }) {
+  // Vòng tiến độ phải theo MẠCH CỦA BÀI ĐANG MỞ. Trước đây luôn lấy
+  // `current_mach` = mạch chưa xong đầu tiên, nên mở bài ở mạch khác rồi quay
+  // lại thì vòng vẫn đứng ở % của mạch cũ.
+  const cua = mach ? stats?.mach?.find((m) => m.mach === mach) : undefined;
+  const hien = cua ?? stats?.current_mach ?? null;
+  const pct = hien?.phan_tram ?? stats?.overall ?? 0;
+  const label = (hien?.mach ?? "Toán 6").toUpperCase();
   const lbl = label.length > 16 ? label.slice(0, 15) + "…" : label;
   return (
     <section className="progress-card" aria-label="Tiến độ học tập">
@@ -60,7 +68,10 @@ function Hero({ stats }: { stats: MyStats | null }) {
       <div className="prog-stats">
         <O k="" so={stats?.dat ?? 0} dv={`/${stats?.tong ?? 0} đơn vị`} nhan="Trong chương trình" />
         <O k="streak" so={stats?.streak ?? 0} duoi=" 🔥" nhan="Chuỗi ngày học" />
-        <O k="xp" so={stats?.xp_week ?? 0} dv="XP" nhan="Điểm tuần này" />
+        {/* Yêu cầu cần đạt thay cho điểm XP: XP là điểm thưởng, còn "đạt bao
+            nhiêu % yêu cầu cần đạt" mới là thứ chương trình đo. */}
+        <O k="ycd" so={stats?.ycd_phan_tram ?? 0} dv="%" nhan="Yêu cầu cần đạt"
+          ghi={stats?.ycd_tong ? `${stats.ycd_dat}/${stats.ycd_tong} yêu cầu` : undefined} />
       </div>
     </section>
   );
@@ -75,11 +86,16 @@ export function LearnApp({ name, email, role, onLogout }: {
   const [cur, setCur] = useState<number | null>(null);
   // "bai" | "ho_so" — Hồ sơ là một TRANG trong cột giữa, không phải popover, vì
   // nó có biểu đồ + danh sách dài.
-  const [trang, setTrang] = useState<"bai" | "ho_so">("bai");
+  const [trang, setTrang] = useState<"bai" | "ho_so" | "on_tap">("bai");
+  // Phạm vi ôn tập đang mở (mạch nào / học kỳ nào).
+  const [onTap, setOnTap] = useState<{ pv: "mach" | "hoc_ky"; gt: string; ten: string } | null>(null);
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [stats, setStats] = useState<MyStats | null>(null);
   const [slide, setSlide] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Thời gian học HÔM NAY cho chip ⏱ trên thanh trên (mockup có chip này).
+  // Số thật từ /me/thoi-gian, không phải đồng hồ đếm phía client.
+  const [phutHomNay, setPhutHomNay] = useState<number | null>(null);
 
   // Ghi thời gian học + phần đã đọc cho bài đang mở (§3.6). Danh sách phần lấy
   // từ `lesson.bo_cuc` — chính thứ đang render, nên "x/y" khớp cái HS thấy.
@@ -104,9 +120,20 @@ export function LearnApp({ name, email, role, onLogout }: {
       }
     }).catch(handle);
   };
-  useEffect(() => { loadCurriculum(true); loadStats(); }, []); // eslint-disable-line
+  const loadThoiGian = () => {
+    getThoiGian(1).then((d) => setPhutHomNay(d.hom_nay_phut)).catch(() => setPhutHomNay(null));
+  };
+  useEffect(() => { loadCurriculum(true); loadStats(); loadThoiGian(); }, []); // eslint-disable-line
+  // Học một lúc thì số phải nhích lên; ping phiên chạy mỗi 2 phút nên 60 giây là đủ.
+  useEffect(() => {
+    const t = window.setInterval(loadThoiGian, 60_000);
+    return () => window.clearInterval(t);
+  }, []);
 
   const openTopic = (id: number) => { setCur(id); setSlide(false); setTrang("bai"); loadLesson(id); };
+  const moOnTap = (pv: "mach" | "hoc_ky", gt: string, ten: string) => {
+    setOnTap({ pv, gt, ten }); setSlide(false); setTrang("on_tap");
+  };
   /** Từ Hồ sơ nhảy về bài + cuộn tới đúng phần (nút "Học lại ↗"). */
   const moBaiTuHoSo = (id: number, phan?: string) => {
     openTopic(id);
@@ -139,6 +166,12 @@ export function LearnApp({ name, email, role, onLogout }: {
 
   const crumb = lesson ? <>{lesson.mach} · <b>{lesson.dv}</b></> : <b>Chọn một bài học</b>;
 
+  // Học kỳ của bài đang mở — để dòng "Lộ trình học" nói đúng kỳ, không cứng "1".
+  const hkDangXem = useMemo(() => {
+    const g = groups.find((x) => x.dv.some((d) => d.topic_id === cur));
+    return g && !HK1_MACH.has(g.mach) ? 2 : 1;
+  }, [groups, cur]);
+
   return (
     <div className="learn">
       <nav className="nav col">
@@ -150,6 +183,12 @@ export function LearnApp({ name, email, role, onLogout }: {
           <div className="tp-title">Danh mục Toán lớp 6</div>
           <div className="tp-sub">Chọn một chủ đề để bắt đầu học</div>
         </div>
+        {/* Mockup có khối "Lộ trình học" tách riêng phía trên cây mạch — nó nói
+            cho học sinh biết đang ở lộ trình nào, việc mà chip "HỌC KỲ" không nói. */}
+        <div className="tp-lotrinh">
+          <span className="em" aria-hidden>🧭</span>
+          <div><b>Lộ trình học</b><span>Toán 6 · Học kỳ {hkDangXem}</span></div>
+        </div>
         <div className="tp-scroll col">
           {groups.map((g, gi) => {
             const hk = HK1_MACH.has(g.mach) ? 1 : 2;
@@ -158,16 +197,44 @@ export function LearnApp({ name, email, role, onLogout }: {
             <div key={g.mach}>
               {hk !== prevHk && <div className="tp-sem">📚 HỌC KỲ {hk}</div>}
               <div className="tp-group">
-              <div className="tp-group-title"><span className="em">{g.em}</span> {g.mach.toUpperCase()}</div>
+              {(() => {
+                const xong = g.dv.filter((d) => d.trang_thai === "dat").length;
+                return (
+                  <div className="tp-group-head">
+                    <div className="tp-group-title">
+                      <span className="em">{g.em}</span> {g.mach.toUpperCase()}
+                      <span className="tp-dem tnum">{xong}/{g.dv.length}</span>
+                    </div>
+                    {/* Thanh tiến độ theo MẠCH: cây danh mục dài, không có nó thì
+                        học sinh không biết mạch nào gần xong. */}
+                    <div className="tp-bar">
+                      <i style={{ width: `${g.dv.length ? (xong / g.dv.length) * 100 : 0}%` }} />
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="tp-items">
                 {g.dv.map((d) => (
                   <button key={d.topic_id} type="button" className={itemClass(d)} onClick={() => openTopic(d.topic_id)}>
-                    <span className="ic">{d.trang_thai === "dat" ? "✓" : ""}</span>
+                    {/* Ba trạng thái phân biệt được bằng HÌNH, không chỉ bằng màu:
+                        ✓ đã đạt · ◉ đang xem · ○ chưa học (mockup §sidebar). */}
+                    <span className="ic" aria-hidden>
+                      {d.trang_thai === "dat" ? "✓" : d.topic_id === cur ? "◉" : ""}
+                    </span>
                     <span className="tx">{d.ten}</span>
-                    {d.topic_id === nextId && d.topic_id !== cur && <span className="flag">TIẾP</span>}
+                    {d.topic_id === cur
+                      ? <span className="flag xem">ĐANG XEM</span>
+                      : d.topic_id === nextId && <span className="flag">TIẾP</span>}
                   </button>
                 ))}
               </div>
+              {/* Ôn tập chương ở CUỐI mạch (mockup). Không phải bài mới — là view
+                  gộp cả mạch, nên đứng ngoài danh sách đơn vị. */}
+              <button className={"tp-ontap" + (trang === "on_tap" && onTap?.gt === g.mach ? " dang" : "")}
+                type="button" onClick={() => moOnTap("mach", g.mach, `Ôn tập: ${g.mach}`)}>
+                <span className="ic" aria-hidden>🔁</span>
+                <div><b>Ôn tập chương</b><span>{g.dv.length} bài trong mạch này</span></div>
+              </button>
               </div>
             </div>
             );
@@ -179,6 +246,13 @@ export function LearnApp({ name, email, role, onLogout }: {
         <div className="topbar">
           <div className="crumb">{crumb}</div>
           <div className="spacer" />
+          {phutHomNay !== null && (
+            <div className="chip-gio" title="Thời gian học hôm nay">
+              <span aria-hidden>⏱</span>
+              <b className="tnum">{phutHomNay < 60 ? `${phutHomNay} phút`
+                : `${Math.floor(phutHomNay / 60)} g ${String(phutHomNay % 60).padStart(2, "0")}`}</b>
+            </div>
+          )}
           {teacher && lesson && (
             <button className="icon-btn" type="button" title={slide ? "Xem bài học" : "Xem slide"}
               onClick={() => setSlide((s) => !s)} aria-label="Đổi bài học/slide">{slide ? "📘" : "🖥️"}</button>
@@ -192,11 +266,14 @@ export function LearnApp({ name, email, role, onLogout }: {
 
         {/* Hero là số liệu của BÀI đang học -> ẩn ở trang Hồ sơ, nơi đã có 4 ô
             thời gian chi tiết hơn. */}
-        {trang === "bai" && <Hero stats={stats} />}
+        {trang === "bai" && <Hero stats={stats} mach={lesson?.mach} />}
 
         {err && <div className="lesson-empty">⚠️ {err}</div>}
-        {!err && (trang === "ho_so"
-          ? <HoSoView onMoBai={moBaiTuHoSo} />
+        {!err && (trang === "on_tap" && onTap
+          ? <OnTapView phamVi={onTap.pv} giaTri={onTap.gt} ten={onTap.ten}
+              onMoBai={openTopic} onDong={() => setTrang("bai")} />
+          : trang === "ho_so"
+          ? <HoSoView onMoBai={moBaiTuHoSo} ten={name} />
           : slide && lesson
             ? <SlideView lesson={lesson} />
             : lesson

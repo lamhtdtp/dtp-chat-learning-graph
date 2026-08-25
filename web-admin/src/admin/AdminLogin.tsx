@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { ApiError, getMe, login, tokenStore } from "../api";
+import { VAO_DUOC } from "./vaoDuoc";
 
-// Đăng nhập cho khu quản trị: đăng nhập xong kiểm tra role=admin; không phải
-// admin -> xoá token + báo lỗi (không cho vào dashboard).
+// Đăng nhập cho khu quản trị: đăng nhập xong đối chiếu vai trò với VAO_DUOC —
+// dùng chung danh sách với AdminApp, không chốt cứng "admin" ở đây nữa.
 export function AdminLogin({ onAuthed }: { onAuthed: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -15,9 +16,9 @@ export function AdminLogin({ onAuthed }: { onAuthed: () => void }) {
     try {
       await login(email.trim(), password);
       const me = await getMe();
-      if (me.role !== "admin") {
+      if (!VAO_DUOC.includes(me.role)) {
         tokenStore.clear();
-        setErr("Tài khoản này không có quyền quản trị.");
+        setErr("Tài khoản này không có quyền vào khu quản trị.");
         return;
       }
       onAuthed();

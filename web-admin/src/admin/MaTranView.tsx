@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ApiError, cmsMaTran } from "../api";
+import { useEffect, useRef, useState } from "react";
+import { ApiError, cmsMaTran, cmsNapMaTran } from "../api";
 import type { MaTran } from "../types";
 
 // Ma trận thật dùng 3 mức (matrix_parser.MucDo = de|trung_binh|kho), KHÔNG phải
@@ -18,12 +18,35 @@ export function MaTranView({ mon, khoi, onSua }: {
 }) {
   const [d, setD] = useState<MaTran | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [hk, setHk] = useState("hk1");
+  const [nap, setNap] = useState(false);
+  const [ketQua, setKetQua] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  const taiLai = () => {
     setD(null);
     cmsMaTran(mon, khoi).then(setD)
       .catch((e) => setErr(e instanceof ApiError ? e.message : "Không tải được ma trận"));
-  }, [mon, khoi]);
+  };
+  useEffect(taiLai, [mon, khoi]);
+
+  const chonTep = async (f: File | undefined) => {
+    if (!f) return;
+    setNap(true); setErr(null); setKetQua(null);
+    try {
+      const r = await cmsNapMaTran(f, mon, khoi, hk);
+      setKetQua(`Đã nạp ${r.so_dong} dòng cho ${mon} ${khoi} ${hk.toUpperCase()}`
+        + (r.don_vi_moi.length
+          ? ` — tự tạo ${r.don_vi_moi.length} đơn vị mới, rà lại ở cảnh báo bên dưới.`
+          : "."));
+      taiLai();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : "Không nạp được tệp");
+    } finally {
+      setNap(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   if (err) return <div className="warn-box">⚠️ {err}</div>;
   if (!d) return null;
@@ -33,8 +56,30 @@ export function MaTranView({ mon, khoi, onSua }: {
     <>
       <div className="page-head">
         <div><h1>Ma trận đặc tả</h1>
-          <div className="ps">{d.so_dong} dòng yêu cầu cần đạt · {mon} {khoi}</div></div>
+          <div className="ps">{mon} · {khoi} — {d.so_dong} dòng yêu cầu cần đạt</div></div>
+        <div className="sp" />
+        {/* Nạp = THAY toàn bộ ma trận của môn+lớp+kỳ này. Nói rõ trên nút, không
+            để người dùng tưởng là cộng thêm. */}
+        <div className="mt-nap">
+          <label>Học kỳ
+            <select value={hk} onChange={(e) => setHk(e.target.value)}>
+              <option value="hk1">Học kỳ 1</option>
+              <option value="hk2">Học kỳ 2</option>
+            </select></label>
+          <button className="btn btn-primary" type="button" disabled={nap}
+            onClick={() => fileRef.current?.click()}>
+            {nap ? "⏳ Đang nạp…" : "⬆️ Nạp lại ma trận"}
+          </button>
+          <input ref={fileRef} type="file" hidden accept=".docx,.md"
+            onChange={(e) => chonTep(e.target.files?.[0])} />
+        </div>
       </div>
+
+      <div className="badge-man" style={{ marginTop: -10, marginBottom: 14 }}>
+        Nạp tệp <code>.docx</code> (Toán) hoặc <code>.md</code> (Tiếng Anh) —
+        <b> THAY toàn bộ</b> ma trận của {mon} {khoi} {hk.toUpperCase()}, không cộng thêm.
+      </div>
+      {ketQua && <div className="sgk-box" style={{ marginBottom: 14 }}>✅ {ketQua}</div>}
 
       {/* Nạp .docx VẪN tự tạo đơn vị chưa có trong danh mục (quyết định (b)) —
           nhưng không để nó xảy ra âm thầm: tên lấy thô từ Word nên hay trùng lặp

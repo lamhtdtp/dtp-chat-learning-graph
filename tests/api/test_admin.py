@@ -85,7 +85,11 @@ async def test_ket_qua_hoc_sinh_luu_tung_lan(client, session, mocker):
     assert b["tong_lan"] == 2 and b["so_lan_dat"] == 1        # 2 lần, 1 lần đạt
     assert [x["diem"] for x in b["lan"]] == [2, 0]            # mới -> cũ
     g = b["theo_don_vi"][0]
-    assert g["so_lan"] == 2 and g["tot_nhat"] == 100 and g["gan_nhat"] == 100 and g["dat"] is True
+    assert g["so_lan"] == 2 and g["tot_nhat"] == 100 and g["gan_nhat"] == 100
+    # Khoá `dat` (suy từ các lượt quiz) đã thay bằng `trang_thai` đọc thẳng
+    # student_progress — CÙNG nguồn mà phía học sinh hiển thị.
+    assert g["trang_thai"] == "dat"
+    assert g["so_lan_on_tap"] == 0
 
 
 async def test_ket_qua_hoc_sinh_chan_hoc_sinh_khac_xem(client, session):
@@ -194,3 +198,59 @@ async def test_overview_bo_don_vi_qua_it_luot(client, session):
 
     b = (await client.get("/admin/overview", headers=gv)).json()
     assert tid not in [x["topic_id"] for x in b["kho_nhat"]]
+
+
+async def test_result_khop_voi_phia_hoc_sinh_va_tach_luot_on_tap(client, session):
+    """CMS phải nói CÙNG con số với phía học sinh.
+
+    Hai lệch đã gặp thật:
+      - Bài học sinh bấm "Đã hoàn thành" (không làm quiz) KHÔNG hiện trong CMS,
+        vì bảng chỉ đọc quiz_attempts -> giáo viên tưởng em chưa học.
+      - Một lần nộp đề ôn tập đẻ ra nhiều dòng "1/4" trông y như em đã làm bài
+        kiểm tra nhanh của từng bài, kéo lệch cả "số lần" lẫn điểm trung bình.
+    """
+    from app.db.models import CurriculumTopic, Grade, QuizAttempt, StudentProgress, Subject
+
+    ad, _ = await _make_admin(client, session)
+    email_hs, _h = await _reg(client)
+    u_hs = await session.scalar(select(User).where(User.email == email_hs))
+    hs = {"id": u_hs.id}
+    subj = Subject(name=f"M-{uuid.uuid4().hex[:6]}"); gr = Grade(name=f"K-{uuid.uuid4().hex[:6]}")
+    session.add_all([subj, gr]); await session.flush()
+    t1 = CurriculumTopic(subject_id=subj.id, grade_id=gr.id, mach_noi_dung="Mạch A",
+                         don_vi_kien_thuc="Bài đã hoàn thành", order_index=0)
+    t2 = CurriculumTopic(subject_id=subj.id, grade_id=gr.id, mach_noi_dung="Mạch A",
+                         don_vi_kien_thuc="Bài có làm quiz", order_index=1)
+    session.add_all([t1, t2]); await session.flush()
+    t1id, t2id = t1.id, t2.id
+
+    # HS bấm "Đã hoàn thành" ở t1, KHÔNG làm quiz
+    session.add(StudentProgress(user_id=hs["id"], topic_id=t1id, trang_thai="dat"))
+    # t2: một lượt Kiểm tra nhanh 8/8 + hai mảnh từ đề ôn tập
+    session.add_all([
+        StudentProgress(user_id=hs["id"], topic_id=t2id, trang_thai="dat"),
+        QuizAttempt(user_id=hs["id"], topic_id=t2id, diem=8, tong=8, dat=True, nguon="nhanh"),
+        QuizAttempt(user_id=hs["id"], topic_id=t2id, diem=1, tong=4, dat=False, nguon="on_tap"),
+        QuizAttempt(user_id=hs["id"], topic_id=t1id, diem=0, tong=4, dat=False, nguon="on_tap"),
+    ])
+    await session.commit()
+
+    b = (await client.get(f"/admin/users/{hs['id']}/result", headers=ad)).json()
+
+    # Con số tổng khớp phía học sinh: 2 đơn vị đạt
+    assert b["so_dat"] == 2 and b["so_dang"] == 0
+    # Chỉ 1 lần Kiểm tra nhanh; 2 mảnh ôn tập đếm riêng
+    assert b["tong_lan"] == 1 and b["tong_lan_on_tap"] == 2
+    # Điểm trung bình KHÔNG bị mảnh ôn tập kéo xuống (8/8 = 100%, không phải 42%)
+    assert b["diem_tb"] == 100
+
+    dv = {g["ten"]: g for g in b["theo_don_vi"]}
+    # Bài chỉ bấm "Đã hoàn thành" VẪN có mặt, đúng trạng thái
+    assert dv["Bài đã hoàn thành"]["trang_thai"] == "dat"
+    assert dv["Bài đã hoàn thành"]["so_lan"] == 0
+    assert dv["Bài đã hoàn thành"]["so_lan_on_tap"] == 1
+    # Chưa làm Kiểm tra nhanh -> None chứ không phải 0% ("làm và sai hết")
+    assert dv["Bài đã hoàn thành"]["tot_nhat"] is None
+    assert dv["Bài có làm quiz"]["tot_nhat"] == 100 and dv["Bài có làm quiz"]["so_lan"] == 1
+    # Từng lần nộp mang nhãn nguồn để giao diện phân biệt được
+    assert {x["nguon"] for x in b["lan"]} == {"nhanh", "on_tap"}

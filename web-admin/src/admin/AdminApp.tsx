@@ -5,11 +5,10 @@ import { AdminLogin } from "./AdminLogin";
 import { Dashboard } from "./Dashboard";
 import type { Role } from "../types";
 
+import { VAO_DUOC } from "./vaoDuoc";
+
 type Session = { name: string; role: Role } | null;
 
-// Vai trò làm việc trong CMS. `chuyen_gia` chỉ thấy phần Nội dung (lọc ở
-// Dashboard); `admin` thấy tất cả. Học sinh dùng app học, không vào đây.
-const VAO_DUOC: Role[] = ["chuyen_gia", "giao_vien", "admin"];
 
 // App QUẢN TRỊ riêng (phục vụ tại /admin). Chỉ tài khoản nội bộ vào được;
 // vai trò khác đăng nhập sẽ bị từ chối ngay tại đây.

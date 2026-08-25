@@ -76,10 +76,11 @@ export function ProfileMenu({ name, email, role, stats, themeIcon, themeLabel, o
             </div>
           </div>
 
-          {/* XP TỔNG: /me/stats đã trả `xp_total` từ lâu mà Hero chỉ hiện điểm
-              tuần — con số cả quá trình học chưa từng được nhìn thấy ở đâu. */}
+          {/* Điểm XP đã bỏ khỏi giao diện học sinh: nó là điểm thưởng, không nói
+              được em học tới đâu. Thay bằng % yêu cầu cần đạt — thước đo của
+              chương trình. Backend vẫn cộng XP (streak dùng chung service). */}
           <div className="hs-so">
-            <div><b className="num">{stats?.xp_total ?? 0}</b><span>XP tổng</span></div>
+            <div><b className="num">{stats?.ycd_phan_tram ?? 0}%</b><span>Yêu cầu cần đạt</span></div>
             <div><b className="num">{stats?.streak ?? 0} 🔥</b><span>Chuỗi ngày</span></div>
             <div><b className="num">{stats?.dat ?? 0}/{stats?.tong ?? 0}</b><span>Đơn vị đạt</span></div>
           </div>

@@ -5,6 +5,8 @@
 #   ./deploy.sh up                  # build + chạy nền (api, worker, web, redis, qdrant)
 #   ./deploy.sh migrate             # alembic upgrade head (RDS)
 #   ./deploy.sh ingest --tap 1 --sach cung_kham_pha_tap_1 --pages 5-8
+#   ./deploy.sh seed-matrix                     # nạp ma trận đặc tả
+#   ./deploy.sh seed --media                    # soạn lại nội dung bằng AI
 #   ./deploy.sh video-up            # bật worker render video (queue 'video')
 #   ./deploy.sh pregen-video        # dựng sẵn video cho các khái niệm (inline)
 #   ./deploy.sh logs api            # xem log 1 service
@@ -28,11 +30,22 @@ case "$cmd" in
   restart)     $DC restart "$@" ;;
   logs)        $DC logs -f "${@:-api}" ;;
   exec)        $DC exec "$@" ;;
+  # Chạy một lệnh trong container MỚI (không cần service đang sống) — dùng cho
+  # `alembic current` / `alembic downgrade`, xem docs/RUNBOOK-DEPLOY.md.
+  run)         $DC run "$@" ;;
 
   migrate)     $DC run --rm --no-deps api alembic upgrade head ;;
 
   ingest)      # ./deploy.sh ingest --tap 1 --sach cung_kham_pha_tap_1 --pages 5-8
                $DC run --rm worker python -m app.ingestion.cli "$@" ;;
+
+  # ── Dựng lại nội dung bằng AI ─────────────────────────────────────────────
+  # Chạy qua `worker` (không phải `api`): lệnh chạy hàng chục phút, để trong
+  # request của api là treo cả web. `run --rm` nên không đụng worker đang chạy.
+  seed-matrix) # nạp ma trận đặc tả -> yêu cầu cần đạt + ánh xạ đơn vị
+               $DC run --rm worker python -m app.seed_matrix "$@" ;;
+  seed)        # soạn nháp nội dung bài học bằng AI (idempotent, bỏ qua bài đã có)
+               $DC run --rm worker python -m app.seed_all_lessons "$@" ;;
 
   video-up)    # worker render video on-demand (queue 'video')
                $DC up -d --build video ;;
@@ -52,9 +65,15 @@ deploy.sh — lệnh vận hành server dev
   restart [services...]   restart
   logs [service]          theo dõi log (mặc định: api)
   exec <svc> <cmd...>     exec vào container đang chạy
+  run <args...>           docker compose run (vd: run --rm --no-deps api alembic current)
 
   migrate                 alembic upgrade head (chạy trên RDS qua container api)
   ingest <cli args...>    nạp SGK -> Qdrant (vd: ingest --tap 1 --sach cung_kham_pha_tap_1 --pages 5-8)
+  seed-matrix [args]      nạp ma trận đặc tả (yêu cầu cần đạt) + ánh xạ đơn vị
+  seed [args]             soạn nội dung bài học bằng AI. Cờ hay dùng:
+                            --media   sinh luôn ảnh minh hoạ + đặt hàng video
+                            --force   SOẠN LẠI cả bài đã có (ghi đè chữ, giữ ảnh)
+                            --publish xuất bản luôn (mặc định để nháp)
   video-up                bật worker render video (queue 'video')
   pregen-video            dựng sẵn video các khái niệm (inline)
   health                  gọi /health (PUBLIC_API_URL hoặc localhost:8000)

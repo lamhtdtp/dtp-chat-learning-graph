@@ -20,6 +20,10 @@ export default defineConfig({
       "/quiz": "http://localhost:8000",
       "/me": "http://localhost:8000",           // hero gamification (XP/streak/tiến độ)
       "/tutor": "http://localhost:8000",        // trợ lý hỏi–đáp bám SGK
+      // Ôn tập chương / cuối kỳ (§3.5). Thiếu dòng này thì trang ôn tập nhận về
+      // index.html của Vite chứ không phải JSON, và lỗi hiện ra là "không tải
+      // được" mà không có mã HTTP nào để lần — đã mất một lần ở web-admin.
+      "/on-tap": "http://localhost:8000",
     },
   },
 });

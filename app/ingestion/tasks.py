@@ -6,12 +6,16 @@ Redis cấu hình cho worker — chữ ký `ingest_book` giữ nguyên để b�
 sửa. Chạy thử vài trang trước khi chạy cả sách (OCR tốn token — xem CLI --pages).
 """
 
+import logging
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from app.ingestion.chunking import Chunk, chunk_page
 from app.ingestion.loaders.vision_page_loader import load_or_ocr_page
 from app.ingestion.page_structure import gan_chuong_bai_theo_trang
 from app.ingestion.qdrant_store import upsert_chunks
+
+log = logging.getLogger(__name__)
 
 DATA_ROOT = Path("data/books")
 CACHE_ROOT = Path("data_processed")
@@ -48,9 +52,20 @@ async def build_chunks_for_book(
     cache_dir: Path,
     pages: list[int] | None = None,
     force_ocr: bool = False,
+    on_page: Callable[[int, str], Awaitable[None]] | None = None,
+    on_loi: Callable[[int, Exception], Awaitable[None]] | None = None,
 ) -> list[Chunk]:
     """OCR + suy chương/bài + chunk cho các trang chỉ định (mặc định: tất cả).
-    KHÔNG ghi Qdrant — tách để test/preview được trước khi tốn ghi vector."""
+    KHÔNG ghi Qdrant — tách để test/preview được trước khi tốn ghi vector.
+
+    `on_page` gọi sau mỗi trang OCR xong — để job nạp sách ghi tiến độ THEO TRANG
+    (151 trang × 1 lần gọi vision LLM, không có mốc theo trang thì UI chỉ biết
+    “đang chạy”). Callback được phép raise để dừng giữa đường (bấm Tạm dừng).
+
+    `on_loi` nhận trang đọc lỗi rồi BỎ QUA trang đó; không truyền thì lỗi nổ ra
+    như cũ. Cả tập 151 trang không nên chết vì một trang AI quá tải, nhưng CLI
+    thì vẫn phải thấy lỗi ngay chứ không âm thầm thiếu trang.
+    """
     all_pages = _page_numbers(book_dir)
     target = pages if pages is not None else all_pages
 
@@ -59,10 +74,20 @@ async def build_chunks_for_book(
     # trang mở đầu — chấp nhận cho pilot, ghi rõ khi chạy dải hẹp.
     pairs = []
     for page_no in target:
-        md = await load_or_ocr_page(
-            book_dir / f"{page_no}.png", cache_dir / f"{page_no}.md", force=force_ocr, mon=mon
-        )
+        try:
+            md = await load_or_ocr_page(
+                book_dir / f"{page_no}.png", cache_dir / f"{page_no}.md",
+                force=force_ocr, mon=mon,
+            )
+        except Exception as e:                     # noqa: BLE001 - tuỳ người gọi xử
+            if on_loi is None:
+                raise
+            log.warning("Đọc trang %s lỗi, bỏ qua: %s", page_no, e)
+            await on_loi(page_no, e)
+            continue
         pairs.append((page_no, md))
+        if on_page is not None:
+            await on_page(page_no, md)
 
     structures = {s.page_no: s for s in gan_chuong_bai_theo_trang(pairs)}
 

@@ -54,7 +54,15 @@ export interface CmsAiDraft {
   thieu_sgk: boolean;                 // true = KHÔNG bám được SGK, phải rà kỹ
   loi_media: string[];                // lý do ảnh/video nào không sinh được
 }
-export interface CmsViDu { de: string; giai: string }
+export interface CmsViDu {
+  de: string; giai: string;
+  /** Hình của RIÊNG ví dụ này (URL lưu DB). Ví dụ hình học không đọc được nếu thiếu. */
+  anh?: string;
+  /** Mô tả hình AI đề xuất — chỉ có ở ví dụ THẬT SỰ cần hình. Không hiện cho HS. */
+  anh_prompt?: string;
+  /** URL đã ký, chỉ để xem trong trình soạn (không gửi khi lưu). */
+  anh_xem?: string;
+}
 export interface CmsQuiz { q: string; o: string[]; a: number; lv: string; giai?: string }
 /** Lời nhắc chủ động của trợ lý ở một mốc trong bài (sinh sẵn, cache ở topic_content). */
 export interface CmsNhac { moc: string; hoi: string; dap: string[]; dung: number; giai: string }
@@ -91,14 +99,21 @@ export interface CmsTopic {
 export interface KetQuaLan {
   topic_id: number; ten: string; mach: string;
   diem: number; tong: number; dat: boolean; phan_tram: number; luc: string;
+  /** nhanh = Kiểm tra nhanh của đơn vị · on_tap = một mảnh đề ôn tập cả mạch. */
+  nguon: "nhanh" | "on_tap";
 }
 export interface KetQuaDonVi {
   topic_id: number; ten: string; mach: string;
-  so_lan: number; tot_nhat: number; gan_nhat: number; dat: boolean;
+  /** Nguồn thật của "đã học tới đâu" — CÙNG giá trị phía học sinh thấy. */
+  trang_thai: "dat" | "dang" | "chua";
+  so_lan: number; so_lan_on_tap: number;
+  /** null = chưa làm Kiểm tra nhanh của đơn vị này lần nào. */
+  tot_nhat: number | null; gan_nhat: number | null;
 }
 export interface KetQuaHocSinh {
   hoc_sinh: { id: number; name: string; email: string };
-  tong_lan: number; so_lan_dat: number; diem_tb: number;
+  so_dat: number; so_dang: number;
+  tong_lan: number; tong_lan_on_tap: number; so_lan_dat: number; diem_tb: number;
   theo_don_vi: KetQuaDonVi[];
   lan: KetQuaLan[];
 }
@@ -143,6 +158,8 @@ export interface DmHocKy {
 export interface KhoSgk {
   kpi: { so_sach: number; so_trang: number; so_doan: number; pt_dan_nguon: number };
   kho_loi: boolean;
+  /** Qdrant nối được nhưng chưa có collection — kho rỗng, không phải lỗi. */
+  kho_trong?: boolean;
   sach: { id: number; ten: string; mon: string; khoi: string; tap: string | null; source_ref: string }[];
 }
 /** §2.5 Đối chiếu ma trận. */
@@ -155,4 +172,76 @@ export interface MaTran {
             ten_nguon: string | null; lech_ten: boolean;
             diem: number | null; loai: string | null }[];
   so_dong: number;
+}
+
+/** §3.5 Ôn tập chương / cuối kỳ (GET /on-tap) — CMS xem thử phạm vi. */
+export interface OnTap {
+  pham_vi: string; gia_tri: string; so_bai: number; chua_xong: number;
+  bai: { topic_id: number; ten: string; mach: string; trang_thai: string; co_noi_dung: boolean }[];
+  can_nho: { topic_id: number; ten: string; y: string }[];
+  ycd: number; so_cau_de: number;
+}
+
+/** Một bản đơn vị kiến thức trong nhóm trùng tên (REQ §2.3). */
+export interface DmBan {
+  id: number;
+  don_vi_kien_thuc: string;
+  mach_noi_dung: string;
+  hoc_ky: string | null;
+  tu_ma_tran: boolean;
+  trang_thai: string | null;
+  co_noi_dung: boolean;
+}
+export interface DmNhom { giu: DmBan; bo: DmBan[] }
+/** Cặp NGHI trùng: điểm giống + kiểu + cờ mất bài. Không bao giờ gộp hàng loạt. */
+export interface DmNghi extends DmNhom {
+  diem: number;
+  kieu: "cat_cut" | "gan";
+  canh_bao_mat_bai: boolean;
+}
+export interface DmDich { id: number; ten: string; mach: string; co_noi_dung: boolean }
+export interface DmTrung {
+  mon: string; khoi: string;
+  so_ban_du: number; so_nghi: number; so_chua_co_bai: number;
+  chac_chan: DmNhom[];
+  nghi: DmNghi[];
+  /** Đơn vị do ma trận tạo mà chưa có bài — gộp TAY vào đích tự chọn. */
+  chua_co_bai: DmBan[];
+  dich: DmDich[];
+}
+
+/** §2.4 Nạp sách bằng AI — soát thư mục ảnh trang trước khi nạp. */
+export interface SoatSach {
+  mon: string; khoi: string; tap: number;
+  trang: number[];                 // số trang đã có ảnh
+  thieu: number[];                 // khuyết ở GIỮA khoảng đã có
+  cho_gan: { ten: string; kb: number }[];   // tệp chưa đoán được số trang
+  da_ocr: number[];                // trang đã có cache OCR -> nạp lại gần như miễn phí
+  goi_y_thu: number[];             // trang nên đọc thử (rải đều đầu/giữa/cuối)
+  da_luu?: { ten: string; so: number | null; ghi_de?: boolean }[];
+  cho_gan_moi?: { ten: string }[];
+  bo_qua?: { ten: string; ly_do: string }[];
+  ghi_de?: number[];
+}
+export interface TrangDocThu {
+  so: number; md?: string; chu?: number;
+  co_cong_thuc?: boolean;
+  co_chuong?: boolean; co_bai?: boolean; it_chu?: boolean; loi?: string;
+}
+export interface DocThu {
+  trang: TrangDocThu[]; so_trang: number;
+  so_cong_thuc: number; so_it_chu: number; so_loi: number; so_co_bai: number;
+}
+export interface BookJob {
+  id: number; mon: string; khoi: string; tap: number; sach: string;
+  trang_thai: "cho" | "dang" | "tam_dung" | "xong" | "loi";
+  buoc: "doc" | "cat_doan" | "ghi_kho";
+  trang: number[]; trang_xong: number[];
+  trang_loi: { so: number; ly_do: string }[];
+  trang_dang: number | null;
+  trang_soat: { so: number; ly_do: string; chu: number }[];
+  so_trang_co_bai: number; so_doan: number;
+  tong: number; da_xong: number;
+  loi: string | null; tao_luc: string | null;
+  canh_bao?: string;
 }

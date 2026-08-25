@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, askTutor, getTutorLimits, tokenStore } from "../api";
 import { renderMath } from "../mathHtml";
-import type { Neo } from "../types";
+import type { AnhKem, Neo } from "../types";
 import { useSpeech } from "./useSpeech";
 
-type Luot = { hoi: string; dap: string; nguonBai: string | null; loi?: boolean };
+type Luot = { hoi: string; dap: string; nguonBai: string | null; loi?: boolean;
+              anh?: AnhKem[] };
 
 // Dùng khi GET /tutor/limits lỗi. Giữ khớp mặc định settings.chat_max_chars.
 const FALLBACK_MAX_CHARS = 500;
@@ -29,6 +30,7 @@ function toHtml(answer: string): string {
  */
 export function TroLyCard({
   topicId, anchor, nhan, hoiDau, chuDong, noiDungSan, nguonSan, dapNhanh, an, onDong,
+  goiY, khongDong, moiNhap,
 }: {
   topicId: number;
   /** null = hỏi chung cả bài (backend ghép khái niệm + ví dụ, không kèm quiz). */
@@ -50,6 +52,14 @@ export function TroLyCard({
    *  hội thoại, chứ hỏi lại là mất thêm một lượt của học sinh. */
   an?: boolean;
   onDong: () => void;
+  /** Câu gợi ý hiện NGAY TRONG hộp chat, chỉ khi chưa có lượt nào — bấm là gửi.
+   *  Trước đây chip gợi ý nằm ngoài, phải bấm mới hiện hộp chat; học sinh muốn
+   *  tự gõ câu khác thì không thấy chỗ nào để gõ. */
+  goiY?: string[];
+  /** Hộp luôn mở (hỏi chung cả bài) -> không có gì để đóng, ẩn nút ✕. */
+  khongDong?: boolean;
+  /** Ghi đè placeholder. Hộp luôn mở thì "Hỏi tiếp…" là sai — chưa hỏi gì cả. */
+  moiNhap?: string;
 }) {
   const [luots, setLuots] = useState<Luot[]>(
     noiDungSan ? [{ hoi: "", dap: noiDungSan, nguonBai: nguonSan ?? nhan }] : [],
@@ -81,7 +91,8 @@ export function TroLyCard({
       // `a.citations` (số trang SGK) CỐ Ý không hiển thị: học sinh không tra
       // sách giấy khi đang học trên máy, mà mỗi câu trả lời lại đính 2-3 nhãn
       // trang thành ra nhiễu. Nhãn "Bài đang học" mới là thứ các em cần biết.
-      setLuots((l) => [...l, { hoi: q, dap: toHtml(a.answer), nguonBai: a.nguon_bai }]);
+      setLuots((l) => [...l, { hoi: q, dap: toHtml(a.answer), nguonBai: a.nguon_bai,
+                               anh: a.anh }]);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) { tokenStore.clear(); location.reload(); return; }
       const msg = e instanceof ApiError ? e.message : "Không kết nối được máy chủ";
@@ -107,7 +118,9 @@ export function TroLyCard({
         </span>
         <b>{chuDong ? "Trợ lý gợi ý" : "Trợ lý"}</b>
         <span className="tl-neo">📍 {nhan}</span>
-        <button className="tl-x" type="button" onClick={onDong} aria-label="Đóng phần trả lời">✕</button>
+        {!khongDong && (
+          <button className="tl-x" type="button" onClick={onDong} aria-label="Đóng phần trả lời">✕</button>
+        )}
       </div>
 
       <div className="tl-body">
@@ -115,6 +128,18 @@ export function TroLyCard({
           <div className="tl-luot" key={i}>
             {l.hoi && <div className="tl-hoi">{l.hoi}</div>}
             <div className={"tl-dap" + (l.loi ? " loi" : "")} dangerouslySetInnerHTML={{ __html: l.dap }} />
+            {/* Hình LẤY TỪ BÀI ĐANG HỌC, không sinh mới: câu trả lời về hình học
+                mà chỉ có chữ thì em phải cuộn lên bài để nhìn lại. */}
+            {!!l.anh?.length && (
+              <div className="tl-anh">
+                {l.anh.map((a) => (
+                  <figure key={a.url}>
+                    <img src={a.url} alt={a.caption} loading="lazy" />
+                    <figcaption><b>{a.tu}</b> {a.caption}</figcaption>
+                  </figure>
+                ))}
+              </div>
+            )}
             {!l.loi && l.nguonBai && (
               <div className="tl-nguon">
                 <span className="ng bai">📖 Bài đang học · {l.nguonBai}</span>
@@ -122,6 +147,15 @@ export function TroLyCard({
             )}
           </div>
         ))}
+        {/* Gợi ý nằm TRONG hộp, mất đi sau lượt đầu: giữ lại thì chiếm chỗ của
+            hội thoại, mà lúc đó học sinh đã biết gõ vào đâu rồi. */}
+        {!!goiY?.length && luots.length === 0 && !dangCho && (
+          <div className="tl-goiy">
+            {goiY.map((q) => (
+              <button type="button" key={q} onClick={() => hoi(q)}>💬 {q}</button>
+            ))}
+          </div>
+        )}
         {dangCho && <div className="typing" aria-label="Trợ lý đang trả lời"><i /><i /><i /></div>}
         {conDapNhanh && (
           <div className="tl-nhanh">
@@ -143,7 +177,8 @@ export function TroLyCard({
       {mic.loi && <div className="tl-mic-loi">⚠️ {mic.loi}</div>}
 
       <div className="tl-in">
-        <input value={input} placeholder={`Hỏi tiếp về ${nhan.toLowerCase()}…`} disabled={dangCho}
+        <input value={input}
+          placeholder={moiNhap ?? `Hỏi tiếp về ${nhan.toLowerCase()}…`} disabled={dangCho}
           maxLength={maxChars} onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); hoi(input); } }} />
         {/* Trình duyệt không có Web Speech API (Firefox…) -> ẩn hẳn nút micro */}

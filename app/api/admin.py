@@ -155,30 +155,62 @@ async def student_result(
 
     lan = [{
         "topic_id": a.topic_id, "ten": (dv or "").strip(), "mach": (mach or "").strip(),
-        "diem": a.diem, "tong": a.tong, "dat": a.dat,
+        "diem": a.diem, "tong": a.tong, "dat": a.dat, "nguon": a.nguon or "nhanh",
         "phan_tram": round(100 * a.diem / a.tong) if a.tong else 0,
         "luc": a.created_at.isoformat(),
     } for a, dv, mach in rows]
+    # Trung bình & "số lần làm" CHỈ tính Kiểm tra nhanh: một lần nộp đề ôn tập
+    # sinh nhiều mảnh 1/4 cho từng bài, trộn vào là đếm sai số lần và kéo lệch
+    # điểm trung bình.
+    nhanh = [x for x in lan if x["nguon"] == "nhanh"]
 
-    # Gộp theo đơn vị: làm mấy lần, tốt nhất bao nhiêu. `lan` đã sắp mới -> cũ nên
-    # phần tử ĐẦU của mỗi đơn vị chính là lần gần nhất.
+    # Trạng thái đơn vị lấy từ student_progress — ĐÚNG nguồn mà phía học sinh
+    # hiển thị. Trước đây suy từ các lượt quiz nên bài học sinh bấm "Đã hoàn
+    # thành" (không làm quiz) KHÔNG hề xuất hiện ở đây: giáo viên mở CMS ra thấy
+    # trống và tưởng em chưa học.
+    prog_rows = (await session.execute(
+        select(StudentProgress, CurriculumTopic.don_vi_kien_thuc,
+               CurriculumTopic.mach_noi_dung)
+        .join(CurriculumTopic, CurriculumTopic.id == StudentProgress.topic_id)
+        .where(StudentProgress.user_id == user_id))).all()
+    trang_thai = {p.topic_id: p.trang_thai for p, _, _ in prog_rows}
+
     theo_dv: dict[int, dict] = {}
-    for x in lan:
-        g = theo_dv.setdefault(x["topic_id"], {
-            "topic_id": x["topic_id"], "ten": x["ten"], "mach": x["mach"],
-            "so_lan": 0, "tot_nhat": 0, "gan_nhat": x["phan_tram"], "dat": False,
-        })
-        g["so_lan"] += 1
-        g["tot_nhat"] = max(g["tot_nhat"], x["phan_tram"])
-        g["dat"] = g["dat"] or x["dat"]
 
-    tong_lan = len(lan)
+    def _o(topic_id: int, ten: str, mach: str) -> dict:
+        return theo_dv.setdefault(topic_id, {
+            "topic_id": topic_id, "ten": (ten or "").strip(), "mach": (mach or "").strip(),
+            "trang_thai": trang_thai.get(topic_id, "chua"),
+            "so_lan": 0, "so_lan_on_tap": 0, "tot_nhat": None, "gan_nhat": None,
+        })
+
+    # Mọi đơn vị HS đã có trạng thái, kể cả chưa làm quiz lần nào.
+    for p, dv, mach in prog_rows:
+        _o(p.topic_id, dv, mach)
+    for x in lan:
+        g = _o(x["topic_id"], x["ten"], x["mach"])
+        if x["nguon"] == "on_tap":
+            g["so_lan_on_tap"] += 1
+            continue
+        if g["gan_nhat"] is None:      # `lan` sắp mới -> cũ, gặp đầu là gần nhất
+            g["gan_nhat"] = x["phan_tram"]
+        g["so_lan"] += 1
+        g["tot_nhat"] = max(g["tot_nhat"] or 0, x["phan_tram"])
+
     return {
         "hoc_sinh": {"id": hs.id, "name": hs.name, "email": hs.email},
-        "tong_lan": tong_lan,
-        "so_lan_dat": sum(1 for x in lan if x["dat"]),
-        "diem_tb": round(sum(x["phan_tram"] for x in lan) / tong_lan) if tong_lan else 0,
-        "theo_don_vi": sorted(theo_dv.values(), key=lambda g: -g["so_lan"]),
+        # Khớp con số phía học sinh nhìn thấy trên vòng tiến độ.
+        "so_dat": sum(1 for t in trang_thai.values() if t == "dat"),
+        "so_dang": sum(1 for t in trang_thai.values() if t == "dang"),
+        "tong_lan": len(nhanh),
+        "tong_lan_on_tap": len(lan) - len(nhanh),
+        "so_lan_dat": sum(1 for x in nhanh if x["dat"]),
+        "diem_tb": round(sum(x["phan_tram"] for x in nhanh) / len(nhanh)) if nhanh else 0,
+        # Sắp theo trạng thái (đạt trước) rồi tới số lần làm — giáo viên tìm em
+        # yếu ở đâu, không phải tìm ai làm nhiều nhất.
+        "theo_don_vi": sorted(theo_dv.values(),
+                              key=lambda g: ({"dat": 0, "dang": 1, "chua": 2}[g["trang_thai"]],
+                                             -g["so_lan"])),
         "lan": lan[:50],   # đủ để xem lại, không đổ cả nghìn dòng về client
     }
 

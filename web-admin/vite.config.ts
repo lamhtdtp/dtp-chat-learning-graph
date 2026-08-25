@@ -16,6 +16,10 @@ export default defineConfig({
       "/admin": "http://localhost:8000",
       "/cms": "http://localhost:8000",         // CMS chuyên gia biên soạn giáo trình
       "/video": "http://localhost:8000",       // upload/thay video minh họa
+      // Xem thử phạm vi ôn tập dùng CHUNG endpoint với app học sinh (/on-tap),
+      // không nằm dưới /cms — thiếu dòng này thì dev server trả index.html và
+      // client báo "không tải được" mà không có lỗi HTTP nào để lần.
+      "/on-tap": "http://localhost:8000",
       "/health": "http://localhost:8000",
     },
   },

@@ -26,12 +26,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import security
 from app.api.deps import get_current_user
 from app.config import settings
-from app.exam import diem_khop
+from app.exam import diem_khop, matrix_loader
+from app.ingestion import nap_sach
 from app.db.models import (
-    BlueprintCell, Book, CurriculumTopic, Grade, Subject, TopicContent, User,
+    BlueprintCell, Book, BookJob, CurriculumTopic, Grade, Subject, TopicContent, User,
 )
 from app.db.session import get_session
 from app.lessons import bo_cuc as bo_cuc_svc
+from app.lessons import gop_trung as gop_svc
 from app.lessons import ingest as ingest_svc
 from app.lessons import media as media_svc
 from app.lessons import nhac as nhac_svc
@@ -47,6 +49,10 @@ _TRANG_THAI = {"draft", "review", "published"}
 # Ai được biên soạn giáo trình. `chuyen_gia` là vai trò CMS-only (chỉ thấy phần
 # Nội dung); `giao_vien` giữ lại vì họ cũng soạn/duyệt được.
 _TAC_GIA = {"chuyen_gia", "giao_vien", "admin"}
+
+
+class _KhoTrong(Exception):
+    """Qdrant nối được nhưng chưa có collection — kho rỗng, KHÔNG phải lỗi."""
 _MAX_VIDEO_BYTES = 100 * 1024 * 1024  # 100MB — video minh họa ngắn
 _VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
 
@@ -95,6 +101,23 @@ def _media_for_view(items: list[dict]) -> list[dict]:
 def _media_for_save(items: list[dict]) -> list[dict]:
     """Lược item minh hoạ về đúng các khoá được lưu (bỏ url_xem và khoá lạ)."""
     return [{k: m[k] for k in _MEDIA_KEYS if k in m} for m in items]
+
+
+_VI_DU_KEYS = ("de", "giai", "anh", "anh_prompt")
+
+
+def _vi_du_for_view(items: list[dict]) -> list[dict]:
+    """Ký hình của từng ví dụ — cùng quy ước url/url_xem như minh hoạ."""
+    out = []
+    for e in items:
+        anh = e.get("anh") or ""
+        out.append({**e, "anh_xem": security.sign_media(anh)}
+                   if anh.startswith("/video/files/") else e)
+    return out
+
+
+def _vi_du_for_save(items: list[dict]) -> list[dict]:
+    return [{k: e[k] for k in _VI_DU_KEYS if k in e} for e in items]
 
 
 def _completeness(c: TopicContent | None) -> dict:
@@ -238,7 +261,7 @@ async def cms_get_topic(
         "minh_hoa": _media_for_view(
             await media_svc.fill_video_urls(session, json.loads(c.minh_hoa_json or "[]"))
         ),
-        "vi_du": json.loads(c.vi_du_json or "[]"),
+        "vi_du": _vi_du_for_view(json.loads(c.vi_du_json or "[]")),
         "quiz": json.loads(c.quiz_json or "[]"),
         # Lời nhắc chủ động đã sinh sẵn — chuyên gia xem/sinh lại được như quiz.
         "nhac": nhac_svc.doc_nhac(c),
@@ -292,7 +315,7 @@ async def cms_save_topic(
     c.khoi_dong, c.hoat_dong = body.khoi_dong, body.hoat_dong
     c.luyen_tap, c.bai_tap = body.luyen_tap, body.bai_tap
     c.minh_hoa_json = json.dumps(_media_for_save(body.minh_hoa), ensure_ascii=False)
-    c.vi_du_json = json.dumps(body.vi_du, ensure_ascii=False)
+    c.vi_du_json = json.dumps(_vi_du_for_save(body.vi_du), ensure_ascii=False)
     c.day_json = json.dumps(body.day, ensure_ascii=False) if body.day else None
     c.nguon = body.nguon
     if body.ai_soan is not None:
@@ -354,7 +377,7 @@ async def cms_ai_ingest(
 
     return {
         "khai_niem": draft["khai_niem"],
-        "vi_du": draft["vi_du"],
+        "vi_du": _vi_du_for_view(draft["vi_du"]),
         "minh_hoa": _media_for_view(minh_hoa),
         "trang_sgk": draft["trang_sgk"],
         "thieu_sgk": draft["thieu_sgk"],
@@ -673,11 +696,18 @@ async def cms_kho_sgk(
     grades = {g.id: g.name for g in await session.scalars(select(Grade))}
 
     tong_doan = trang = co_nguon = 0
-    kho_loi = False
+    kho_loi = kho_trong = False
     try:
         from qdrant_client import AsyncQdrantClient
 
         cl = AsyncQdrantClient(url=settings.qdrant_url)
+        # Tách "Qdrant không nối được" khỏi "chưa có collection": trước đây cả hai
+        # đều ra `kho_loi` và trang báo “chưa đọc được, không phải kho rỗng” —
+        # nói SAI khi kho thật sự rỗng, và người soạn đi tìm lỗi mạng vô ích.
+        ten_cl = {c.name for c in (await cl.get_collections()).collections}
+        if settings.qdrant_collection not in ten_cl:
+            kho_trong = True
+            raise _KhoTrong
         tong_doan = (await cl.count(settings.qdrant_collection, exact=True)).count
         # Số TRANG và % có dẫn nguồn phải quét payload; giới hạn mẫu để trang admin
         # không treo trên kho lớn.
@@ -692,6 +722,9 @@ async def cms_kho_sgk(
         trang = len(pages)
         mau = len(điểm) or 1
         co_nguon = round(100 * co_nguon / mau)
+    except _KhoTrong:
+        log.info("Kho SGK chưa có collection %s — chưa nạp sách nào",
+                 settings.qdrant_collection)
     except Exception as e:   # noqa: BLE001 — kho lỗi không được chặn cả trang
         kho_loi = True
         log.warning("Không đọc được kho SGK cho trang Nạp sách: %s", e)
@@ -699,7 +732,7 @@ async def cms_kho_sgk(
     return {
         "kpi": {"so_sach": len(books), "so_trang": trang,
                 "so_doan": tong_doan, "pt_dan_nguon": co_nguon},
-        "kho_loi": kho_loi,
+        "kho_loi": kho_loi, "kho_trong": kho_trong,
         "sach": [{"id": b.id, "ten": b.name, "mon": subs.get(b.subject_id, "?"),
                   "khoi": grades.get(b.grade_id, "?"), "tap": b.semester,
                   "source_ref": b.source_ref} for b in books],
@@ -783,11 +816,15 @@ _MAX_ANH_BYTES = 8 * 1024 * 1024   # 8MB — ảnh trang sách scan cỡ này l�
 async def cms_upload_anh(
     topic_id: int,
     caption: str = "",
+    vi_du: int | None = None,
     file: UploadFile = File(...),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Upload ẢNH minh hoạ của chuyên gia (source='expert').
+    """Upload ẢNH của chuyên gia (source='expert').
+
+    `vi_du=<chỉ số>` -> gắn làm hình của ví dụ thứ đó thay vì vào minh hoạ chung:
+    ví dụ hình học phải có hình NGAY CẠNH đề bài mới đọc được.
 
     Trước đây chỉ có đường upload video; "thêm ảnh" mới chỉ là dán URL, nên ảnh
     chuyên gia tự chụp/scan không có cách nào vào hệ thống.
@@ -809,6 +846,17 @@ async def cms_upload_anh(
     url = storage.save_image(data, name)
 
     c = await _get_or_create(session, topic_id)
+    if vi_du is not None:
+        ds = json.loads(c.vi_du_json or "[]")
+        if not (0 <= vi_du < len(ds)):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"Không có ví dụ số {vi_du + 1}")
+        ds[vi_du]["anh"] = url
+        c.vi_du_json = json.dumps(ds, ensure_ascii=False)
+        out = {"topic_id": topic_id, "chi_so": vi_du, "anh": url,
+               "anh_xem": security.sign_media(url)}
+        await session.commit()
+        return out
+
     minh_hoa = json.loads(c.minh_hoa_json or "[]")
     minh_hoa.append({"type": "image", "url": url,
                      "caption": caption or "Hình minh hoạ", "source": "expert"})
@@ -816,3 +864,424 @@ async def cms_upload_anh(
     out = {"topic_id": topic_id, "minh_hoa": _media_for_view(minh_hoa)}
     await session.commit()
     return out
+
+
+_MT_EXT = {".docx", ".md"}
+
+
+@router.post("/ma-tran/nap")
+async def cms_nap_ma_tran(
+    mon: str = "Toán", khoi: str = "Lớp 6", hoc_ky: str = "hk1",
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Nạp lại ma trận đặc tả từ tệp .docx/.md (REQ §2.5).
+
+    Nạp = **THAY** toàn bộ ma trận của cặp (môn, lớp, học kỳ), không cộng thêm —
+    `load_matrix` xoá blueprint cũ trước khi ghi. Chạy lại nhiều lần an toàn.
+
+    Trả `don_vi_moi`: các đơn vị lần nạp này PHẢI tự tạo vì chưa có trong danh mục.
+    Tên lấy thô từ Word nên hay trùng/sai chính tả — người nạp phải rà lại ngay,
+    vì thế trả về luôn thay vì để họ tự đi tìm.
+    """
+    _require_admin_or_author = _require_author
+    _require_admin_or_author(user)
+    if hoc_ky not in ("hk1", "hk2"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, 'hoc_ky phải là "hk1" hoặc "hk2"')
+    duoi = Path(file.filename or "").suffix.lower()
+    if duoi not in _MT_EXT:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Chỉ nhận tệp .docx (Toán) hoặc .md (Tiếng Anh)")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Tệp rỗng")
+
+    # parse_matrix đọc theo ĐƯỜNG DẪN nên phải ghi ra tệp tạm; xoá ngay sau khi
+    # nạp, không giữ lại bản upload trên đĩa server.
+    with tempfile.NamedTemporaryFile(suffix=duoi, delete=False) as tmp:
+        tmp.write(data)
+        tmp_path = Path(tmp.name)
+    try:
+        bp = await matrix_loader.load_matrix(session, tmp_path, mon=mon, khoi=khoi, hoc_ky=hoc_ky)
+    except Exception as e:   # noqa: BLE001 — tệp sai khuôn là lỗi NGƯỜI DÙNG, không phải 500
+        await session.rollback()
+        log.warning("Nạp ma trận thất bại (%s %s %s): %s", mon, khoi, hoc_ky, e)
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Không đọc được bảng ma trận trong tệp này ({type(e).__name__}). "
+            "Kiểm tra tệp có đúng bảng 10 cột như mẫu trong data/matrix/ không.")
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+    moi = [{"topic_id": t.id, "ten": (t.don_vi_kien_thuc or "").strip(),
+            "mach": (t.mach_noi_dung or "").strip()}
+           for t in getattr(bp, "don_vi_moi", [])]
+    so_dong = await session.scalar(
+        select(func.count()).select_from(BlueprintCell)
+        .where(BlueprintCell.blueprint_id == bp.id)) or 0
+    await session.commit()
+    return {"mon": mon, "khoi": khoi, "hoc_ky": hoc_ky,
+            "so_dong": so_dong, "don_vi_moi": moi}
+
+
+class ViDuAnhBody(BaseModel):
+    prompt: str = ""   # bỏ trống -> dùng `anh_prompt` AI đã đề xuất cho ví dụ đó
+
+
+@router.post("/topics/{topic_id}/vi-du/{chi_so}/anh")
+async def cms_sinh_anh_vi_du(
+    topic_id: int, chi_so: int, body: ViDuAnhBody,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Sinh hình cho MỘT ví dụ (ví dụ hình học không đọc được nếu thiếu hình).
+
+    Sinh từng cái theo yêu cầu chứ không sinh hàng loạt lúc soạn bài: mỗi ảnh là
+    một lần gọi model ảnh, quota VNGCloud chỉ 50 request/ngày.
+
+    Ghi thẳng `anh` vào `vi_du_json` (khác luồng ai-ingest trả nháp): ảnh đã tốn
+    tiền sinh ra thì không nên mất khi chuyên gia đóng drawer mà chưa bấm Lưu.
+    """
+    _require_author(user)
+    c = await session.scalar(select(TopicContent).filter_by(topic_id=topic_id))
+    if c is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Đơn vị này chưa có nội dung")
+    vi_du = json.loads(c.vi_du_json or "[]")
+    if not (0 <= chi_so < len(vi_du)):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Không có ví dụ số {chi_so + 1}")
+
+    prompt = (body.prompt or vi_du[chi_so].get("anh_prompt") or "").strip()
+    if not prompt:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Ví dụ này chưa có mô tả hình. Nhập mô tả hoặc bấm “Gợi ý AI” để AI đề xuất.")
+
+    anh, loi = await media_svc.generate_images(topic_id, [{"prompt": prompt, "caption": ""}])
+    if not anh:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY,
+                            loi[0] if loi else "Chưa sinh được hình, thử lại nhé.")
+
+    vi_du[chi_so]["anh"] = anh[0]["url"]
+    c.vi_du_json = json.dumps(vi_du, ensure_ascii=False)
+    await session.commit()
+    return {"chi_so": chi_so, "anh": anh[0]["url"],
+            "anh_xem": security.sign_media(anh[0]["url"])}
+
+
+class GopBody(BaseModel):
+    giu: int
+    bo: list[int]
+
+
+async def _mon_khoi_id(session: AsyncSession, mon: str, khoi: str) -> tuple[int, int]:
+    subject = await session.scalar(select(Subject).filter_by(name=mon))
+    grade = await session.scalar(select(Grade).filter_by(name=khoi))
+    if subject is None or grade is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Chưa có dữ liệu cho {mon} {khoi}")
+    return subject.id, grade.id
+
+
+@router.get("/danh-muc/trung")
+async def cms_danh_muc_trung(
+    mon: str = "Toán", khoi: str = "Lớp 6",
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Các đơn vị TRÙNG TÊN trong danh mục, kèm đề xuất giữ bản nào (REQ §2.3).
+
+    Chỉ xem trước — gộp là hành động riêng, người soạn bấm mới chạy.
+    """
+    _require_author(user)
+    sid, gid = await _mon_khoi_id(session, mon, khoi)
+    kq = await gop_svc.tim_trung(session, sid, gid)
+    return {"mon": mon, "khoi": khoi, **kq,
+            "so_ban_du": sum(len(g["bo"]) for g in kq["chac_chan"]),
+            "so_nghi": len(kq["nghi"]),
+            "so_chua_co_bai": len(kq["chua_co_bai"])}
+
+
+@router.post("/danh-muc/gop")
+async def cms_gop_don_vi(
+    body: GopBody,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Gộp các bản trùng về một đơn vị: dồn ô ma trận / bài đã làm rồi xoá bản dư."""
+    _require_author(user)
+    try:
+        kq = await gop_svc.gop(session, body.giu, body.bo)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(e))
+    await session.commit()
+    return kq
+
+
+# ══════════════════════ Nạp sách bằng AI (REQ §2.4) ══════════════════════
+# Luồng cố ý 4 bước rời nhau, không phải một nút "upload rồi chạy": mỗi trang là
+# một lần gọi vision LLM nên cả tập ~22 phút và 149 lượt gọi. Soát số trang và
+# đọc thử là hai chốt chặn trước khi tiêu tiền.
+
+_MAX_TRANG_BYTES = 12 * 1024 * 1024      # 1 ảnh trang scan, dư sức cho 300 DPI
+_SO_TRANG_THU = 3
+
+
+def _job_ra(j: BookJob) -> dict:
+    ds = json.loads(j.trang_ds_json or "[]")
+    xong = json.loads(j.trang_xong_json or "[]")
+    return {
+        "id": j.id, "mon": j.mon, "khoi": j.khoi, "tap": j.tap, "sach": j.sach,
+        "trang_thai": j.trang_thai, "buoc": j.buoc,
+        "trang": ds, "trang_xong": xong,
+        "trang_loi": json.loads(j.trang_loi_json or "[]"),
+        "trang_dang": j.trang_dang,
+        "trang_soat": json.loads(j.trang_soat_json or "[]"),
+        "so_trang_co_bai": j.so_trang_co_bai, "so_doan": j.so_doan,
+        "tong": len(ds), "da_xong": len(xong),
+        "loi": j.loi,
+        "tao_luc": j.created_at.isoformat() if j.created_at else None,
+    }
+
+
+@router.get("/sach/soat")
+async def cms_soat_sach(
+    mon: str = "toan", khoi: str = "lop_6", tap: int = 1,
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Tình trạng thư mục ảnh trang: có trang nào, khuyết trang nào, tệp chờ gán.
+
+    Đây là câu hỏi duy nhất của màn chọn tệp — “151 trang đã đủ và đúng thứ tự
+    chưa?”. Không ai mở 151 tệp ra đếm tay, mà nạp sai thứ tự thì mọi dẫn nguồn
+    “[tr.9]” trỏ sai bài.
+    """
+    _require_author(user)
+    d = nap_sach.soat(mon, khoi, tap)
+    d["goi_y_thu"] = nap_sach.chon_trang_thu(d["trang"], _SO_TRANG_THU)
+    return d
+
+
+@router.post("/sach/tep")
+async def cms_nap_tep_sach(
+    mon: str = "toan", khoi: str = "lop_6", tap: int = 1,
+    files: list[UploadFile] = File(...),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Nhận ảnh trang. Tệp không đoán chắc được số trang thì để riêng chờ gán tay.
+
+    KHÔNG tự đặt số cho tệp lạ: `Scan (2).png` có số 2 trong tên nhưng đoán bừa
+    là ghi đè trang 2 thật của quyển sách, và không ai biết cho tới khi học sinh
+    đọc phải trang sai.
+    """
+    _require_author(user)
+    da_luu, cho_gan, bo_qua = [], [], []
+    for f in files:
+        ext = Path(f.filename or "").suffix.lower()
+        if ext not in nap_sach.ANH_EXT:
+            bo_qua.append({"ten": f.filename, "ly_do": "không phải ảnh trang"})
+            continue
+        data = await f.read()
+        if len(data) > _MAX_TRANG_BYTES:
+            bo_qua.append({"ten": f.filename, "ly_do": "ảnh quá lớn (tối đa 12MB)"})
+            continue
+        r = nap_sach.luu_tep(mon, khoi, tap, f.filename or "khong-ten.png", data)
+        (cho_gan if r["so"] is None else da_luu).append(r)
+
+    d = nap_sach.soat(mon, khoi, tap)
+    d["goi_y_thu"] = nap_sach.chon_trang_thu(d["trang"], _SO_TRANG_THU)
+    return {**d, "da_luu": da_luu, "cho_gan_moi": cho_gan, "bo_qua": bo_qua,
+            "ghi_de": [x["so"] for x in da_luu if x.get("ghi_de")]}
+
+
+class GanTrangBody(BaseModel):
+    ten: str
+    so: int | None = None     # None = bỏ tệp này
+
+
+@router.post("/sach/tep/gan")
+async def cms_gan_so_trang(
+    body: GanTrangBody,
+    mon: str = "toan", khoi: str = "lop_6", tap: int = 1,
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Gán số trang cho một tệp đang chờ, hoặc bỏ nó (bìa, trang trắng)."""
+    _require_author(user)
+    try:
+        if body.so is None:
+            nap_sach.bo_tep_cho(mon, khoi, tap, body.ten)
+        else:
+            nap_sach.gan_so_trang(mon, khoi, tap, body.ten, body.so)
+    except FileNotFoundError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(e))
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
+    d = nap_sach.soat(mon, khoi, tap)
+    d["goi_y_thu"] = nap_sach.chon_trang_thu(d["trang"], _SO_TRANG_THU)
+    return d
+
+
+class DocThuBody(BaseModel):
+    trang: list[int] = []          # bỏ trống -> tự rải đều đầu/giữa/cuối
+    lam_lai: bool = False          # bỏ cache, OCR lại
+
+
+@router.post("/sach/doc-thu")
+async def cms_doc_thu_sach(
+    body: DocThuBody,
+    mon: str = "toan", khoi: str = "lop_6", tap: int = 1,
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Đọc thử vài trang, KHÔNG ghi kho — 3 lượt gọi AI thay vì 149.
+
+    Đây là chốt tiết kiệm nhất cả luồng: nếu OCR không đọc nổi công thức của
+    quyển này thì biết ngay, chưa mất 22 phút.
+    """
+    _require_author(user)
+    co = nap_sach.soat(mon, khoi, tap)["trang"]
+    trang = [n for n in body.trang if n in set(co)] or nap_sach.chon_trang_thu(co, _SO_TRANG_THU)
+    if not trang:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Chưa có ảnh trang nào để đọc thử")
+    try:
+        kq = await nap_sach.doc_thu(mon, khoi, tap, trang, lam_lai=body.lam_lai)
+    except LLMUnavailable:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            "Hệ thống AI đang quá tải, thử lại sau nhé.")
+    doc_duoc = [x for x in kq if not x.get("loi")]
+    return {
+        "trang": kq, "so_trang": len(kq),
+        # Chỉ số chính: OCR sách Toán vỡ ở CÔNG THỨC, không vỡ ở chữ.
+        "so_cong_thuc": sum(1 for x in doc_duoc if x.get("co_cong_thuc")),
+        "so_it_chu": sum(1 for x in doc_duoc if x.get("it_chu")),
+        "so_loi": len(kq) - len(doc_duoc),
+        "so_co_bai": sum(1 for x in doc_duoc if x.get("co_bai")),
+    }
+
+
+class NapSachBody(BaseModel):
+    mon: str = "toan"
+    khoi: str = "lop_6"
+    tap: int = 1
+    sach: str
+    trang: list[int] = []          # bỏ trống = cả tập
+
+
+@router.post("/sach/nap")
+async def cms_nap_sach(
+    body: NapSachBody,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Tạo job nạp cả tập và đẩy vào hàng đợi (chạy nền, đóng tab vẫn chạy)."""
+    _require_author(user)
+    if not body.sach.strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Thiếu mã sách")
+    co = nap_sach.soat(body.mon, body.khoi, body.tap)["trang"]
+    trang = [n for n in body.trang if n in set(co)] or co
+    if not trang:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Chưa có ảnh trang nào — tải ảnh lên trước đã")
+
+    dang = await session.scalar(select(BookJob).filter_by(
+        mon=body.mon, khoi=body.khoi, tap=body.tap, trang_thai="dang"))
+    if dang is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            f"Tập này đang được nạp (job #{dang.id})")
+
+    job = BookJob(mon=body.mon, khoi=body.khoi, tap=body.tap, sach=body.sach.strip(),
+                  trang_ds_json=json.dumps(trang), nguoi_tao_id=user.id)
+    session.add(job)
+    # Dựng payload TRƯỚC commit: session expire-on-commit nên đọc thuộc tính sau
+    # commit là lazy-load trong ngữ cảnh sync -> MissingGreenlet.
+    await session.flush()
+    await session.refresh(job)
+    out = _job_ra(job)
+    job_id = job.id          # giữ id ra biến: sau commit, đọc `job.id` là lazy-load
+    await session.commit()
+    try:
+        from app.ingestion.celery_app import nap_sach_task
+
+        nap_sach_task.delay(job_id=job_id)
+    except Exception as e:  # noqa: BLE001 - broker hỏng không được làm vỡ request
+        log.warning("không đẩy được job nạp sách %s vào hàng đợi (%s): %s",
+                    job_id, type(e).__name__, e, exc_info=True)
+        out["canh_bao"] = ("Đã tạo việc nhưng chưa đẩy được vào hàng đợi — "
+                           "kiểm tra Redis/worker.")
+    return out
+
+
+@router.get("/sach/jobs")
+async def cms_ds_job_sach(
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Các lần nạp gần đây — để biết việc nào đang chạy trong nền."""
+    _require_author(user)
+    ds = list(await session.scalars(
+        select(BookJob).order_by(BookJob.created_at.desc(), BookJob.id.desc()).limit(12)))
+    return {"jobs": [_job_ra(j) for j in ds]}
+
+
+@router.get("/sach/jobs/{job_id}")
+async def cms_job_sach(
+    job_id: int,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    _require_author(user)
+    j = await session.get(BookJob, job_id)
+    if j is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không có việc nạp sách này")
+    return _job_ra(j)
+
+
+class JobLenhBody(BaseModel):
+    lenh: str          # tam_dung | tiep | huy
+
+
+@router.post("/sach/jobs/{job_id}/lenh")
+async def cms_lenh_job_sach(
+    job_id: int, body: JobLenhBody,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Tạm dừng hoặc nạp tiếp. Dừng KHÔNG mất các trang đã đọc: cache OCR giữ
+    lại nên chạy tiếp chỉ tốn tiền từ trang đang dở."""
+    _require_author(user)
+    j = await session.get(BookJob, job_id)
+    if j is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không có việc nạp sách này")
+    if body.lenh == "huy":
+        # Việc kẹt ở "cho" vì broker/worker chưa nhận sẽ CHẶN nút nạp mãi mãi.
+        # Huỷ = dừng lại, GIỮ các trang đã đọc (cache OCR vẫn còn) — không xoá job
+        # để còn xem lại đã tới đâu.
+        if j.trang_thai in ("xong",):
+            raise HTTPException(status.HTTP_409_CONFLICT, "Việc này đã xong rồi")
+        j.trang_thai = "tam_dung"
+        j.trang_dang = None
+        out = _job_ra(j)
+        await session.commit()
+        return out
+    if body.lenh == "tam_dung":
+        if j.trang_thai not in ("dang", "cho"):
+            raise HTTPException(status.HTTP_409_CONFLICT, "Việc này không đang chạy")
+        j.trang_thai = "tam_dung"          # worker đọc lại cờ này sau mỗi trang
+        out = _job_ra(j)
+        await session.commit()
+        return out
+    if body.lenh == "tiep":
+        if j.trang_thai not in ("tam_dung", "loi"):
+            raise HTTPException(status.HTTP_409_CONFLICT, "Việc này không đang tạm dừng")
+        j.trang_thai = "cho"
+        out = _job_ra(j)
+        job_id = j.id
+        await session.commit()
+        try:
+            from app.ingestion.celery_app import nap_sach_task
+
+            nap_sach_task.delay(job_id=job_id)
+        except Exception as e:  # noqa: BLE001
+            log.warning("không đẩy lại job nạp sách %s: %s", job_id, e, exc_info=True)
+            out["canh_bao"] = "Chưa đẩy được vào hàng đợi — kiểm tra Redis/worker."
+        return out
+    raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                        "Lệnh phải là tam_dung, tiep hoặc huy")

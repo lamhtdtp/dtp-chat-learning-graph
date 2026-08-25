@@ -63,6 +63,12 @@ services:
       # Mount lồng rw đè lên phần ro ở trên — thiếu dòng này là OSError Errno 30
       # "Read-only file system" giữa request.
       - ./data/videos:/app/data/videos
+      # ...và kho ẢNH TRANG SGK cũng phải ghi được: màn "Nạp sách bằng AI" nhận
+      # ảnh trang do chuyên gia kéo vào và ghi thẳng vào data/books/<môn>/<khối>/
+      # <tập>/<số>.png (app/ingestion/nap_sach.py). Thiếu dòng này thì upload
+      # trang nổ OSError Errno 30 "Read-only file system" giữa request — đúng
+      # cái đã xảy ra với ảnh minh hoạ trước đây.
+      - ./data/books:/app/data/books
       # cache OCR (markdown mỗi trang) — ghi được + giữ lại khi recreate để
       # ingest lại KHÔNG phải OCR lại từ đầu (xem docs/INGEST-ENGLISH.md).
       - ./data_processed:/app/data_processed
@@ -93,6 +99,13 @@ services:
     volumes:
       # ảnh SGK để OCR (offline) — read-only, không nằm trong image
       - ./data:/app/data:ro
+      # ...nhưng kho media phải GHI ĐƯỢC: `python -m app.seed_all_lessons --media`
+      # chạy qua service này và ghi ảnh minh hoạ vào data/videos
+      # (app/video/storage.save_image). Thiếu dòng này là Errno 30 giữa lúc soạn
+      # hàng loạt, mất cả lượt gọi model sinh ảnh đã tiêu.
+      - ./data/videos:/app/data/videos
+      # ảnh trang SGK: worker chạy job nạp sách (đọc) và CLI ingest
+      - ./data/books:/app/data/books
       - ./data_processed:/app/data_processed  # cache OCR (giữ lại khi recreate)
     depends_on:
       redis: { condition: service_started }

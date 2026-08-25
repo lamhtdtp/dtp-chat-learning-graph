@@ -136,6 +136,10 @@ class QuizAttempt(Base):
     diem: Mapped[int]                                    # số câu đúng
     tong: Mapped[int]                                    # tổng số câu của đề lúc làm
     dat: Mapped[bool]                                    # có đạt ngưỡng 70% không
+    # nhanh = Kiểm tra nhanh của chính đơn vị · on_tap = một mảnh của đề ôn tập
+    # cả mạch. KHÔNG có cột này thì CMS hiện một lần nộp đề ôn tập 8 câu thành
+    # nhiều dòng "1/4" trông y như học sinh đã làm bài kiểm tra của từng bài.
+    nguon: Mapped[str] = mapped_column(default="nhanh", index=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), index=True)
 
 
@@ -238,6 +242,42 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
     daily_limit_override: Mapped[int | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class BookJob(Base):
+    """Một lần NẠP SÁCH: 151 ảnh trang → OCR → cắt đoạn → Qdrant (REQ §2.4).
+
+    Vì sao cần bảng riêng chứ không đọc log như trước: mỗi trang là một lần gọi
+    vision LLM nên cả tập mất 20–30 phút. Không có bảng thì UI không trả lời được
+    “đang ở trang bao nhiêu”, và đóng tab là mất dấu hoàn toàn.
+
+    Tiến độ ghi theo TRANG, không theo phần trăm: người soạn cần biết trang nào
+    đang dở để đoán còn bao lâu, và để nạp tiếp đúng chỗ. Cache OCR
+    (data_processed/) làm việc nạp tiếp gần như miễn phí.
+    """
+
+    __tablename__ = "book_jobs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    mon: Mapped[str]
+    khoi: Mapped[str]
+    tap: Mapped[int]
+    sach: Mapped[str]                                   # mã sách -> đi vào dẫn nguồn
+    # cho | dang | tam_dung | xong | loi
+    trang_thai: Mapped[str] = mapped_column(default="cho", index=True)
+    buoc: Mapped[str] = mapped_column(default="doc")    # doc | cat_doan | ghi_kho
+    trang_ds_json: Mapped[str] = mapped_column(Text, default="[]")   # các trang phải đọc
+    trang_xong_json: Mapped[str] = mapped_column(Text, default="[]")
+    trang_loi_json: Mapped[str] = mapped_column(Text, default="[]")  # [{so, ly_do}]
+    trang_dang: Mapped[int | None] = mapped_column(default=None)
+    # Trang đáng ngờ + số liệu chất lượng, điền khi đọc xong (màn soát).
+    trang_soat_json: Mapped[str] = mapped_column(Text, default="[]")  # [{so, ly_do, chu}]
+    so_trang_co_bai: Mapped[int] = mapped_column(default=0)
+    so_doan: Mapped[int] = mapped_column(default=0)
+    loi: Mapped[str | None] = mapped_column(Text, default=None)
+    nguoi_tao_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), index=True)
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
 
 class VideoJob(Base):

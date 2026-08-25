@@ -21,7 +21,10 @@ export function SoanHtml({ value, onChange, placeholder, minHeight = 96, style }
   style?: React.CSSProperties;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const cuoiRef = useRef(value);   // giá trị lần cuối CHÍNH Ô NÀY phát ra
+  // `null` = CHƯA từng vẽ. Khởi tạo bằng `value` là sai: lần mount đầu
+  // `value === cuoiRef.current` nên innerHTML không bao giờ được gán và ô soạn
+  // trắng trơn dù DB có nội dung (đã gặp thật).
+  const cuoiRef = useRef<string | null>(null);
 
   // Chỉ đồng bộ khi `value` khác thứ ô này vừa gửi lên (vd AI đổ nháp vào, mở bài
   // khác). Bỏ điều kiện này là con trỏ nhảy mỗi lần gõ.

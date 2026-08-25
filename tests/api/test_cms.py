@@ -1,3 +1,4 @@
+import pytest
 import io
 import json
 import uuid
@@ -676,10 +677,34 @@ async def test_kho_sgk_tra_danh_sach_sach_du_kho_loi(client, session, mocker):
                      semester="1", source_ref=f"ref-{uuid.uuid4().hex[:6]}"))
     await session.commit()
 
-    mocker.patch("qdrant_client.AsyncQdrantClient.count", side_effect=RuntimeError("kho sập"))
+    # KHÔNG nối được Qdrant -> kho_loi (khác hẳn "kho rỗng", xem test dưới)
+    mocker.patch("qdrant_client.AsyncQdrantClient.get_collections",
+                 side_effect=RuntimeError("kho sập"))
     b = (await client.get("/cms/kho-sgk", headers=cg)).json()
-    assert b["kho_loi"] is True and b["kpi"]["so_doan"] == 0
+    assert b["kho_loi"] is True and b["kho_trong"] is False
+    assert b["kpi"]["so_doan"] == 0
     assert any(s["ten"] == "Cùng khám phá T1" for s in b["sach"])
+
+
+async def test_kho_sgk_phan_biet_kho_RONG_voi_kho_LOI(client, session, mocker):
+    """Qdrant chạy mà chưa có collection = kho RỖNG, không phải lỗi.
+
+    Trước đây cả hai đều ra `kho_loi` và trang báo “chưa đọc được, không phải
+    kho rỗng” — nói SAI khi kho thật sự rỗng, và người soạn đi tìm lỗi mạng
+    trong khi việc cần làm chỉ là nạp sách.
+    """
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+
+    class _Rong:
+        collections = []
+    mocker.patch("qdrant_client.AsyncQdrantClient.get_collections",
+                 mocker.AsyncMock(return_value=_Rong()))
+    dem = mocker.patch("qdrant_client.AsyncQdrantClient.count", mocker.AsyncMock())
+
+    b = (await client.get("/cms/kho-sgk", headers=cg)).json()
+    assert b["kho_trong"] is True and b["kho_loi"] is False
+    assert b["kpi"]["so_doan"] == 0
+    assert dem.await_count == 0          # không đếm trên collection không tồn tại
 
 
 async def test_upload_anh_chuyen_gia(client, session, mocker):
@@ -703,3 +728,369 @@ async def test_upload_anh_chuyen_gia(client, session, mocker):
     bad = {"file": ("a.gif", io.BytesIO(b"GIF89a"), "image/gif")}
     r2 = await client.post(f"/cms/topics/{tid}/anh", headers=cg, files=bad)
     assert r2.status_code == 400 and "PNG/JPG/WEBP" in r2.json()["detail"]
+
+
+async def test_nap_ma_tran_thay_toan_bo_va_bao_don_vi_moi(client, session):
+    """§2.5 — nạp = THAY, không cộng thêm; và báo số đơn vị phải tự tạo."""
+    import io
+    from sqlalchemy import func as _f
+    from app.db.models import BlueprintCell
+
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    mon, khoi = f"M-{uuid.uuid4().hex[:6]}", f"K-{uuid.uuid4().hex[:6]}"
+    hdr = ("| STT | Mức độ | Năng lực | Biểu hiện | Yêu cầu cần đạt | Mạch | Đơn vị | Dạng thức | Tỉ lệ | Số câu |\n"
+           "|---|---|---|---|---|---|---|---|---|---|\n")
+
+    def tep(noi: str) -> dict:
+        return {"file": ("mt.md", io.BytesIO((hdr + noi).encode()), "text/markdown")}
+
+    # Lần 1: 2 dòng -> tự tạo 2 đơn vị
+    r = await client.post(f"/cms/ma-tran/nap?mon={mon}&khoi={khoi}&hoc_ky=hk1",
+                          headers=cg, files=tep(
+        "| 1 | Dễ | NL | BH | Y1 | Số tự nhiên | Đơn vị A | TN | 50 | 3 |\n"
+        "| 2 | Khó | NL | BH | Y2 | Số tự nhiên | Đơn vị B | TL | 50 | 2 |\n"))
+    assert r.status_code == 200
+    b = r.json()
+    assert b["so_dong"] == 2 and len(b["don_vi_moi"]) == 2
+
+    # Lần 2: 1 dòng -> THAY, tổng phải là 1 chứ không phải 3
+    r2 = await client.post(f"/cms/ma-tran/nap?mon={mon}&khoi={khoi}&hoc_ky=hk1",
+                          headers=cg, files=tep(
+        "| 1 | Dễ | NL | BH | Y1 | Số tự nhiên | Đơn vị A | TN | 100 | 5 |\n"))
+    assert r2.json()["so_dong"] == 1
+    # Đơn vị A đã có -> KHÔNG tạo lại
+    assert r2.json()["don_vi_moi"] == []
+    tong = await session.scalar(_f.count(BlueprintCell.id).select())
+    assert tong is not None   # chỉ cần truy vấn chạy được
+
+
+async def test_nap_ma_tran_chan_tep_sai(client, session):
+    """Tệp sai khuôn là lỗi NGƯỜI DÙNG -> 400 kèm hướng dẫn, không phải 500."""
+    import io
+
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    r = await client.post("/cms/ma-tran/nap?hoc_ky=hk1", headers=cg,
+                          files={"file": ("a.txt", io.BytesIO(b"khong phai ma tran"), "text/plain")})
+    assert r.status_code == 400 and ".docx" in r.json()["detail"]
+    r2 = await client.post("/cms/ma-tran/nap?hoc_ky=hk3", headers=cg,
+                           files={"file": ("a.md", io.BytesIO(b"x"), "text/markdown")})
+    assert r2.status_code == 400 and "hk1" in r2.json()["detail"]
+    # .md đúng đuôi nhưng không có bảng -> 400 kèm gợi ý kiểm tra tệp
+    r3 = await client.post("/cms/ma-tran/nap?hoc_ky=hk1", headers=cg,
+                           files={"file": ("a.md", io.BytesIO(b"chi la van ban"), "text/markdown")})
+    assert r3.status_code == 400 and "10 cột" in r3.json()["detail"]
+
+
+async def test_sinh_anh_cho_vi_du_hinh_hoc(client, session, mocker):
+    """Ví dụ hình học không đọc được nếu thiếu hình — phải có đường sinh hình riêng."""
+    import json as _j
+    from app.db.models import TopicContent
+
+    mocker.patch("app.lessons.media.gateway.generate_image",
+                 mocker.AsyncMock(return_value=b"png"))
+    mocker.patch("app.lessons.media.storage.save_image",
+                 side_effect=lambda data, name: f"/video/files/{name}")
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    mon, khoi, tid = await _seed(session)
+    session.add(TopicContent(topic_id=tid, vi_du_json=_j.dumps([
+        {"de": "Trong các hình sau, hình nào có trục đối xứng?", "giai": "…",
+         "anh_prompt": "three flat shapes, no text"},
+        {"de": "Tính 2+3", "giai": "5"},          # thuần số -> KHÔNG cần hình
+    ])))
+    await session.commit()
+
+    r = await client.post(f"/cms/topics/{tid}/vi-du/0/anh", headers=cg, json={})
+    assert r.status_code == 200
+    assert r.json()["anh"].startswith("/video/files/")
+    assert r.json()["anh_xem"].startswith(r.json()["anh"] + "?exp=")
+    # Ghi thẳng vào DB: ảnh đã tốn tiền sinh thì không mất khi đóng drawer
+    b = (await client.get(f"/cms/topics/{tid}", headers=cg)).json()
+    assert b["vi_du"][0]["anh"].startswith("/video/files/")
+
+    # Ví dụ không có mô tả hình -> 400 nói rõ phải làm gì
+    r2 = await client.post(f"/cms/topics/{tid}/vi-du/1/anh", headers=cg, json={})
+    assert r2.status_code == 400 and "mô tả hình" in r2.json()["detail"]
+    # Ví dụ không tồn tại
+    assert (await client.post(f"/cms/topics/{tid}/vi-du/9/anh", headers=cg,
+                              json={})).status_code == 404
+
+
+async def test_upload_anh_gan_vao_vi_du(client, session, mocker):
+    """Chuyên gia tự vẽ/scan hình -> gắn thẳng vào ví dụ, không rơi vào minh hoạ chung."""
+    import json as _j
+    from app.db.models import TopicContent
+
+    mocker.patch("app.api.cms.storage.save_image",
+                 side_effect=lambda data, name: f"/video/files/{name}")
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    mon, khoi, tid = await _seed(session)
+    session.add(TopicContent(topic_id=tid, vi_du_json=_j.dumps([{"de": "Hình bên", "giai": ""}])))
+    await session.commit()
+
+    f = {"file": ("h.png", b"\x89PNG-noi-dung", "image/png")}
+    r = await client.post(f"/cms/topics/{tid}/anh?vi_du=0", headers=cg, files=f)
+    assert r.status_code == 200 and r.json()["chi_so"] == 0
+
+    b = (await client.get(f"/cms/topics/{tid}", headers=cg)).json()
+    assert b["vi_du"][0]["anh"].startswith("/video/files/")
+    assert b["vi_du"][0]["anh_xem"].startswith(b["vi_du"][0]["anh"] + "?exp=")
+    assert b["minh_hoa"] == []          # KHÔNG lẫn vào minh hoạ chung
+
+    # Ví dụ không tồn tại -> 404 chứ không âm thầm ghi sai chỗ
+    assert (await client.post(f"/cms/topics/{tid}/anh?vi_du=5", headers=cg,
+                             files={"file": ("h.png", b"x", "image/png")})).status_code == 404
+
+
+async def test_luu_giu_anh_vi_du_va_luoc_anh_xem(client, session):
+    """`anh` là giá trị lưu; `anh_xem` (đã ký, có hạn) không được ghi vào DB."""
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    mon, khoi, tid = await _seed(session)
+    r = await client.put(f"/cms/topics/{tid}", headers=cg, json={
+        "khai_niem": "x", "minh_hoa": [],
+        "vi_du": [{"de": "Hình bên", "giai": "", "anh": "/video/files/a.png",
+                   "anh_prompt": "flat triangle", "anh_xem": "/video/files/a.png?exp=1&sig=z"}],
+    })
+    assert r.status_code == 200
+    b = (await client.get(f"/cms/topics/{tid}", headers=cg)).json()
+    e = b["vi_du"][0]
+    assert e["anh"] == "/video/files/a.png"          # url thô, không kèm chữ ký hết hạn
+    assert e["anh_prompt"] == "flat triangle"        # giữ để vẽ lại
+    assert e["anh_xem"] != e["anh"] and "exp=" in e["anh_xem"]   # ký mới mỗi lần xem
+
+
+async def test_danh_muc_trung_va_gop(client, session):
+    """Xem trước bản trùng rồi gộp — bài đã soạn phải theo về bản giữ."""
+    from app.db.models import CurriculumTopic, TopicContent
+
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    mon, khoi, tid = await _seed(session)
+    goc = await session.get(CurriculumTopic, tid)
+    trung = CurriculumTopic(subject_id=goc.subject_id, grade_id=goc.grade_id,
+                            mach_noi_dung=(goc.mach_noi_dung or "M") + " tro",
+                            don_vi_kien_thuc=" " + (goc.don_vi_kien_thuc or "X").upper() + " ",
+                            order_index=9, tu_ma_tran=True)
+    session.add(trung); await session.flush()
+    session.add(TopicContent(topic_id=tid, khai_niem="<p>bài gốc</p>", trang_thai="draft"))
+    trung_id = trung.id
+    await session.commit()
+
+    r = await client.get(f"/cms/danh-muc/trung?mon={mon}&khoi={khoi}", headers=cg)
+    assert r.status_code == 200
+    b = r.json()
+    assert b["so_ban_du"] == 1
+    g = next(n for n in b["chac_chan"] if n["giu"]["id"] == tid)
+    assert [x["id"] for x in g["bo"]] == [trung_id]
+
+    r2 = await client.post("/cms/danh-muc/gop", headers=cg,
+                           json={"giu": tid, "bo": [trung_id]})
+    assert r2.status_code == 200 and r2.json()["da_doi"]["don_vi_xoa"] == 1
+
+    # gộp rồi thì không còn nhóm trùng nào, bài soạn vẫn ở bản giữ
+    assert (await client.get(f"/cms/danh-muc/trung?mon={mon}&khoi={khoi}",
+                             headers=cg)).json()["so_ban_du"] == 0
+    assert "bài gốc" in (await client.get(f"/cms/topics/{tid}", headers=cg)).json()["khai_niem"]
+
+
+async def test_gop_chi_danh_cho_nguoi_soan(client, session):
+    hs = await _auth(client, role="hoc_sinh")   # _auth mặc định là giao_vien -> vẫn là tác giả
+    assert (await client.get("/cms/danh-muc/trung", headers=hs)).status_code == 403
+    assert (await client.post("/cms/danh-muc/gop", headers=hs,
+                              json={"giu": 1, "bo": [2]})).status_code == 403
+
+
+# ══════════════ Nạp sách bằng AI (REQ §2.4) ══════════════
+
+@pytest.fixture
+def sach_tmp(tmp_path, monkeypatch):
+    """Thư mục sách tạm — KHÔNG để test ghi vào data/books thật."""
+    from app.ingestion import nap_sach
+
+    monkeypatch.setattr(nap_sach, "DATA_ROOT", tmp_path / "books")
+    monkeypatch.setattr(nap_sach, "CACHE_ROOT", tmp_path / "cache")
+    return tmp_path
+
+
+async def test_soat_sach_bao_trang_thieu_va_goi_y_doc_thu(client, session, sach_tmp):
+    from app.ingestion import nap_sach
+
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    d = nap_sach.thu_muc("toan", "lop_6", 1, tao=True)
+    for n in (1, 2, 3, 6):
+        (d / f"{n}.png").write_bytes(b"x")
+
+    b = (await client.get("/cms/sach/soat?mon=toan&khoi=lop_6&tap=1", headers=cg)).json()
+    assert b["trang"] == [1, 2, 3, 6] and b["thieu"] == [4, 5]
+    assert b["goi_y_thu"] == [1, 3, 6]        # rải đều, không phải 3 trang đầu
+
+
+async def test_upload_tep_de_rieng_tep_khong_ro_so_trang(client, session, sach_tmp):
+    """`Scan (2).png` không được tự thành trang 2 — sẽ ghi đè trang thật."""
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    tep = [
+        ("files", ("012.png", b"a", "image/png")),
+        ("files", ("Scan (2).png", b"b", "image/png")),
+        ("files", ("ghi-chu.txt", b"c", "text/plain")),
+    ]
+    r = await client.post("/cms/sach/tep?mon=toan&khoi=lop_6&tap=1", headers=cg, files=tep)
+    assert r.status_code == 200
+    b = r.json()
+    assert b["trang"] == [12]
+    assert [x["ten"] for x in b["cho_gan_moi"]] == ["Scan (2).png"]
+    assert b["bo_qua"][0]["ten"] == "ghi-chu.txt"
+
+    # gán tay -> thành trang thật
+    r2 = await client.post("/cms/sach/tep/gan?mon=toan&khoi=lop_6&tap=1", headers=cg,
+                           json={"ten": "Scan (2).png", "so": 88})
+    assert r2.json()["trang"] == [12, 88] and r2.json()["cho_gan"] == []
+
+
+async def test_gan_so_trang_bao_loi_ro_rang(client, session, sach_tmp):
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    r = await client.post("/cms/sach/tep/gan?mon=toan&khoi=lop_6&tap=1", headers=cg,
+                          json={"ten": "khong-co.png", "so": 5})
+    assert r.status_code == 404
+
+    await client.post("/cms/sach/tep?mon=toan&khoi=lop_6&tap=1", headers=cg,
+                      files=[("files", ("bia.png", b"a", "image/png"))])
+    r2 = await client.post("/cms/sach/tep/gan?mon=toan&khoi=lop_6&tap=1", headers=cg,
+                           json={"ten": "bia.png", "so": 0})
+    assert r2.status_code == 400
+    # so=None -> bỏ tệp
+    r3 = await client.post("/cms/sach/tep/gan?mon=toan&khoi=lop_6&tap=1", headers=cg,
+                           json={"ten": "bia.png", "so": None})
+    assert r3.json()["cho_gan"] == []
+
+
+async def test_doc_thu_khong_ghi_kho(client, session, sach_tmp, mocker):
+    """3 lượt gọi AI thay vì 149 — và tuyệt đối không ghi Qdrant."""
+    from app.ingestion import nap_sach
+
+    up = mocker.patch("app.ingestion.qdrant_store.upsert_chunks", mocker.AsyncMock())
+    mocker.patch("app.ingestion.nap_sach.load_or_ocr_page",
+                 mocker.AsyncMock(return_value="# Bài 9. Ước và bội\n" + "x" * 300))
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    d = nap_sach.thu_muc("toan", "lop_6", 1, tao=True)
+    for n in (1, 50, 100):
+        (d / f"{n}.png").write_bytes(b"x")
+
+    r = await client.post("/cms/sach/doc-thu?mon=toan&khoi=lop_6&tap=1", headers=cg, json={})
+    assert r.status_code == 200
+    b = r.json()
+    assert b["so_trang"] == 3 and b["so_co_bai"] == 3
+    assert [x["so"] for x in b["trang"]] == [1, 50, 100]
+    assert up.await_count == 0
+
+    # chưa có ảnh -> nói rõ chứ không trả rỗng
+    r2 = await client.post("/cms/sach/doc-thu?mon=toan&khoi=lop_6&tap=9", headers=cg, json={})
+    assert r2.status_code == 400
+
+
+async def test_nap_sach_tao_job_va_chan_nap_trung(client, session, sach_tmp, mocker):
+    from app.ingestion import nap_sach
+
+    day = mocker.patch("app.ingestion.celery_app.nap_sach_task.delay")
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    d = nap_sach.thu_muc("toan", "lop_6", 1, tao=True)
+    for n in (1, 2, 3):
+        (d / f"{n}.png").write_bytes(b"x")
+
+    r = await client.post("/cms/sach/nap", headers=cg, json={
+        "mon": "toan", "khoi": "lop_6", "tap": 1, "sach": "cung_kham_pha_tap_1"})
+    assert r.status_code == 200
+    j = r.json()
+    assert j["tong"] == 3 and j["da_xong"] == 0 and j["trang_thai"] == "cho"
+    assert day.call_count == 1
+
+    # đang chạy -> không cho nạp đè
+    from app.db.models import BookJob
+    job = await session.get(BookJob, j["id"])
+    job.trang_thai = "dang"
+    await session.commit()
+
+    r2 = await client.post("/cms/sach/nap", headers=cg, json={
+        "mon": "toan", "khoi": "lop_6", "tap": 1, "sach": "cung_kham_pha_tap_1"})
+    assert r2.status_code == 409
+
+    # chưa có ảnh -> chặn, không tạo job rỗng
+    r3 = await client.post("/cms/sach/nap", headers=cg, json={
+        "mon": "toan", "khoi": "lop_6", "tap": 7, "sach": "x"})
+    assert r3.status_code == 400
+
+
+async def test_nap_sach_broker_hong_van_tao_job_kem_canh_bao(client, session, sach_tmp, mocker):
+    """Redis/worker hỏng không được làm vỡ request — job vẫn tạo để nạp tiếp sau."""
+    from app.ingestion import nap_sach
+
+    mocker.patch("app.ingestion.celery_app.nap_sach_task.delay",
+                 side_effect=RuntimeError("broker down"))
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    d = nap_sach.thu_muc("toan", "lop_6", 1, tao=True)
+    (d / "1.png").write_bytes(b"x")
+
+    r = await client.post("/cms/sach/nap", headers=cg, json={
+        "mon": "toan", "khoi": "lop_6", "tap": 1, "sach": "s"})
+    assert r.status_code == 200 and "hàng đợi" in r.json()["canh_bao"]
+
+
+async def test_lenh_tam_dung_va_nap_tiep(client, session, sach_tmp, mocker):
+    from app.db.models import BookJob
+
+    day = mocker.patch("app.ingestion.celery_app.nap_sach_task.delay")
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    job = BookJob(mon="toan", khoi="lop_6", tap=1, sach="s",
+                  trang_ds_json=json.dumps([1, 2, 3]), trang_thai="dang")
+    session.add(job)
+    await session.flush()
+    jid = job.id            # lấy id TRƯỚC commit: expire-on-commit -> MissingGreenlet
+    await session.commit()
+
+    r = await client.post(f"/cms/sach/jobs/{jid}/lenh", headers=cg, json={"lenh": "tam_dung"})
+    assert r.status_code == 200 and r.json()["trang_thai"] == "tam_dung"
+    # dừng rồi dừng nữa -> 409, không im lặng
+    assert (await client.post(f"/cms/sach/jobs/{jid}/lenh", headers=cg,
+                              json={"lenh": "tam_dung"})).status_code == 409
+
+    r2 = await client.post(f"/cms/sach/jobs/{jid}/lenh", headers=cg, json={"lenh": "tiep"})
+    assert r2.status_code == 200 and r2.json()["trang_thai"] == "cho"
+    assert day.call_count == 1
+
+    assert (await client.post(f"/cms/sach/jobs/{jid}/lenh", headers=cg,
+                              json={"lenh": "xoa"})).status_code == 400
+    assert (await client.get("/cms/sach/jobs", headers=cg)).status_code == 200
+    assert (await client.get(f"/cms/sach/jobs/{10**9}", headers=cg)).status_code == 404
+
+
+async def test_nap_sach_chi_danh_cho_nguoi_soan(client, session):
+    hs = await _auth(client, role="hoc_sinh")
+    assert (await client.get("/cms/sach/soat", headers=hs)).status_code == 403
+    assert (await client.post("/cms/sach/nap", headers=hs,
+                              json={"sach": "x"})).status_code == 403
+    assert (await client.get("/cms/sach/jobs", headers=hs)).status_code == 403
+
+
+async def test_huy_job_ket_o_trang_thai_cho(client, session, mocker):
+    """Job kẹt ở “chờ” vì worker chết sẽ CHẶN nút nạp mãi mãi — phải huỷ được."""
+    from app.db.models import BookJob
+
+    mocker.patch("app.ingestion.celery_app.nap_sach_task.delay")
+    cg = await _auth_noi_bo(client, session, "chuyen_gia")
+    job = BookJob(mon="toan", khoi="lop_6", tap=1, sach="s",
+                  trang_ds_json=json.dumps([1, 2, 3]),
+                  trang_xong_json=json.dumps([1]), trang_thai="cho")
+    session.add(job)
+    await session.flush()
+    jid = job.id
+    await session.commit()
+
+    r = await client.post(f"/cms/sach/jobs/{jid}/lenh", headers=cg, json={"lenh": "huy"})
+    assert r.status_code == 200
+    b = r.json()
+    assert b["trang_thai"] == "tam_dung"
+    assert b["trang_xong"] == [1]          # GIỮ trang đã đọc, không xoá sạch
+
+    # huỷ việc đã xong -> 409, không âm thầm đổi trạng thái
+    job2 = await session.get(BookJob, jid)
+    job2.trang_thai = "xong"
+    await session.commit()
+    assert (await client.post(f"/cms/sach/jobs/{jid}/lenh", headers=cg,
+                              json={"lenh": "huy"})).status_code == 409

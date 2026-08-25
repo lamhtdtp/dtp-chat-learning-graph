@@ -15,7 +15,7 @@ const FEATS = [
   { ic: "📚", t: "Bài học bám chương trình, 4 phần rõ ràng" },
   { ic: "✅", t: "Kiểm tra nhanh sau mỗi đơn vị kiến thức" },
   { ic: "💬", t: "Trợ lý hỏi–đáp trả lời bám sách giáo khoa" },
-  { ic: "🔥", t: "Theo dõi tiến độ, chuỗi ngày học & điểm XP" },
+  { ic: "🔥", t: "Theo dõi tiến độ, chuỗi ngày học & yêu cầu cần đạt" },
 ];
 
 // Trang đăng nhập split-screen: hero gradient (trái) + form (phải). Đồng bộ design

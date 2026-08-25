@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -6,8 +8,11 @@ from app.db.models import Blueprint, BlueprintCell, Book, CurriculumTopic, Grade
 
 
 async def _seed_subject_grade(db_session):
-    subject = Subject(name="Toán")
-    grade = Grade(name="Lớp 6")
+    """Tên DUY NHẤT mỗi lần: fixture db_session dùng chung DB dev, mà
+    subjects.name / grades.name là UNIQUE — chèn cứng "Toán"/"Lớp 6" sẽ đụng dữ
+    liệu thật và đỏ oan chứ không phải lỗi model."""
+    subject = Subject(name=f"Toán-{uuid.uuid4().hex[:6]}")
+    grade = Grade(name=f"Lớp 6-{uuid.uuid4().hex[:6]}")
     db_session.add_all([subject, grade])
     await db_session.flush()
     return subject, grade

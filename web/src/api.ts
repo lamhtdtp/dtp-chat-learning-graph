@@ -1,6 +1,8 @@
 import { API_BASE } from "./config";
 import type {
   CurriculumGroup,
+  DeOnTap,
+  OnTap,
   Lesson,
   MyStats,
   ProgressMe,
@@ -134,6 +136,26 @@ export function pingPhien(topicId: number, giay = 30, phan_doc: string[] = []):
   Promise<{ so_giay_phien: number }> {
   return req("/me/phien", { auth: true, body: { topic_id: topicId, giay, phan_doc } });
 }
+/** §3.5 — trang ôn tập của một mạch / học kỳ. */
+export function getOnTap(pham_vi: "mach" | "hoc_ky", gia_tri: string,
+                         mon = "Toán", khoi = "Lớp 6"): Promise<OnTap> {
+  return req(`/on-tap?pham_vi=${pham_vi}&gia_tri=${encodeURIComponent(gia_tri)}`
+    + `&mon=${encodeURIComponent(mon)}&khoi=${encodeURIComponent(khoi)}`, { auth: true });
+}
+
+/** Đề ôn tập (gom từ đề của từng bài, không sinh mới). */
+export function getDeOnTap(pham_vi: "mach" | "hoc_ky", gia_tri: string,
+                           mon = "Toán", khoi = "Lớp 6"): Promise<DeOnTap> {
+  return req(`/on-tap/de?pham_vi=${pham_vi}&gia_tri=${encodeURIComponent(gia_tri)}`
+    + `&mon=${encodeURIComponent(mon)}&khoi=${encodeURIComponent(khoi)}`, { auth: true });
+}
+
+export function submitOnTap(pham_vi: string, gia_tri: string, answers: number[],
+                            mon = "Toán", khoi = "Lớp 6"): Promise<QuizResult> {
+  return req("/on-tap/submit", { method: "POST", auth: true,
+    body: { pham_vi, gia_tri, mon, khoi, answers } });
+}
+
 export function getThoiGian(ngay = 14): Promise<ThoiGianHoc> {
   return req(`/me/thoi-gian?ngay=${ngay}`, { auth: true });
 }

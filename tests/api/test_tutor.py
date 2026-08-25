@@ -283,3 +283,189 @@ def test_doan_bai_4_phan_moi_kem_kien_thuc_lam_nen():
     for a in ("kien_thuc", "khai_niem"):
         t, n = _doan_bai(C(), a)
         assert n == "Kiến thức trọng tâm" and "Lý thuyết nền" in t
+
+
+# ─────────── Hình minh hoạ đính theo câu trả lời ───────────
+
+async def _topic(session) -> int:
+    """Đơn vị kiến thức TRỐNG (chưa có nội dung) — test tự thêm nội dung riêng."""
+    subj = Subject(name=f"MonAnh-{uuid.uuid4().hex[:6]}")
+    grade = Grade(name=f"KhoiAnh-{uuid.uuid4().hex[:6]}")
+    session.add_all([subj, grade])
+    await session.flush()
+    t = CurriculumTopic(subject_id=subj.id, grade_id=grade.id,
+                        mach_noi_dung="Tính đối xứng", don_vi_kien_thuc="Hình có trục đối xứng",
+                        order_index=0)
+    session.add(t)
+    await session.flush()
+    return t.id
+
+
+def _ct(topic_id: int, **kw):
+    return TopicContent(topic_id=topic_id, khai_niem="<p>Nội dung</p>",
+                        trang_thai="published", **kw)
+
+
+async def test_kem_hinh_cua_vi_du_khi_hoi_ngay_o_vi_du_do(client, session, mocker):
+    """Neo `vi_du:1` là tín hiệu chắc chắn — không cần đoán bằng từ khoá."""
+    import json as _j
+
+    mocker.patch("app.api.tutor.retriever.retrieve", mocker.AsyncMock(return_value=[]))
+    mocker.patch("app.api.tutor.qa_node",
+                 mocker.AsyncMock(return_value={"answer": "Ba hình này đều có trục đối xứng."}))
+    h = await _auth(client)
+    tid = await _topic(session)
+    session.add(_ct(tid, vi_du_json=_j.dumps([
+        {"de": "Trong các hình sau, hình nào có trục đối xứng?", "giai": "…",
+         "anh": "/video/files/vd1.png"},
+        {"de": "Tính 2+3", "giai": "5"}])))
+    await session.commit()
+
+    b = (await client.post("/tutor/ask", headers=h, json={
+        "question": "Giải thích giúp mình", "topic_id": tid, "anchor": "vi_du:1"})).json()
+    assert len(b["anh"]) == 1
+    assert b["anh"][0]["url"].startswith("/video/files/vd1.png?exp=")   # đã ký
+    assert b["anh"][0]["tu"] == "Ví dụ 1"
+    assert "trục đối xứng" in b["anh"][0]["caption"]
+
+
+async def test_khong_kem_hinh_khi_cau_hoi_khong_lien_quan_hinh(client, session, mocker):
+    """Bài có ảnh nhưng hỏi chuyện khác -> không đính, tránh nhiễu."""
+    import json as _j
+
+    mocker.patch("app.api.tutor.retriever.retrieve", mocker.AsyncMock(return_value=[]))
+    mocker.patch("app.api.tutor.qa_node",
+                 mocker.AsyncMock(return_value={"answer": "Luỹ thừa là phép nhân lặp."}))
+    h = await _auth(client)
+    tid = await _topic(session)
+    session.add(_ct(tid, minh_hoa_json=_j.dumps([
+        {"type": "image", "url": "/video/files/a.png", "caption": "Sơ đồ ước chung"},
+        {"type": "image", "url": "/video/files/b.png", "caption": "Cây thừa số nguyên tố"}])))
+    await session.commit()
+
+    b = (await client.post("/tutor/ask", headers=h, json={
+        "question": "Luỹ thừa là gì?", "topic_id": tid})).json()
+    assert b["anh"] == []
+
+
+async def test_chon_hinh_khop_caption_khi_hoi_chung_ca_bai(client, session, mocker):
+    import json as _j
+
+    mocker.patch("app.api.tutor.retriever.retrieve", mocker.AsyncMock(return_value=[]))
+    mocker.patch("app.api.tutor.qa_node", mocker.AsyncMock(
+        return_value={"answer": "Cây thừa số nguyên tố giúp phân tích 24 và 18."}))
+    h = await _auth(client)
+    tid = await _topic(session)
+    session.add(_ct(tid, minh_hoa_json=_j.dumps([
+        {"type": "image", "url": "/video/files/a.png", "caption": "Sơ đồ ước chung của 24 và 18"},
+        {"type": "image", "url": "/video/files/b.png", "caption": "Cây thừa số nguyên tố của 24"}])))
+    await session.commit()
+
+    b = (await client.post("/tutor/ask", headers=h, json={
+        "question": "Vẽ cây thừa số nguyên tố thế nào?", "topic_id": tid})).json()
+    assert b["anh"], "câu hỏi nói về hình mà bài có ảnh -> phải đính"
+    assert "thừa số nguyên tố" in b["anh"][0]["caption"]
+
+
+async def test_khong_kem_video_va_khong_kem_khi_tra_loi_ngoai_sgk(client, session, mocker):
+    """Video đã có thẻ phát riêng trong bài; và câu từ chối thì không đính hình."""
+    import json as _j
+    from app.graph.grounding import KHONG_TIM_THAY
+
+    mocker.patch("app.api.tutor.retriever.retrieve", mocker.AsyncMock(return_value=[]))
+    h = await _auth(client)
+    tid = await _topic(session)
+    session.add(_ct(tid, minh_hoa_json=_j.dumps([
+        {"type": "video", "url": "/video/files/v.mp4", "caption": "Video hình học"}])))
+    await session.commit()
+
+    # chỉ có video -> không đính gì
+    mocker.patch("app.api.tutor.qa_node",
+                 mocker.AsyncMock(return_value={"answer": "Hình này có trục đối xứng."}))
+    b = (await client.post("/tutor/ask", headers=h, json={
+        "question": "Hình nào có trục đối xứng?", "topic_id": tid})).json()
+    assert b["anh"] == []
+
+    # trả lời "ngoài SGK" -> không đính hình vào câu từ chối
+    mocker.patch("app.api.tutor.qa_node",
+                 mocker.AsyncMock(return_value={"answer": KHONG_TIM_THAY}))
+    b2 = (await client.post("/tutor/ask", headers=h, json={
+        "question": "Hình nào có trục đối xứng?", "topic_id": tid})).json()
+    assert b2["khong_tim_thay"] is True and b2["anh"] == []
+
+
+async def test_bai_chua_xuat_ban_thi_hoc_sinh_khong_thay_hinh(client, session, mocker):
+    """Hình đi theo ĐÚNG luật quyền của nội dung: nháp thì học sinh không thấy."""
+    import json as _j
+
+    mocker.patch("app.api.tutor.retriever.retrieve", mocker.AsyncMock(return_value=[]))
+    mocker.patch("app.api.tutor.qa_node",
+                 mocker.AsyncMock(return_value={"answer": "Hình vẽ cho thấy trục đối xứng."}))
+    h = await _auth(client)
+    tid = await _topic(session)
+    from app.db.models import TopicContent
+    session.add(TopicContent(topic_id=tid, khai_niem="<p>x</p>", trang_thai="draft",
+                             minh_hoa_json=_j.dumps([
+                                 {"type": "image", "url": "/video/files/a.png",
+                                  "caption": "Hình trục đối xứng"}])))
+    await session.commit()
+
+    b = (await client.post("/tutor/ask", headers=h, json={
+        "question": "Hình nào có trục đối xứng?", "topic_id": tid})).json()
+    assert b["anh"] == []
+
+
+async def test_khong_dinh_hinh_chi_vi_CAU_TRA_LOI_nhac_ten_bai(client, session, mocker):
+    """Bài hình học thì câu trả lời nào cũng nhắc "…về hình có trục đối xứng".
+
+    Lọc theo câu trả lời là mở cửa cho MỌI câu, kể cả "bài này có mấy phần?" —
+    đã gặp thật. Ý muốn của học sinh nằm ở CÂU HỎI.
+    """
+    import json as _j
+
+    mocker.patch("app.api.tutor.retriever.retrieve", mocker.AsyncMock(return_value=[]))
+    mocker.patch("app.api.tutor.qa_node", mocker.AsyncMock(return_value={
+        "answer": "Chào em! Bài học về hình có trục đối xứng này gồm 5 phần nhé."}))
+    h = await _auth(client)
+    tid = await _topic(session)
+    session.add(_ct(tid, minh_hoa_json=_j.dumps([
+        {"type": "image", "url": "/video/files/a.png", "caption": "Ba hình phẳng"}])))
+    await session.commit()
+
+    b = (await client.post("/tutor/ask", headers=h, json={
+        "question": "Bài này có mấy phần?", "topic_id": tid})).json()
+    assert b["anh"] == []
+
+
+async def test_phu_tu_khong_phu_thuoc_do_dai_cau_tra_loi():
+    """Caption ngắn vs câu trả lời dài: đo bằng ĐỘ PHỦ TỪ, không phải SequenceMatcher.
+
+    SequenceMatcher chia cho tổng độ dài hai chuỗi nên caption 90 ký tự so với
+    câu trả lời 1500 ký tự cho tỉ lệ ≤ 0.11 dù trùng từng chữ — ngưỡng nào cũng
+    không bao giờ đạt, tính năng im lặng.
+    """
+    from app.api.tutor import _NGUONG_ANH, _phu_tu
+
+    cap = "Cây thừa số nguyên tố của 24 và 18"
+    dai = ("Chào em! " + "Ta phân tích 24 và 18 thành thừa số nguyên tố. " * 40)
+    assert _phu_tu(cap, dai) >= _NGUONG_ANH
+    assert _phu_tu("Sơ đồ khí hậu Việt Nam", dai) < _NGUONG_ANH
+
+
+async def test_hinh_khong_khop_caption_van_dinh_hinh_dau_khi_hoi_ro_ve_hinh(
+        client, session, mocker):
+    """Caption kiểu "Hình minh hoạ" không trùng chữ nào — im lặng thì tính năng chết."""
+    import json as _j
+
+    mocker.patch("app.api.tutor.retriever.retrieve", mocker.AsyncMock(return_value=[]))
+    mocker.patch("app.api.tutor.qa_node",
+                 mocker.AsyncMock(return_value={"answer": "Ba hình đều khác nhau."}))
+    h = await _auth(client)
+    tid = await _topic(session)
+    session.add(_ct(tid, minh_hoa_json=_j.dumps([
+        {"type": "image", "url": "/video/files/a.png", "caption": "Hình minh hoạ"}])))
+    await session.commit()
+
+    b = (await client.post("/tutor/ask", headers=h, json={
+        "question": "Cho mình xem hình vẽ với", "topic_id": tid})).json()
+    assert len(b["anh"]) == 1 and b["anh"][0]["caption"] == "Hình minh hoạ"

@@ -116,7 +116,11 @@ async def test_on_tap_mach_gom_bai_va_noi_that_con_bao_nhieu_chua_xong(client, s
                           headers=h)).json()
     assert b["so_bai"] == 2                      # "Bài A" trùng đã khử
     assert b["chua_xong"] == 2                   # chưa đạt bài nào
-    assert b["so_cau_de"] == 12
+    # `so_cau_de` là số câu THẬT gom được, `so_cau_toi_da` là chỉ tiêu. Ở đây
+    # không bài nào có `quiz_json` nên chưa gom được câu nào — trước đây trả
+    # thẳng chỉ tiêu 12 và giao diện hứa "12 câu" rồi đưa ra 0.
+    assert b["so_cau_toi_da"] == 12 and b["so_cau_de"] == 0
+    assert b["so_bai_co_de"] == 0
     assert b["can_nho"][0]["y"] == "Số nguyên tố có hai ước"
 
 
@@ -132,7 +136,7 @@ async def test_on_tap_cuoi_ky_30_cau_va_pham_vi_la_bi_chan(client, session):
 
     b = (await client.get(f"/on-tap?pham_vi=hoc_ky&gia_tri=hk1&mon={mon}&khoi={khoi}",
                           headers=h)).json()
-    assert b["so_cau_de"] == 30
+    assert b["so_cau_toi_da"] == 30 and b["so_cau_de"] == 0   # chưa bài nào có đề
     r = await client.get(f"/on-tap?pham_vi=bịa&gia_tri=x&mon={mon}&khoi={khoi}", headers=h)
     assert r.status_code == 400
 
@@ -223,3 +227,32 @@ async def test_nhan_kiem_tra_thuoc_dung_phien_khong_gan_lan(client, session):
     phien_cu = next(x for x in ls if not x["dang_hoc"])
     assert hom_nay["quiz"] == {"diem": 2, "tong": 4, "dat": False}
     assert phien_cu["quiz"] is None      # KHÔNG gán lẫn
+
+
+async def test_doc_x_khong_duoc_lon_hon_doc_y_khi_phan_bi_an(client, session):
+    """Chuyên gia ẩn bớt phần sau khi HS đã đọc -> không được hiện "Đọc 4/3 phần"."""
+    import json as _j
+    from datetime import datetime, timedelta
+
+    from app.db.models import StudySession, TopicContent
+
+    h = await _hs(client)
+    mon, khoi, tid = await _topic(session)
+    # Bài chỉ HIỆN 2 phần (khởi động bị ẩn), nhưng HS đã đọc cả 3
+    session.add(TopicContent(
+        topic_id=tid, khoi_dong="<p>kd</p>", khai_niem="<p>kt</p>", luyen_tap="<p>lt</p>",
+        bo_cuc_json=_j.dumps([{"id": "khoi_dong", "an": True},
+                              {"id": "kien_thuc"}, {"id": "luyen_tap"}])))
+    me = (await client.get("/auth/me", headers=h)).json()
+    now = datetime.now()
+    session.add(StudySession(user_id=me["id"], topic_id=tid, mo_luc=now - timedelta(minutes=20),
+                             dong_luc=now - timedelta(minutes=1), so_giay=1200,
+                             phan_doc_json=_j.dumps(["khoi_dong", "kien_thuc", "luyen_tap"])))
+    await session.commit()
+
+    d = (await client.get("/me/thoi-gian", headers=h)).json()
+    ph = next(x for x in d["lich_su"] if x["topic_id"] == tid)
+    assert ph["doc_y"] == 2
+    assert ph["doc_x"] == 2, "phần đã ẩn không được tính vào tử số"
+    assert ph["doc_x"] <= ph["doc_y"]
+    assert ph["dang_hoc"] is True        # phiên vừa đóng 1 phút trước

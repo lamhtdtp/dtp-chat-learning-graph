@@ -9,8 +9,13 @@ import type {
   CmsPhan,
   CmsTongQuan,
   DmHocKy,
+  DmTrung,
+  BookJob,
+  DocThu,
+  SoatSach,
   KhoSgk,
   MaTran,
+  OnTap,
   CmsTopic,
   CmsViDu,
   CmsDay,
@@ -204,6 +209,116 @@ export async function cmsUploadAnh(topicId: number, file: File, caption = ""):
     `${API_BASE}/cms/topics/${topicId}/anh?caption=${encodeURIComponent(caption)}`,
     { method: "POST", headers: t ? { Authorization: `Bearer ${t}` } : {}, body: fd },
   );
+  if (!res.ok) {
+    let detail = `Lỗi ${res.status}`;
+    try { detail = (await res.json()).detail ?? detail; } catch { /* mặc định */ }
+    throw new ApiError(res.status, detail);
+  }
+  return res.json();
+}
+
+/** §2.4 — soát thư mục ảnh trang: đủ trang chưa, khuyết trang nào. */
+export function cmsSoatSach(mon: string, khoi: string, tap: number): Promise<SoatSach> {
+  return req(`/cms/sach/soat?mon=${mon}&khoi=${khoi}&tap=${tap}`, { auth: true });
+}
+
+/** Tải ảnh trang lên. Tệp không đoán chắc số trang sẽ vào danh sách chờ gán. */
+export async function cmsNapTepSach(mon: string, khoi: string, tap: number, files: File[]):
+  Promise<SoatSach> {
+  const fd = new FormData();
+  for (const f of files) fd.append("files", f);
+  const t = tokenStore.get();
+  const res = await fetch(`${API_BASE}/cms/sach/tep?mon=${mon}&khoi=${khoi}&tap=${tap}`,
+    { method: "POST", headers: t ? { Authorization: `Bearer ${t}` } : {}, body: fd });
+  if (!res.ok) {
+    let detail = `Lỗi ${res.status}`;
+    try { detail = (await res.json()).detail ?? detail; } catch { /* mặc định */ }
+    throw new ApiError(res.status, detail);
+  }
+  return res.json();
+}
+
+/** Gán số trang cho tệp đang chờ (so=null để bỏ tệp). */
+export function cmsGanSoTrang(mon: string, khoi: string, tap: number,
+                              ten: string, so: number | null): Promise<SoatSach> {
+  return req(`/cms/sach/tep/gan?mon=${mon}&khoi=${khoi}&tap=${tap}`,
+    { method: "POST", auth: true, body: { ten, so } });
+}
+
+/** Đọc thử vài trang — KHÔNG ghi kho. */
+export function cmsDocThuSach(mon: string, khoi: string, tap: number,
+                              trang: number[] = [], lam_lai = false): Promise<DocThu> {
+  return req(`/cms/sach/doc-thu?mon=${mon}&khoi=${khoi}&tap=${tap}`,
+    { method: "POST", auth: true, body: { trang, lam_lai } });
+}
+
+/** Nạp cả tập — tạo việc chạy nền. */
+export function cmsNapSach(mon: string, khoi: string, tap: number, sach: string):
+  Promise<BookJob> {
+  return req("/cms/sach/nap", { method: "POST", auth: true,
+    body: { mon, khoi, tap, sach } });
+}
+
+export function cmsJobSach(id: number): Promise<BookJob> {
+  return req(`/cms/sach/jobs/${id}`, { auth: true });
+}
+export function cmsDsJobSach(): Promise<{ jobs: BookJob[] }> {
+  return req("/cms/sach/jobs", { auth: true });
+}
+export function cmsLenhJobSach(id: number, lenh: "tam_dung" | "tiep" | "huy"): Promise<BookJob> {
+  return req(`/cms/sach/jobs/${id}/lenh`, { method: "POST", auth: true, body: { lenh } });
+}
+
+/** Các đơn vị TRÙNG TÊN trong danh mục + đề xuất giữ bản nào. */
+export function cmsDanhMucTrung(mon = "Toán", khoi = "Lớp 6"): Promise<DmTrung> {
+  return req(`/cms/danh-muc/trung?mon=${encodeURIComponent(mon)}&khoi=${encodeURIComponent(khoi)}`,
+    { auth: true });
+}
+
+/** Gộp các bản trùng về một đơn vị. */
+export function cmsGopDonVi(giu: number, bo: number[]):
+  Promise<{ giu: number; bo: number[]; da_doi: Record<string, number> }> {
+  return req("/cms/danh-muc/gop", { method: "POST", auth: true, body: { giu, bo } });
+}
+
+/** Sinh hình cho MỘT ví dụ. Bỏ trống prompt -> dùng mô tả AI đã đề xuất. */
+export function cmsSinhAnhViDu(topicId: number, chiSo: number, prompt = ""):
+  Promise<{ chi_so: number; anh: string; anh_xem: string }> {
+  return req(`/cms/topics/${topicId}/vi-du/${chiSo}/anh`,
+    { method: "POST", auth: true, body: { prompt } });
+}
+
+/** Upload hình cho MỘT ví dụ (chuyên gia tự chụp/scan/vẽ). */
+export async function cmsUploadAnhViDu(topicId: number, chiSo: number, file: File):
+  Promise<{ chi_so: number; anh: string; anh_xem: string }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const t = tokenStore.get();
+  const res = await fetch(`${API_BASE}/cms/topics/${topicId}/anh?vi_du=${chiSo}`,
+    { method: "POST", headers: t ? { Authorization: `Bearer ${t}` } : {}, body: fd });
+  if (!res.ok) {
+    let detail = `Lỗi ${res.status}`;
+    try { detail = (await res.json()).detail ?? detail; } catch { /* mặc định */ }
+    throw new ApiError(res.status, detail);
+  }
+  return res.json();
+}
+
+/** Xem thử phạm vi một node ôn tập (dùng chung endpoint với app học sinh). */
+export function cmsOnTap(pham_vi: string, gia_tri: string, mon = "Toán", khoi = "Lớp 6"):
+  Promise<OnTap> {
+  return req(`/on-tap?pham_vi=${pham_vi}&gia_tri=${encodeURIComponent(gia_tri)}`
+    + `&mon=${encodeURIComponent(mon)}&khoi=${encodeURIComponent(khoi)}`, { auth: true });
+}
+/** Nạp lại ma trận từ tệp .docx/.md — THAY toàn bộ ma trận của môn+lớp+kỳ. */
+export async function cmsNapMaTran(file: File, mon: string, khoi: string, hoc_ky: string):
+  Promise<{ so_dong: number; don_vi_moi: { topic_id: number; ten: string; mach: string }[] }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const t = tokenStore.get();
+  const q = `mon=${encodeURIComponent(mon)}&khoi=${encodeURIComponent(khoi)}&hoc_ky=${hoc_ky}`;
+  const res = await fetch(`${API_BASE}/cms/ma-tran/nap?${q}`,
+    { method: "POST", headers: t ? { Authorization: `Bearer ${t}` } : {}, body: fd });
   if (!res.ok) {
     let detail = `Lỗi ${res.status}`;
     try { detail = (await res.json()).detail ?? detail; } catch { /* mặc định */ }

@@ -20,6 +20,7 @@ function Media({ m }: { m: MinhHoa }) {
         <video className="img-poster" style={{ minHeight: 156 }} controls src={m.url}
           controlsList="nodownload noplaybackrate" disablePictureInPicture
           onContextMenu={(e) => e.preventDefault()} />
+        <figcaption>{cap}</figcaption>
       </figure>
     );
   }
@@ -38,6 +39,9 @@ function Media({ m }: { m: MinhHoa }) {
       ) : (
         <div className="img-poster" aria-hidden>🖼️</div>
       )}
+      {/* `cap` trước đây chỉ dùng cho alt — không ai đọc được nó. Mockup ghi rõ
+          caption nằm dưới mỗi thẻ media. */}
+      <figcaption>{cap}</figcaption>
     </figure>
   );
 }
@@ -148,7 +152,10 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
 
   const DeMuc = ({ p, kt }: { p: PhanBoCuc; kt?: boolean }) => (
     <h3 className={kt ? "kt" : undefined}>
-      <span className="hi">{p.em}</span> <span className="so-phan">{p.so}.</span> {p.ten}
+      {/* Badge "3/6" thay cho "3." — số thứ tự đơn thuần không cho biết còn mấy
+          mục nữa, mà đó là thứ học sinh cuộn dài muốn biết (mockup §thân bài). */}
+      <span className="hi">{p.em}</span> {p.ten}
+      <span className="so-phan tnum">{p.so}/{phanHien.length}</span>
       <NutHoi neo={p.id as Neo} nhan={p.ten} hoi={CAU_MO[p.id] ?? `Giải thích phần ${p.ten.toLowerCase()} giúp mình`} />
     </h3>
   );
@@ -169,7 +176,8 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
       if (!lesson.vi_du.length) return null;
       return (
         <>
-          <h3><span className="hi">{p.em}</span> <span className="so-phan">{p.so}.</span> {p.ten}</h3>
+          <h3><span className="hi">{p.em}</span> {p.ten}
+            <span className="so-phan tnum">{p.so}/{phanHien.length}</span></h3>
           {lesson.vi_du.map((e, i) => {
             const neo = `vi_du:${i + 1}` as Neo;
             return (
@@ -179,6 +187,11 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
                     <div className="q" dangerouslySetInnerHTML={{ __html: renderMath(e.de) }} />
                     <NutHoi neo={neo} nhan={`Ví dụ ${i + 1}`} hoi={cauMoViDu(i)} ngan />
                   </div>
+                  {/* Hình riêng của ví dụ: bài hình học không đọc được nếu thiếu.
+                      Nằm giữa đề và lời giải, đúng thứ tự HS cần nhìn. */}
+                  {e.anh && (
+                    <img className="vd-hinh" src={e.anh} alt={`Hình ví dụ ${i + 1}`} loading="lazy" />
+                  )}
                   <div className="a" dangerouslySetInnerHTML={{ __html: renderMath(e.giai) }} />
                 </div>
                 <The k={neo} />
@@ -208,7 +221,10 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
     return (
       <>
         <DeMuc p={p} />
-        <div dangerouslySetInnerHTML={{ __html: renderMath(html) }} />
+        {/* `.bd` để CSS bám được vào html chuyên gia soạn (bước Hoạt động, thẻ
+            bài Luyện tập). Trước đây div này không có class nào nên mọi rule
+            nhắm vào nội dung phần đều chết. */}
+        <div className="bd" dangerouslySetInnerHTML={{ __html: renderMath(html) }} />
         <The k={p.id} />
       </>
     );
@@ -263,7 +279,8 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
           Tự suy ở FE là số hiện cho học sinh lệch với bản chuyên gia đang soạn,
           và phần bị ẩn vẫn chiếm số. */}
       {phanHien.map((p) => (
-        <section id={`phan-${p.id}`} key={p.id}><PhanNoiDung p={p} /></section>
+        <section id={`phan-${p.id}`} className={`phan phan-${p.id}`} key={p.id}>
+          <PhanNoiDung p={p} /></section>
       ))}
 
       {/* Hướng dẫn giảng dạy (GV) */}
@@ -280,14 +297,14 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
           Đặt TRƯỚC bài kiểm tra: gỡ rối xong mới thi. Trước đây chip gợi ý nằm
           dưới bài kiểm tra, hoá ra hỏi "chưa rõ chỗ nào?" sau khi các em đã nộp. */}
       <div className="suggest">
-        <div className="s-label">✨ Chưa rõ chỗ nào trong bài <b>{lesson.dv}</b>? Hỏi thử:</div>
-        <div className="chips">
-          {SUGGESTS.map((q) => (
-            <button className="chip" type="button" key={q}
-              onClick={() => moThe("toan_bai", { neo: null, nhan: "Toàn bài", hoi: q })}>💬 {q}</button>
-          ))}
-        </div>
-        <The k="toan_bai" />
+        <div className="s-label">✨ Chưa rõ chỗ nào trong bài <b>{lesson.dv}</b>?</div>
+        {/* Hộp chat LUÔN MỞ, gợi ý nằm bên trong. Trước đây chỉ có 3 chip: bấm
+            chip mới hiện hộp, nên em nào muốn hỏi câu của riêng mình thì không
+            thấy chỗ gõ. Cố ý KHÔNG truyền `hoiDau` — mở bài là gửi câu hỏi luôn
+            thì mỗi lần vào bài mất một lượt hỏi trong ngày. */}
+        <TroLyCard topicId={lesson.topic_id} anchor={null} nhan="Bài này"
+          goiY={SUGGESTS} khongDong moiNhap="Hỏi trợ lý về bài này…"
+          onDong={() => { /* hộp luôn mở */ }} />
       </div>
 
       <div className="divider" />

@@ -175,7 +175,10 @@ export function Dashboard({ name, role, onLogout }: {
             </>
           )}
 
-          {view === "content" && (
+          {/* Bộ lọc Lớp/Môn/Học kỳ dùng chung cho MỌI trang phụ thuộc môn+lớp.
+              Trước đây chỉ hiện ở trang Nội dung, nên Quản lý danh mục và Ma trận
+              lấy giá trị lần chọn cuối mà người dùng không thấy đang lọc theo gì. */}
+          {(view === "content" || view === "catalog" || view === "matrix") && (
             <div className="catalog-bar">
               <label>Lớp
                 <select value={khoi} onChange={(e) => setKhoi(e.target.value)}>
@@ -223,8 +226,8 @@ export function Dashboard({ name, role, onLogout }: {
           )}
 
           {view === "users" && <UsersView users={users} search={search} onPatch={patchUser} onCreated={loadUsers} />}
-          {view === "ingest" && <KhoSgkView />}
-          {view === "catalog" && <DanhMucView mon={mon} khoi={khoi}
+          {view === "ingest" && <KhoSgkView toast={toast} />}
+          {view === "catalog" && <DanhMucView mon={mon} khoi={khoi} toast={toast}
             onSua={(id) => setDrawer({ topicId: id, mode: "edit" })} />}
           {view === "matrix" && <MaTranView mon={mon} khoi={khoi}
             onSua={(id) => setDrawer({ topicId: id, mode: "edit" })} />}

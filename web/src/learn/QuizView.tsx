@@ -20,7 +20,7 @@ function nhacCauSai(q: QuizQuestion, chon: number, dapAn: number, giai: string):
   return `<p>${daChon} ${dung}</p>` + (giai ? `<p>${renderMath(giai)}</p>` : "");
 }
 
-/** Bài kiểm tra nhanh (trắc nghiệm) — chấm ở server, cập nhật tiến độ + XP.
+/** Bài kiểm tra nhanh (trắc nghiệm) — chấm ở server, cập nhật tiến độ.
  *  Style theo ex-card của mockup student-app. */
 export function QuizView({ topicId, quiz, onGraded, phanHien, onDocLai, onHoiPhan }: {
   topicId: number; quiz: QuizQuestion[]; onGraded?: (r: QuizResult) => void;
@@ -153,7 +153,10 @@ export function QuizView({ topicId, quiz, onGraded, phanHien, onDocLai, onHoiPha
         ) : (
           <>
             <span className={"ex-fb " + (res.dat_yeu_cau ? "ok" : "no")}>
-              {res.diem}/{res.tong} câu đúng {res.dat_yeu_cau ? "· 🎉 Đạt yêu cầu! +" + (res.diem * 5 + 10) + " XP" : "· cần ≥70%"}
+              {/* Không hiện "+N XP" nữa: XP đã bỏ khỏi giao diện học sinh. Bỏ luôn
+                  công thức `diem*5+10` — nó nhân bản cách tính của server, sửa
+                  một bên là hai bên lệch mà không ai biết. */}
+              {res.diem}/{res.tong} câu đúng {res.dat_yeu_cau ? "· 🎉 Đạt yêu cầu!" : "· cần ≥70%"}
             </span>
             <button className="btn" type="button" onClick={retry}>Làm lại</button>
           </>
