@@ -6,7 +6,8 @@
 #   ./deploy.sh migrate             # alembic upgrade head (RDS)
 #   ./deploy.sh ingest --tap 1 --sach cung_kham_pha_tap_1 --pages 5-8
 #   ./deploy.sh seed-matrix                     # nạp ma trận đặc tả
-#   ./deploy.sh seed --media                    # soạn lại nội dung bằng AI
+#   ./deploy.sh seed --phan --media              # soạn nội dung đủ 7 mục
+#   ./deploy.sh phan-status --thieu              # còn thiếu mục nào
 #   ./deploy.sh video-up            # bật worker render video (queue 'video')
 #   ./deploy.sh pregen-video        # dựng sẵn video cho các khái niệm (inline)
 #   ./deploy.sh requeue-video       # cứu job video mồ côi sau khi sửa REDIS_URL
@@ -47,6 +48,8 @@ case "$cmd" in
                $DC run --rm worker python -m app.seed_matrix "$@" ;;
   seed)        # soạn nháp nội dung bài học bằng AI (idempotent, bỏ qua bài đã có)
                $DC run --rm worker python -m app.seed_all_lessons "$@" ;;
+  phan-status) # còn thiếu mục nào ở bài nào (chạy sau mỗi lượt seed)
+               $DC run --rm --no-deps worker python -m app.bao_cao_phan "$@" ;;
 
   video-up)    # worker render video on-demand (queue 'video')
                $DC up -d --build video ;;
@@ -73,6 +76,7 @@ deploy.sh — lệnh vận hành server dev
   migrate                 alembic upgrade head (chạy trên RDS qua container api)
   ingest <cli args...>    nạp SGK -> Qdrant (vd: ingest --tap 1 --sach cung_kham_pha_tap_1 --pages 5-8)
   seed-matrix [args]      nạp ma trận đặc tả (yêu cầu cần đạt) + ánh xạ đơn vị
+  phan-status [--thieu]   độ phủ 7 mục: bài nào thiếu mục nào, đã xuất bản chưa
   seed [args]             soạn nội dung bài học bằng AI. KHÔNG cờ = chỉ 2/7 mục!
                             --phan    + Khởi động/Hoạt động/Luyện tập/Bài tập
                             --media   + ảnh minh hoạ, đặt hàng video
