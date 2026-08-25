@@ -67,6 +67,16 @@ async def _sinh_media(session, topic, draft, cu_minh_hoa: list[dict]) -> tuple[l
 _PHAN_THEM = ("khoi_dong", "hoat_dong", "luyen_tap", "bai_tap")
 
 
+def _thieu_phan(c: TopicContent) -> bool:
+    """Còn phần nào trong 4 phần chưa có nội dung?"""
+    return any(not (getattr(c, bo_cuc_svc.cot_cua(pid), "") or "").strip()
+               for pid in _PHAN_THEM)
+
+
+def _thieu_media(c: TopicContent) -> bool:
+    return not json.loads(c.minh_hoa_json or "[]")
+
+
 async def _soan_phan_them(session, topic, c, force: bool) -> tuple[int, list[str]]:
     """Soạn 4 phần còn lại. Bỏ qua phần đã có nội dung (trừ khi --force)."""
     xong, loi = 0, []
@@ -108,10 +118,23 @@ async def seed(*, mon: str, khoi: str, publish: bool, force: bool, media: bool,
         ids = {t.id for t in topics}
         cu = {c.topic_id: c for c in await session.scalars(
             select(TopicContent).where(TopicContent.topic_id.in_(ids or {0})))}
-        todo = topics if force else [t for t in topics if t.id not in cu]
-        ghi_de = sum(1 for t in todo if t.id in cu)
-        print(f"Tổng {len(topics)} đơn vị · đã có nội dung {len(cu)} · sẽ soạn {len(todo)} "
-              f"(trạng thái đơn vị mới: {trang_thai})")
+        # Chọn việc theo TỪNG MẢNH còn thiếu, không phải "đã có bản ghi thì bỏ
+        # qua". Cửa lọc cũ loại mọi đơn vị đã có TopicContent, nên `--phan` trên
+        # bộ nội dung đã soạn chạy ra 0 đơn vị — đúng ca dùng thật trên server:
+        # 21 bài đều có Kiến thức + Ví dụ, chỉ thiếu 4 phần kia.
+        todo, viec = [], {}
+        for t in topics:
+            c = cu.get(t.id)
+            can_chu = c is None or force            # ingest_draft + quiz (tầng mạnh)
+            can_phan = phan and (force or c is None or _thieu_phan(c))
+            can_media = media and (force or c is None or _thieu_media(c))
+            if can_chu or can_phan or can_media:
+                todo.append(t)
+                viec[t.id] = (can_chu, can_phan, can_media)
+        n_chu = sum(1 for v in viec.values() if v[0])
+        print(f"Tổng {len(topics)} đơn vị · đã có nội dung {len(cu)} · sẽ xử {len(todo)} "
+              f"(soạn lại chữ: {n_chu} · bổ sung phần/media: {len(todo) - n_chu})")
+        ghi_de = sum(1 for t in todo if t.id in cu and viec[t.id][0])
         if ghi_de:
             print(f"⚠️  --force: GHI ĐÈ khái niệm/ví dụ/quiz của {ghi_de} đơn vị đã có "
                   "— mất phần chuyên gia chỉnh tay. Giữ lại minh hoạ"
@@ -120,33 +143,45 @@ async def seed(*, mon: str, khoi: str, publish: bool, force: bool, media: bool,
         ok = fail = 0
         for i, t in enumerate(todo, 1):
             label = f"[{i}/{len(todo)}] {t.don_vi_kien_thuc[:52]}"
+            can_chu, can_phan, can_media = viec[t.id]
             try:
-                draft = await ingest_svc.ingest_draft(session, t.id)
-                try:
-                    quiz = await quiz_svc.generate_quiz(session, t.id)
-                except LLMUnavailable:
-                    quiz = []
                 c = cu.get(t.id)
                 if c is None:
                     c = TopicContent(topic_id=t.id, minh_hoa_json="[]", trang_thai=trang_thai)
                     session.add(c)
                 elif publish:
                     c.trang_thai = "published"   # --publish là yêu cầu tường minh
-                c.khai_niem = draft.get("khai_niem", "")
-                c.vi_du_json = json.dumps(draft.get("vi_du", []), ensure_ascii=False)
-                c.quiz_json = json.dumps(quiz, ensure_ascii=False)
-                # Cờ AI là cột riêng — KHÔNG nhét chuỗi đánh dấu vào `nguon` nữa,
-                # ô đó dành cho tư liệu chuyên gia dán vào.
-                c.ai_soan = True
+
+                draft = {"khai_niem": "", "vi_du": [], "anh": [], "video": None, "mon": None}
+                if can_chu:
+                    draft = await ingest_svc.ingest_draft(session, t.id)
+                    try:
+                        quiz = await quiz_svc.generate_quiz(session, t.id)
+                    except LLMUnavailable:
+                        quiz = []
+                    c.khai_niem = draft.get("khai_niem", "")
+                    c.vi_du_json = json.dumps(draft.get("vi_du", []), ensure_ascii=False)
+                    c.quiz_json = json.dumps(quiz, ensure_ascii=False)
+                    # Cờ AI là cột riêng — KHÔNG nhét chuỗi đánh dấu vào `nguon`
+                    # nữa, ô đó dành cho tư liệu chuyên gia dán vào.
+                    c.ai_soan = True
+                else:
+                    quiz = json.loads(c.quiz_json or "[]")
                 so_phan, loi_phan = 0, []
-                if phan:
+                if can_phan:
                     # flush trước: `soan_phan` đọc lại `khai_niem` từ DB để phần
                     # Luyện tập bám đúng lý thuyết vừa soạn, không phải kiến thức
                     # chung chung của mô hình.
                     await session.flush()
                     so_phan, loi_phan = await _soan_phan_them(session, t, c, force)
                 loi_media: list[str] = []
-                if media:
+                if can_media:
+                    if not draft["anh"] and draft["video"] is None:
+                        # Bài đã có chữ -> chỉ cần ĐỀ XUẤT media (tầng rẻ), không
+                        # gọi lại ingest_draft (tầng mạnh) cho thứ đã có.
+                        draft = {**draft, **await ingest_svc.goi_y_media(
+                            t.don_vi_kien_thuc or "", t.mach_noi_dung or "",
+                            bo_cuc_svc.noi_dung(c, "kien_thuc") or c.khai_niem or "")}
                     mh, loi_media = await _sinh_media(
                         session, t, draft, json.loads(c.minh_hoa_json or "[]"))
                     c.minh_hoa_json = json.dumps(mh, ensure_ascii=False)
@@ -154,9 +189,13 @@ async def seed(*, mon: str, khoi: str, publish: bool, force: bool, media: bool,
                 for m_ in loi_media + loi_phan:
                     print(f"    ⚠️  {m_}")
                 ok += 1
-                print(f"  ✓ {label} — khái niệm {'có' if draft.get('khai_niem') else 'trống'}, "
-                      f"{len(draft.get('vi_du', []))} ví dụ, {len(quiz)} câu quiz"
-                      + (f", +{so_phan} phần" if phan else "")
+                mo_ta = (f"khái niệm {'có' if draft.get('khai_niem') else 'trống'}, "
+                         f"{len(draft.get('vi_du', []))} ví dụ, {len(quiz)} câu quiz"
+                         if can_chu else "giữ chữ đã có")
+                print(f"  ✓ {label} — {mo_ta}"
+                      + (f", +{so_phan} phần" if can_phan else "")
+                      + (f", +{len(json.loads(c.minh_hoa_json or '[]'))} minh hoạ"
+                         if can_media else "")
                       + (" · bám SGK" if not draft.get("thieu_sgk") else " · ⚠️ KHÔNG bám SGK"))
             except LLMUnavailable:
                 await session.rollback()
