@@ -54,6 +54,15 @@ async function req<T>(
     }
     throw new ApiError(res.status, detail);
   }
+  // Route KHÔNG được proxy về API sẽ trả index.html của SPA với status 200:
+  // `res.ok` là true, rồi `res.json()` nổ SyntaxError thô nên người dùng chỉ
+  // thấy "không tải được" mà không có gì để lần. Nói thẳng ra bệnh.
+  const kieu = res.headers.get("content-type") ?? "";
+  if (res.status !== 204 && !kieu.includes("json")) {
+    throw new ApiError(res.status,
+      `Máy chủ trả ${kieu || "nội dung không phải JSON"} cho ${path} — `
+      + "route này chưa được proxy về API (kiểm nginx / vite proxy).");
+  }
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
 

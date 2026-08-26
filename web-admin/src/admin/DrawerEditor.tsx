@@ -39,6 +39,14 @@ function completeness(d: Draft, quiz: CmsQuiz[]): number {
   return [!!d.khai_niem.trim(), d.minh_hoa.length > 0, d.vi_du.length > 0, quiz.length > 0].filter(Boolean).length;
 }
 
+/** Ẩn khu "Hướng dẫn giảng dạy" trong trình soạn nội dung.
+ *
+ *  CHỈ ẩn ô nhập: `day` vẫn được nạp vào draft và gửi lại nguyên vẹn khi Lưu
+ *  (xem `_draft()` và payload ở `luu()`), nên nội dung đã soạn KHÔNG mất và
+ *  phần này vẫn hiện cho giáo viên ở app học (LessonView).
+ *  Bật lại: đổi thành `true`. */
+const HIEN_HUONG_DAN = false;
+
 export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
   topicId: number; initMode: "edit" | "preview";
   onClose: () => void; onSaved: () => void; toast: (m: string) => void;
@@ -272,13 +280,15 @@ export function DrawerEditor({ topicId, initMode, onClose, onSaved, toast }: {
                     {busy === "nhac" ? "✨ Đang sinh…" : (nhac.length ? "🔄 Sinh lại lời nhắc" : "✨ Sinh lời nhắc")}
                   </button>
                 </div>
-                {/* 5 Hướng dẫn dạy */}
+                {/* 5 Hướng dẫn dạy — ĐANG ẨN, xem HIEN_HUONG_DAN ở đầu file */}
+                {HIEN_HUONG_DAN && (
                 <div className="esec">
                   <div className="esec-h"><span className="n">🎓</span> Hướng dẫn giảng dạy</div>
                   <textarea value={d.day.muc_tieu} placeholder="Mục tiêu" style={{ minHeight: 52 }} onChange={(e) => patch({ day: { ...d.day, muc_tieu: e.target.value } })} />
                   <input type="text" value={d.day.thoi_luong} placeholder="Thời lượng (vd 1 tiết)" style={{ marginTop: 8 }} onChange={(e) => patch({ day: { ...d.day, thoi_luong: e.target.value } })} />
                   <textarea value={d.day.luu_y} placeholder="Lỗi thường gặp / lưu ý" style={{ minHeight: 52, marginTop: 8 }} onChange={(e) => patch({ day: { ...d.day, luu_y: e.target.value } })} />
                 </div>
+                )}
               </>
             ) : (
               <div className="pv">

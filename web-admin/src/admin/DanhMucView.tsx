@@ -29,6 +29,13 @@ export function DanhMucView({ mon, khoi, onSua, toast }: {
 
   const xemOnTap = async (pham_vi: string, gia_tri: string) => {
     const k = `${pham_vi}:${gia_tri}`;
+    // Không gọi với giá trị rỗng: server sẽ 400, mà lỗi thật là dữ liệu danh mục
+    // thiếu tên mạch/học kỳ — nói đúng chỗ đó.
+    if (!gia_tri.trim()) {
+      setMo(k);
+      setOt((o) => ({ ...o, [k]: { loi: "Mạch/học kỳ này chưa có tên trong danh mục." } }));
+      return;
+    }
     setMo(mo === k ? null : k);
     if (ot[k] || mo === k) return;
     setOt((o) => ({ ...o, [k]: "dang" }));

@@ -552,6 +552,11 @@ async def on_tap(
     """
     if pham_vi not in _SO_CAU_ON:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, 'pham_vi phải là "mach" hoặc "hoc_ky"')
+    # `gia_tri` rỗng từng đi tới đây rồi rơi vào 404 "phạm vi không có đơn vị nào"
+    # — đọc vào tưởng dữ liệu thiếu, trong khi lỗi là client gửi tham số rỗng.
+    if not (gia_tri or "").strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Thiếu `gia_tri` (tên mạch hoặc hk1/hk2)")
     subject = await session.scalar(select(Subject).filter_by(name=mon))
     grade = await session.scalar(select(Grade).filter_by(name=khoi))
     if subject is None or grade is None:
@@ -626,6 +631,11 @@ async def _topics_pham_vi(session: AsyncSession, pham_vi: str, gia_tri: str,
                           mon: str, khoi: str) -> list[CurriculumTopic]:
     if pham_vi not in _SO_CAU_ON:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, 'pham_vi phải là "mach" hoặc "hoc_ky"')
+    # `gia_tri` rỗng từng đi tới đây rồi rơi vào 404 "phạm vi không có đơn vị nào"
+    # — đọc vào tưởng dữ liệu thiếu, trong khi lỗi là client gửi tham số rỗng.
+    if not (gia_tri or "").strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "Thiếu `gia_tri` (tên mạch hoặc hk1/hk2)")
     subject = await session.scalar(select(Subject).filter_by(name=mon))
     grade = await session.scalar(select(Grade).filter_by(name=khoi))
     if subject is None or grade is None:

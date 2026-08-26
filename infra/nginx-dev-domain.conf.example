@@ -1,5 +1,5 @@
 # Nginx reverse proxy trên HOST (Ubuntu) cho server dev — 1 domain, cùng origin.
-#   - /auth /chat /sessions /books /exam /video /itest /health  -> container api (127.0.0.1:8000)
+#   - các tiền tố API (xem location bên dưới)                   -> container api (127.0.0.1:8000)
 #   - còn lại (SPA + asset)                                       -> container web (127.0.0.1:8080)
 # Cùng origin nên KHÔNG dính CORS. WebSocket /video/ws/* được nâng cấp (Upgrade).
 #
@@ -22,7 +22,14 @@ server {
     client_max_body_size 20m;
 
     # API + WebSocket -> container api. Khớp các tiền tố route của backend.
-    location ~ ^/(auth|chat|sessions|books|exam|video|itest|health)(/|$) {
+    #
+    # DANH SÁCH NÀY PHẢI KHỚP CODE. Thiếu một tiền tố thì request rơi xuống
+    # `location /` -> nginx trả index.html của SPA, client parse HTML thành JSON
+    # và báo "Không gọi được máy chủ" — không có mã HTTP nào để lần.
+    # Đã mất một lần với `/on-tap` (ôn tập chương + học kỳ) trên server.
+    # `tests/infra/test_duong_dan_api.py` so danh sách này với router thật, thêm
+    # router mà quên sửa đây là test đỏ.
+    location ~ ^/(admin|auth|cms|curriculum|health|lessons|me|on-tap|progress|quiz|tutor|video)(/|$) {
         proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
         proxy_set_header Host              $host;

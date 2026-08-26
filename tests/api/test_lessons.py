@@ -258,3 +258,17 @@ async def test_stats_khong_co_ma_tran_thi_ycd_bang_0_khong_no(client, session):
     await session.commit()
     b = (await client.get(f"/me/stats?mon={mon}&khoi={khoi}", headers=h)).json()
     assert b["ycd_tong"] == 0 and b["ycd_phan_tram"] == 0
+
+
+async def test_on_tap_gia_tri_rong_bao_400_ro_rang(client, session):
+    """`gia_tri` rỗng từng rơi vào 404 "phạm vi không có đơn vị nào" — đọc vào
+    tưởng thiếu dữ liệu, trong khi lỗi là client gửi tham số rỗng."""
+    h = await _auth(client)
+    for pv in ("mach", "hoc_ky"):
+        for ep in ("/on-tap", "/on-tap/de"):
+            r = await client.get(f"{ep}?pham_vi={pv}&gia_tri=", headers=h)
+            assert r.status_code == 400, f"{ep} {pv}: {r.status_code}"
+            assert "gia_tri" in r.json()["detail"]
+    r2 = await client.post("/on-tap/submit", headers=h, json={
+        "pham_vi": "mach", "gia_tri": "   ", "answers": []})
+    assert r2.status_code == 400
