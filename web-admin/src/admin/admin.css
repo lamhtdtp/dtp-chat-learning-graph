@@ -671,3 +671,13 @@
 .admin .kq-mo{color:var(--ink-3)}
 .admin .kq-ghi{font-size:12px;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--border);
   border-radius:var(--r-sm);padding:9px 12px;margin-bottom:13px}
+/* Biểu đồ thời gian học trong drawer kết quả */
+.admin .kq-bd{margin:0 0 16px}
+.admin .kq-bd-nhan{font-size:11.5px;font-weight:700;color:var(--ink-2);margin-bottom:6px}
+.admin .kq-bd-nhan span{font-weight:500;color:var(--ink-3)}
+.admin .kq-bd-khung{display:flex;align-items:flex-end;gap:4px;height:64px;padding:8px 10px;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm)}
+.admin .kq-bd-cot{flex:1;display:flex;align-items:flex-end;justify-content:center;height:100%}
+.admin .kq-bd-cot i{display:block;width:100%;max-width:16px;border-radius:3px 3px 0 0;background:var(--primary)}
+.admin .kq-bd-cot i.nay{background:var(--ai)}
+.admin .kq-bd-cot i.khong{background:var(--ink-3);opacity:.4;border-radius:2px}

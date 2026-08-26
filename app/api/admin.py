@@ -19,8 +19,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import security
 from app.api.deps import get_current_user
-from app.db.models import CurriculumTopic, QuizAttempt, StudentProgress, TopicContent, User
+from app.db.models import (CurriculumTopic, QuizAttempt, StudentProgress, StudySession,
+                           TopicContent, User)
 from app.db.session import get_session
+from app.lessons import phien as phien_svc
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -168,6 +170,19 @@ async def student_result(
     # hiển thị. Trước đây suy từ các lượt quiz nên bài học sinh bấm "Đã hoàn
     # thành" (không làm quiz) KHÔNG hề xuất hiện ở đây: giáo viên mở CMS ra thấy
     # trống và tưởng em chưa học.
+    # Thời gian học: DÙNG LẠI service của phía học sinh (`/me/thoi-gian`) để hai
+    # bên không bao giờ lệch số — giáo viên và học sinh phải thấy cùng con số.
+    tg = await phien_svc.thoi_gian(session, user_id, 14)
+    # Thời gian + số phiên theo TỪNG đơn vị, để biết em dừng lại ở bài nào lâu nhất.
+    phien_rows = (await session.execute(
+        select(StudySession.topic_id, func.coalesce(func.sum(StudySession.so_giay), 0),
+               func.count(), func.max(StudySession.dong_luc))
+        .where(StudySession.user_id == user_id)
+        .group_by(StudySession.topic_id))).all()
+    phut_dv = {tid: round(int(g) / 60) for tid, g, _, _ in phien_rows}
+    so_phien_dv = {tid: int(n) for tid, _, n, _ in phien_rows}
+    lan_cuoi_dv = {tid: luc for tid, _, _, luc in phien_rows}
+
     prog_rows = (await session.execute(
         select(StudentProgress, CurriculumTopic.don_vi_kien_thuc,
                CurriculumTopic.mach_noi_dung)
@@ -182,11 +197,24 @@ async def student_result(
             "topic_id": topic_id, "ten": (ten or "").strip(), "mach": (mach or "").strip(),
             "trang_thai": trang_thai.get(topic_id, "chua"),
             "so_lan": 0, "so_lan_on_tap": 0, "tot_nhat": None, "gan_nhat": None,
+            "phut": phut_dv.get(topic_id, 0),
+            "so_phien": so_phien_dv.get(topic_id, 0),
+            "lan_cuoi": (lan_cuoi_dv[topic_id].isoformat()
+                         if lan_cuoi_dv.get(topic_id) else None),
         })
 
     # Mọi đơn vị HS đã có trạng thái, kể cả chưa làm quiz lần nào.
     for p, dv, mach in prog_rows:
         _o(p.topic_id, dv, mach)
+    # ...và đơn vị em ĐÃ MỞ ĐỌC nhưng chưa có tiến độ/lượt làm nào: có thời gian
+    # học mà không hiện ở đâu thì giáo viên không biết em đang mắc ở bài nào.
+    if phut_dv:
+        ten_dv = {t.id: t for t in await session.scalars(
+            select(CurriculumTopic).where(CurriculumTopic.id.in_(phut_dv.keys())))}
+        for tid in phut_dv:
+            t = ten_dv.get(tid)
+            if t is not None:
+                _o(tid, t.don_vi_kien_thuc, t.mach_noi_dung)
     for x in lan:
         g = _o(x["topic_id"], x["ten"], x["mach"])
         if x["nguon"] == "on_tap":
@@ -202,6 +230,7 @@ async def student_result(
         # Khớp con số phía học sinh nhìn thấy trên vòng tiến độ.
         "so_dat": sum(1 for t in trang_thai.values() if t == "dat"),
         "so_dang": sum(1 for t in trang_thai.values() if t == "dang"),
+        "thoi_gian": tg,
         "tong_lan": len(nhanh),
         "tong_lan_on_tap": len(lan) - len(nhanh),
         "so_lan_dat": sum(1 for x in nhanh if x["dat"]),
@@ -210,7 +239,7 @@ async def student_result(
         # yếu ở đâu, không phải tìm ai làm nhiều nhất.
         "theo_don_vi": sorted(theo_dv.values(),
                               key=lambda g: ({"dat": 0, "dang": 1, "chua": 2}[g["trang_thai"]],
-                                             -g["so_lan"])),
+                                             -g["so_lan"], -g["phut"])),
         "lan": lan[:50],   # đủ để xem lại, không đổ cả nghìn dòng về client
     }
 

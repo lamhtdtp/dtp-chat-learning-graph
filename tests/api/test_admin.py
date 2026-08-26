@@ -254,3 +254,52 @@ async def test_result_khop_voi_phia_hoc_sinh_va_tach_luot_on_tap(client, session
     assert dv["Bài có làm quiz"]["tot_nhat"] == 100 and dv["Bài có làm quiz"]["so_lan"] == 1
     # Từng lần nộp mang nhãn nguồn để giao diện phân biệt được
     assert {x["nguon"] for x in b["lan"]} == {"nhanh", "on_tap"}
+
+
+async def test_result_co_thoi_gian_hoc_khop_phia_hoc_sinh(client, session):
+    """CMS phải nói CÙNG con số thời gian với /me/thoi-gian mà học sinh thấy."""
+    import json as _j
+    from datetime import datetime, timedelta
+
+    from app.db.models import (CurriculumTopic, Grade, StudentProgress, StudySession,
+                               Subject)
+
+    ad, _ = await _make_admin(client, session)
+    email_hs, h_hs = await _reg(client)
+    hs = await session.scalar(select(User).where(User.email == email_hs))
+    subj = Subject(name=f"M-{uuid.uuid4().hex[:6]}"); gr = Grade(name=f"K-{uuid.uuid4().hex[:6]}")
+    session.add_all([subj, gr]); await session.flush()
+    t1 = CurriculumTopic(subject_id=subj.id, grade_id=gr.id, mach_noi_dung="M",
+                         don_vi_kien_thuc="Bài có tiến độ", order_index=0)
+    t2 = CurriculumTopic(subject_id=subj.id, grade_id=gr.id, mach_noi_dung="M",
+                         don_vi_kien_thuc="Bài chỉ đọc, chưa có tiến độ", order_index=1)
+    session.add_all([t1, t2]); await session.flush()
+    t1id, t2id, hsid = t1.id, t2.id, hs.id
+    now = datetime.now()
+    session.add_all([
+        StudentProgress(user_id=hsid, topic_id=t1id, trang_thai="dat"),
+        StudySession(user_id=hsid, topic_id=t1id, mo_luc=now - timedelta(minutes=30),
+                     dong_luc=now - timedelta(minutes=5), so_giay=25 * 60,
+                     phan_doc_json=_j.dumps(["kien_thuc"])),
+        # đơn vị chỉ MỞ ĐỌC, chưa có tiến độ/lượt làm nào
+        StudySession(user_id=hsid, topic_id=t2id, mo_luc=now - timedelta(minutes=20),
+                     dong_luc=now - timedelta(minutes=12), so_giay=8 * 60,
+                     phan_doc_json="[]"),
+    ])
+    await session.commit()
+
+    b = (await client.get(f"/admin/users/{hsid}/result", headers=ad)).json()
+    hs_thay = (await client.get("/me/thoi-gian", headers=h_hs)).json()
+
+    # Cùng service -> cùng số
+    assert b["thoi_gian"]["tong_phut"] == hs_thay["tong_phut"] == 33
+    assert b["thoi_gian"]["so_phien"] == hs_thay["so_phien"] == 2
+    assert len(b["thoi_gian"]["bieu_do"]) == 14
+
+    dv = {g["ten"]: g for g in b["theo_don_vi"]}
+    assert dv["Bài có tiến độ"]["phut"] == 25 and dv["Bài có tiến độ"]["so_phien"] == 1
+    # Đơn vị chỉ mở đọc VẪN phải hiện — có thời gian học mà không thấy ở đâu thì
+    # giáo viên không biết em đang mắc ở bài nào.
+    assert dv["Bài chỉ đọc, chưa có tiến độ"]["phut"] == 8
+    assert dv["Bài chỉ đọc, chưa có tiến độ"]["trang_thai"] == "chua"
+    assert dv["Bài có tiến độ"]["lan_cuoi"]

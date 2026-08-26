@@ -116,13 +116,6 @@ export function OnTapView({ phamVi, giaTri, ten, onMoBai, onDong }: {
 
       {!de && (
         <div className="ot-mo">
-          <p>Đề gom từ chính bài kiểm tra nhanh của {d.so_bai_co_de}/{d.so_bai} bài trên
-            — bám ma trận đặc tả, không sinh câu mới.</p>
-          {/* Nói rõ khi chưa gom đủ chỉ tiêu: hứa 12 câu rồi đưa 8 là nói sai. */}
-          {d.so_cau_de > 0 && d.so_cau_de < d.so_cau_toi_da && (
-            <p className="ot-it">Mới gom được {d.so_cau_de}/{d.so_cau_toi_da} câu vì
-              {" "}{d.so_bai - d.so_bai_co_de} bài chưa có bài kiểm tra nhanh.</p>
-          )}
           {loiDe && <div className="ot-loi">⚠️ {loiDe}</div>}
           {d.so_cau_de === 0
             ? <div className="ot-loi">Chưa bài nào trong mạch này có bài kiểm tra nhanh,

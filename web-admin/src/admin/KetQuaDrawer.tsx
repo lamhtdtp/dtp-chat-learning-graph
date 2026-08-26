@@ -2,6 +2,15 @@ import { useEffect, useState } from "react";
 import { ApiError, adminKetQua, tokenStore } from "../api";
 import type { KetQuaHocSinh } from "../types";
 
+/** Phút -> "3g 50p". "230p" bắt người đọc tự chia 60 trong đầu. */
+function gio(phut: number): string {
+  if (!phut) return "—";
+  if (phut < 60) return `${phut} phút`;
+  const g = Math.floor(phut / 60);
+  const p = phut % 60;
+  return p ? `${g}g ${p}p` : `${g} giờ`;
+}
+
 const TT_PILL: Record<string, [string, string]> = {
   dat: ["p-xong", "Đạt"], dang: ["p-duyet", "Đang học"], chua: ["p-nhap", "Chưa học"],
 };
@@ -58,7 +67,34 @@ export function KetQuaDrawer({ userId, onClose }: { userId: number; onClose: () 
                 <div className="kq-o"><b className="tnum">{d.so_dang}</b><span>đang học</span></div>
                 <div className="kq-o"><b className="tnum">{d.tong_lan}</b><span>lần kiểm tra</span></div>
                 <div className="kq-o"><b className="tnum">{d.diem_tb}%</b><span>đúng trung bình</span></div>
+                {/* Thời gian học: cùng service với /me/thoi-gian nên khớp đúng con
+                    số học sinh thấy ở Hồ sơ học tập. */}
+                <div className="kq-o"><b className="tnum">{gio(d.thoi_gian.tong_phut)}</b>
+                  <span>tổng thời gian</span></div>
+                <div className="kq-o"><b className="tnum">{gio(d.thoi_gian.bay_ngay_phut)}</b>
+                  <span>7 ngày qua</span></div>
               </div>
+              {/* Biểu đồ 14 ngày — thấy ngay em học đều hay học dồn. */}
+              {d.thoi_gian.bieu_do.some((b) => b.phut > 0) && (
+                <div className="kq-bd">
+                  <div className="kq-bd-nhan">14 ngày gần đây
+                    <span> · {d.thoi_gian.so_phien} phiên học
+                      · mục tiêu {d.thoi_gian.muc_tieu_phut} phút/ngày</span></div>
+                  <div className="kq-bd-khung">
+                    {(() => {
+                      const dinh = Math.max(Math.round(d.thoi_gian.muc_tieu_phut * 1.25),
+                        ...d.thoi_gian.bieu_do.map((b) => b.phut), 1);
+                      return d.thoi_gian.bieu_do.map((b) => (
+                        <div className="kq-bd-cot" key={b.ngay}
+                          title={`${b.ngay}: ${b.phut} phút`}>
+                          <i className={(b.hom_nay ? "nay " : "") + (b.phut === 0 ? "khong" : "")}
+                            style={{ height: b.phut === 0 ? 4 : `${Math.max(6, (b.phut / dinh) * 100)}%` }} />
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
               {d.tong_lan_on_tap > 0 && (
                 <div className="kq-ghi">Ngoài ra có {d.tong_lan_on_tap} câu từ đề
                   {" "}<b>ôn tập cả mạch</b> — không tính vào điểm trung bình của từng bài.</div>
@@ -67,13 +103,15 @@ export function KetQuaDrawer({ userId, onClose }: { userId: number; onClose: () 
               <div className="esec">
                 <div className="esec-h"><span className="n">📊</span> Theo đơn vị kiến thức</div>
                 <table>
-                  <thead><tr><th>Đơn vị</th><th>Trạng thái</th><th className="tnum">Số lần</th><th className="tnum">Tốt nhất</th><th className="tnum">Gần nhất</th></tr></thead>
+                  <thead><tr><th>Đơn vị</th><th>Trạng thái</th><th className="tnum">Thời gian</th><th className="tnum">Số lần</th><th className="tnum">Tốt nhất</th><th className="tnum">Gần nhất</th></tr></thead>
                   <tbody>
                     {d.theo_don_vi.map((g) => (
                       <tr key={g.topic_id}>
                         <td><div className="u-name">{g.ten}</div><div className="u-mach">{g.mach}</div></td>
                         <td><span className={"pill " + TT_PILL[g.trang_thai][0]}>
                           {TT_PILL[g.trang_thai][1]}</span></td>
+                        <td className="tnum">{gio(g.phut)}
+                          {g.so_phien > 0 && <span className="kq-mo"> · {g.so_phien} phiên</span>}</td>
                         <td className="tnum">{g.so_lan}
                           {g.so_lan_on_tap > 0 && <span className="kq-ot">+{g.so_lan_on_tap} ôn tập</span>}</td>
                         {/* Chưa làm bài kiểm tra của đơn vị -> "—", KHÔNG phải 0%:

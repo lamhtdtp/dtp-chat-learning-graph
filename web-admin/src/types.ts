@@ -104,14 +104,23 @@ export interface KetQuaLan {
 }
 export interface KetQuaDonVi {
   topic_id: number; ten: string; mach: string;
+  /** Thời gian học đơn vị này (phút) + số phiên + lần học gần nhất. */
+  phut: number; so_phien: number; lan_cuoi: string | null;
   /** Nguồn thật của "đã học tới đâu" — CÙNG giá trị phía học sinh thấy. */
   trang_thai: "dat" | "dang" | "chua";
   so_lan: number; so_lan_on_tap: number;
   /** null = chưa làm Kiểm tra nhanh của đơn vị này lần nào. */
   tot_nhat: number | null; gan_nhat: number | null;
 }
+/** Cùng shape với /me/thoi-gian phía học sinh — dùng chung service nên không lệch. */
+export interface ThoiGianKQ {
+  hom_nay_phut: number; bay_ngay_phut: number; tong_phut: number; so_phien: number;
+  muc_tieu_phut: number; dat_muc_tieu: boolean;
+  bieu_do: { ngay: string; phut: number; hom_nay: boolean }[];
+}
 export interface KetQuaHocSinh {
   hoc_sinh: { id: number; name: string; email: string };
+  thoi_gian: ThoiGianKQ;
   so_dat: number; so_dang: number;
   tong_lan: number; tong_lan_on_tap: number; so_lan_dat: number; diem_tb: number;
   theo_don_vi: KetQuaDonVi[];
