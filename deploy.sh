@@ -7,6 +7,7 @@
 #   ./deploy.sh ingest --tap 1 --sach cung_kham_pha_tap_1 --pages 5-8
 #   ./deploy.sh seed-matrix                     # nạp ma trận đặc tả
 #   ./deploy.sh seed --phan --media              # soạn nội dung đủ 7 mục
+#   ./deploy.sh seed --hinh-vi-du                # vẽ hình cho ví dụ hình học
 #   ./deploy.sh phan-status --thieu              # còn thiếu mục nào
 #   ./deploy.sh video-up            # bật worker render video (queue 'video')
 #   ./deploy.sh pregen-video        # dựng sẵn video cho các khái niệm (inline)
@@ -80,6 +81,7 @@ deploy.sh — lệnh vận hành server dev
   seed [args]             soạn nội dung bài học bằng AI. KHÔNG cờ = chỉ 2/7 mục!
                             --phan    + Khởi động/Hoạt động/Luyện tập/Bài tập
                             --media   + ảnh minh hoạ, đặt hàng video
+                            --hinh-vi-du + hình cho ví dụ "như hình vẽ"
                             --force   SOẠN LẠI cả cái đã có (ghi đè chữ, giữ ảnh)
                             --publish xuất bản luôn (mặc định để nháp)
                           => đủ 7 mục: ./deploy.sh seed --phan --media

@@ -180,3 +180,80 @@ async def test_khong_force_thi_khong_can_chia_lo(db_session, mon_khoi, mocker):
     # lượt hai: 4 phần đã có -> không còn việc gì
     await S.seed(mon=mon, khoi=khoi, publish=False, force=False, media=False, phan=True)
     assert m["phan"].await_count == 12
+
+
+async def test_hinh_vi_du_sinh_cho_vi_du_nhac_hinh_ve(db_session, mon_khoi, mocker):
+    """Ví dụ "như hình vẽ" mà không có hình thì học sinh không làm được."""
+    mon, khoi = mon_khoi
+    subj = Subject(name=mon); gr = Grade(name=khoi)
+    db_session.add_all([subj, gr]); await db_session.flush()
+    t = CurriculumTopic(subject_id=subj.id, grade_id=gr.id, mach_noi_dung="Hình học",
+                        don_vi_kien_thuc="Điểm, đường thẳng", order_index=0)
+    db_session.add(t); await db_session.flush()
+    tid = t.id
+    db_session.add(TopicContent(topic_id=tid, khai_niem="<p>x</p>", minh_hoa_json="[]",
+        trang_thai="published", vi_du_json=json.dumps([
+            {"de": "Cho ba điểm A, B, C và hai đường thẳng m, n như hình vẽ.", "giai": "…"},
+            {"de": "Tính 2 + 3", "giai": "5"},
+            {"de": "Xem hình bên", "giai": "…", "anh": "/video/files/da-co.png"}])))
+    await db_session.commit()
+
+    _mock(mocker)
+    mocker.patch.object(S.ingest_svc, "goi_y_hinh_vi_du", mocker.AsyncMock(
+        return_value={0: "three points on two lines, labelled A B C m n, serif"}))
+    anh = mocker.patch.object(S.media_svc, "generate_images", mocker.AsyncMock(
+        return_value=([{"url": "/video/files/moi.png", "caption": ""}], [])))
+    mocker.patch.object(S, "async_session_factory", lambda: _Bao(db_session))
+
+    await S.seed(mon=mon, khoi=khoi, publish=False, force=False, media=False,
+                 phan=False, hinh_vi_du=True)
+
+    ds = json.loads((await db_session.scalar(
+        select(TopicContent).filter_by(topic_id=tid))).vi_du_json)
+    assert ds[0]["anh"] == "/video/files/moi.png"      # ví dụ cần hình -> có hình
+    assert ds[0]["anh_prompt"]                          # giữ mô tả để vẽ lại
+    assert "anh" not in ds[1]                           # ví dụ thuần số -> KHÔNG vẽ
+    assert ds[2]["anh"] == "/video/files/da-co.png"      # đã có hình -> không đụng
+    assert anh.await_count == 1, "chỉ tốn 1 ảnh, không vẽ tràn"
+
+
+async def test_hinh_vi_du_chay_lai_khong_ve_lai(db_session, mon_khoi, mocker):
+    mon, khoi = mon_khoi
+    subj = Subject(name=mon); gr = Grade(name=khoi)
+    db_session.add_all([subj, gr]); await db_session.flush()
+    t = CurriculumTopic(subject_id=subj.id, grade_id=gr.id, mach_noi_dung="M",
+                        don_vi_kien_thuc="B", order_index=0)
+    db_session.add(t); await db_session.flush()
+    db_session.add(TopicContent(topic_id=t.id, khai_niem="<p>x</p>", minh_hoa_json="[]",
+        trang_thai="published", vi_du_json=json.dumps(
+            [{"de": "như hình vẽ", "giai": "", "anh": "/video/files/co.png"}])))
+    await db_session.commit()
+
+    _mock(mocker)
+    anh = mocker.patch.object(S.media_svc, "generate_images", mocker.AsyncMock())
+    mocker.patch.object(S, "async_session_factory", lambda: _Bao(db_session))
+
+    await S.seed(mon=mon, khoi=khoi, publish=False, force=False, media=False,
+                 phan=False, hinh_vi_du=True)
+    assert anh.await_count == 0
+
+
+@pytest.mark.parametrize("de,giai,mong", [
+    ("Cho ba điểm A, B, C và hai đường thẳng m, n như hình vẽ.", "", True),
+    ("Trong các hình sau, hình nào có trục đối xứng?", "", True),
+    ("Quan sát hình bên và cho biết…", "", True),
+    # Lời giải tả hình dáng bằng LỜI -> KHÔNG cần hình. Quét lời giải là dương
+    # tính giả và tốn một ảnh vô ích (đã gặp thật với ví dụ chữ cái đối xứng).
+    ("Trong các chữ cái in hoa sau đây, chữ nào có tâm đối xứng: H, A, N, O, I ?",
+     "Các chữ H, N, O, I giữ nguyên hình dáng nên là các hình có tâm đối xứng", False),
+    ("Tính 2 + 3", "5", False),
+])
+def test_can_hinh_chi_xet_de_bai(de, giai, mong):
+    from app.lessons.ingest import can_hinh
+    assert can_hinh({"de": de, "giai": giai}) is mong
+
+
+def test_can_hinh_bo_qua_vi_du_da_co_hinh():
+    from app.lessons.ingest import can_hinh
+    assert can_hinh({"de": "như hình vẽ", "anh": "/video/files/x.png"}) is False
+    assert can_hinh({"de": "không nhắc hình", "anh_prompt": "triangle"}) is True

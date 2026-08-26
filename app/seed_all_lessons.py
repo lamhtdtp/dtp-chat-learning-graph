@@ -23,6 +23,11 @@ Luyện tập – Vận dụng, Bài tập. Không có cờ này thì mỗi đơ
 một lần gọi model riêng -> +4 request/đơn vị. Bỏ qua phần đã có nội dung, nên
 chạy lại chỉ bù phần còn thiếu; kèm --force thì soạn lại cả phần đã có.
 
+--hinh-vi-du sinh hình cho VÍ DỤ hình học — loại nhắc "như hình vẽ", "hình bên"
+mà không có hình thì học sinh không làm được. Trước đây chỉ bấm tay từng ví dụ
+trong CMS được. Tốn 1 lời gọi rẻ mỗi bài (tả hình) + 1 ảnh mỗi ví dụ cần hình.
+Bỏ qua ví dụ đã có hình, nên chạy lại chỉ bù phần thiếu.
+
 --bo-qua N / --gioi-han N chia lô theo hạn mức ngày. Cần cho --force: cờ đó làm
 lại MỌI bài nên không tự biết đã tới đâu, chạy nhiều ngày sẽ lặp lại lô đầu mãi.
 Ví dụ 21 đơn vị, ~5 đơn vị/ngày:
@@ -85,6 +90,41 @@ def _thieu_media(c: TopicContent) -> bool:
     return not json.loads(c.minh_hoa_json or "[]")
 
 
+def _thieu_hinh_vi_du(c: TopicContent) -> bool:
+    """Có ví dụ nào nhắc tới hình mà chưa có hình?"""
+    return any(ingest_svc.can_hinh(e) for e in json.loads(c.vi_du_json or "[]"))
+
+
+async def _sinh_hinh_vi_du(topic, c: TopicContent) -> tuple[int, list[str]]:
+    """Sinh hình cho từng ví dụ cần hình. Ghi thẳng vào `vi_du_json`.
+
+    Ví dụ hình học ("Cho ba điểm A, B, C và hai đường thẳng m, n như hình vẽ")
+    không đọc được nếu thiếu hình. Trước đây chỉ sinh được bằng cách bấm tay từng
+    ví dụ trong CMS — cả chương trình là hàng chục lần bấm nên thực tế không ai làm.
+    """
+    ds = json.loads(c.vi_du_json or "[]")
+    can = [i for i, e in enumerate(ds) if ingest_svc.can_hinh(e)]
+    if not can:
+        return 0, []
+    goi_y = await ingest_svc.goi_y_hinh_vi_du(
+        topic.don_vi_kien_thuc or "", topic.mach_noi_dung or "", ds)
+    xong, loi = 0, []
+    for i in can:
+        pr = (ds[i].get("anh_prompt") or goi_y.get(i) or "").strip()
+        if not pr:
+            loi.append(f"ví dụ {i + 1}: AI không tả được hình")
+            continue
+        anh, l = await media_svc.generate_images(topic.id, [{"prompt": pr, "caption": ""}])
+        if anh:
+            ds[i]["anh"] = anh[0]["url"]
+            ds[i].setdefault("anh_prompt", pr)
+            xong += 1
+        else:
+            loi += [f"ví dụ {i + 1}: {x}" for x in l] or [f"ví dụ {i + 1}: không sinh được"]
+    c.vi_du_json = json.dumps(ds, ensure_ascii=False)
+    return xong, loi
+
+
 async def _soan_phan_them(session, topic, c, force: bool) -> tuple[int, list[str]]:
     """Soạn 4 phần còn lại. Bỏ qua phần đã có nội dung (trừ khi --force)."""
     xong, loi = 0, []
@@ -108,7 +148,8 @@ async def _soan_phan_them(session, topic, c, force: bool) -> tuple[int, list[str
 
 
 async def seed(*, mon: str, khoi: str, publish: bool, force: bool, media: bool,
-               phan: bool, bo_qua: int = 0, gioi_han: int = 0) -> None:
+               phan: bool, hinh_vi_du: bool = False,
+               bo_qua: int = 0, gioi_han: int = 0) -> None:
     trang_thai = "published" if publish else "draft"
     async with async_session_factory() as session:
         subject = await session.scalar(select(Subject).filter_by(name=mon))
@@ -136,9 +177,10 @@ async def seed(*, mon: str, khoi: str, publish: bool, force: bool, media: bool,
             can_chu = c is None or force            # ingest_draft + quiz (tầng mạnh)
             can_phan = phan and (force or c is None or _thieu_phan(c))
             can_media = media and (force or c is None or _thieu_media(c))
-            if can_chu or can_phan or can_media:
+            can_hvd = hinh_vi_du and (c is None or _thieu_hinh_vi_du(c))
+            if can_chu or can_phan or can_media or can_hvd:
                 todo.append(t)
-                viec[t.id] = (can_chu, can_phan, can_media)
+                viec[t.id] = (can_chu, can_phan, can_media, can_hvd)
         # Chia lô: --force làm lại MỌI bài nên không tự biết đã tới đâu
         # (topic_content không có cột thời gian). Hạn mức 50 request/ngày mà chạy
         # `--force` nhiều ngày thì ngày nào cũng bắt đầu từ bài 1 -> không bao giờ
@@ -162,7 +204,7 @@ async def seed(*, mon: str, khoi: str, publish: bool, force: bool, media: bool,
         ok = fail = 0
         for i, t in enumerate(todo, 1):
             label = f"[{i}/{len(todo)}] {t.don_vi_kien_thuc[:52]}"
-            can_chu, can_phan, can_media = viec[t.id]
+            can_chu, can_phan, can_media, can_hvd = viec[t.id]
             try:
                 c = cu.get(t.id)
                 if c is None:
@@ -204,8 +246,12 @@ async def seed(*, mon: str, khoi: str, publish: bool, force: bool, media: bool,
                     mh, loi_media = await _sinh_media(
                         session, t, draft, json.loads(c.minh_hoa_json or "[]"))
                     c.minh_hoa_json = json.dumps(mh, ensure_ascii=False)
+                so_hvd, loi_hvd = 0, []
+                if can_hvd:
+                    await session.flush()   # cần vi_du_json vừa ghi ở trên
+                    so_hvd, loi_hvd = await _sinh_hinh_vi_du(t, c)
                 await session.commit()
-                for m_ in loi_media + loi_phan:
+                for m_ in loi_media + loi_phan + loi_hvd:
                     print(f"    ⚠️  {m_}")
                 ok += 1
                 mo_ta = (f"khái niệm {'có' if draft.get('khai_niem') else 'trống'}, "
@@ -215,6 +261,7 @@ async def seed(*, mon: str, khoi: str, publish: bool, force: bool, media: bool,
                       + (f", +{so_phan} phần" if can_phan else "")
                       + (f", +{len(json.loads(c.minh_hoa_json or '[]'))} minh hoạ"
                          if can_media else "")
+                      + (f", +{so_hvd} hình ví dụ" if can_hvd else "")
                       + (" · bám SGK" if not draft.get("thieu_sgk") else " · ⚠️ KHÔNG bám SGK"))
             except LLMUnavailable:
                 await session.rollback()
@@ -241,6 +288,9 @@ def main() -> None:
     ap.add_argument("--phan", action="store_true",
                     help="Soạn cả Khởi động / Hoạt động / Luyện tập / Bài tập "
                          "(+4 request/đơn vị). Không có cờ này thì chỉ ra 2/7 mục.")
+    ap.add_argument("--hinh-vi-du", action="store_true",
+                    help="Sinh hình cho ví dụ hình học ('như hình vẽ'). 1 lời gọi rẻ "
+                         "mỗi bài + 1 ảnh mỗi ví dụ cần hình.")
     ap.add_argument("--bo-qua", type=int, default=0, metavar="N",
                     help="Bỏ N đơn vị đầu (chia lô theo hạn mức ngày)")
     ap.add_argument("--gioi-han", type=int, default=0, metavar="N",
@@ -248,6 +298,7 @@ def main() -> None:
     args = ap.parse_args()
     asyncio.run(seed(mon=args.mon, khoi=args.khoi, publish=args.publish,
                      force=args.force, media=args.media, phan=args.phan,
+                     hinh_vi_du=args.hinh_vi_du,
                      bo_qua=args.bo_qua, gioi_han=args.gioi_han))
 
 

@@ -1,0 +1,43 @@
+# Nginx reverse proxy trên HOST cho KHU QUẢN TRỊ (CMS) — domain riêng.
+#
+# Trước đây repo chỉ có mẫu cho domain app học sinh; khối server của CMS phải tự
+# dựng tay nên nó có danh sách `location` RIÊNG. Kết quả: thêm route API mới mà
+# chỉ sửa một khối thì CMS vẫn chết — đã xảy ra với /on-tap (mục "Ôn tập chương"
+# trong Quản lý danh mục báo "Không gọi được máy chủ").
+#
+# Cài đặt:
+#   sudo cp infra/nginx-admin-domain.conf.example /etc/nginx/conf.d/chat-learning-admin.conf
+#   # sửa server_name thành domain CMS thật
+#   sudo nginx -t && sudo systemctl reload nginx
+#   sudo certbot --nginx -d admin.example.com
+#
+# KIỂM sau khi sửa (phải là application/json, KHÔNG phải text/html):
+#   curl -sI "https://admin.example.com/on-tap?pham_vi=mach&gia_tri=x" | grep -i content-type
+
+server {
+    listen 80;
+    server_name admin.example.com;        # ⬅️ ĐỔI thành domain CMS của bạn
+
+    client_max_body_size 200m;            # nạp sách: nhiều ảnh trang một lượt
+
+    # API -> container api. DANH SÁCH PHẢI GIỐNG HỆT bên nginx-dev-domain:
+    # CMS gọi /cms, /admin, /on-tap, /auth, /lessons… qua CÙNG một origin.
+    # tests/infra/test_duong_dan_api.py so danh sách này với router thật.
+    location ~ ^/(admin|auth|cms|curriculum|health|lessons|me|on-tap|progress|quiz|tutor|video)(/|$) {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;           # soạn bài / OCR gọi LLM lâu
+    }
+
+    # SPA quản trị -> container web-admin (cổng 8081, xem docker-compose.app.yml)
+    location / {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

@@ -18,6 +18,7 @@ buộc phải ghi vào storage mới có URL để xem, nên file ảnh tồn t�
 chuyên gia bỏ nháp (rác chấp nhận được, đổi lấy việc xem được ảnh trước khi lưu).
 """
 import json
+import re
 import logging
 import unicodedata
 
@@ -276,6 +277,69 @@ _YEU_CAU_PHAN = {
     "bai_tap": ("Bài tập", "4–5 bài về nhà, đánh số <b>Bài n.</b> KHÔNG kèm lời giải — đây là bài "
                            "học sinh tự làm."),
 }
+
+
+# Dấu hiệu ví dụ PHẢI có hình mới đọc được. NGUỒN DUY NHẤT phía server — dùng cho
+# cả sinh hàng loạt lẫn báo cáo. (Trình soạn CMS có bản TS riêng trong
+# web-admin/src/admin/AnhViDu.tsx: sửa một bên nhớ sửa bên kia.)
+CAN_HINH = re.compile(
+    r"hình bên|hình vẽ|hình sau|các hình|quan sát hình|hình dưới|xem hình"
+    r"|như hình|trên hình", re.IGNORECASE)
+
+
+def can_hinh(e: dict) -> bool:
+    """Ví dụ này nhắc tới hình mà chưa có hình?
+
+    CHỈ xét ĐỀ BÀI, không xét lời giải. Lời giải hay tả hình dáng bằng lời nên
+    quét nó là dương tính giả: ví dụ "chữ nào có tâm đối xứng: H, A, N, O, I"
+    (không cần hình) bị gắn cờ vì lời giải có chữ "các hình" — vẽ ra là tốn một
+    ảnh vô ích. Cần hình hay không là do ĐỀ hỏi gì.
+    """
+    if (e.get("anh") or "").strip():
+        return False
+    if (e.get("anh_prompt") or "").strip():
+        return True
+    return bool(CAN_HINH.search(e.get("de", "") or ""))
+
+
+async def goi_y_hinh_vi_du(dv: str, mach: str, vi_du: list[dict]) -> dict[int, str]:
+    """{chỉ số ví dụ: câu lệnh vẽ} cho các ví dụ cần hình mà chưa có `anh_prompt`.
+
+    Một lời gọi TẦNG RẺ cho cả bài (không phải mỗi ví dụ một lời gọi): mô tả hình
+    là việc ngắn, và ví dụ trong cùng bài dùng chung ngữ cảnh.
+    """
+    can = [(i, e) for i, e in enumerate(vi_du)
+           if can_hinh(e) and not (e.get("anh_prompt") or "").strip()]
+    if not can:
+        return {}
+    ds = "\n".join(f'{i}. {_bo_the_ngan(e.get("de", ""))}' for i, e in can)
+    prompt = (
+        f'Các ví dụ sau của bài "{dv}" (mạch "{mach}", Toán lớp 6) đều nhắc tới một '
+        "hình vẽ. Với MỖI ví dụ, viết câu lệnh TIẾNG ANH tả hình cần vẽ.\n\n"
+        f"{ds}\n\n"
+        "Quy tắc: nền phẳng trắng, nét đen mảnh, phong cách sách giáo khoa, KHÔNG "
+        "chữ trong hình — TRỪ khi đề đặt tên điểm/đường (A, B, m, n…) thì phải tả "
+        "rõ từng chữ in hoa nằm cạnh đối tượng nào, font serif.\n"
+        'Trả JSON: {"hinh": [{"idx": <số thứ tự ở trên>, "prompt": "..."}]}'
+    )
+    raw = await gateway.complete(task="media_suggest",
+                                 messages=[{"role": "user", "content": prompt}],
+                                 max_tokens=1024)
+    d = jsonfix.boc_json(raw) or {}
+    ra: dict[int, str] = {}
+    for x in d.get("hinh", []) if isinstance(d.get("hinh"), list) else []:
+        try:
+            i = int(x["idx"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        pr = str(x.get("prompt", "")).strip()
+        if pr and 0 <= i < len(vi_du):
+            ra[i] = pr
+    return ra
+
+
+def _bo_the_ngan(html: str) -> str:
+    return re.sub(r"<[^>]+>", " ", html or "").strip()[:200]
 
 
 async def soan_phan(session: AsyncSession, topic_id: int, phan: str) -> str:

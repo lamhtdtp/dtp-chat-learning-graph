@@ -28,16 +28,32 @@ def _prefix_backend() -> set[str]:
     return ra
 
 
-def test_nginx_prod_proxy_du_moi_tien_to():
+# MỖI khối server trên host có danh sách `location` RIÊNG. App học sinh và CMS ở
+# hai domain khác nhau nên sửa một bên là bên kia vẫn chết — đúng cái đã xảy ra
+# với /on-tap: sửa domain học sinh xong, CMS vẫn báo "Không gọi được máy chủ".
+NGINX_HOST = ["nginx-dev-domain.conf.example", "nginx-admin-domain.conf.example"]
+
+
+@pytest.mark.parametrize("ten", NGINX_HOST)
+def test_nginx_prod_proxy_du_moi_tien_to(ten):
     """nginx trên host là CỬA DUY NHẤT — thiếu tiền tố nào là route đó chết."""
-    conf = (GOC / "infra" / "nginx-dev-domain.conf.example").read_text()
+    conf = (GOC / "infra" / ten).read_text()
     m = re.search(r"location ~ \^/\(([^)]+)\)", conf)
-    assert m, "không tìm thấy location regex của API trong nginx example"
+    assert m, f"không tìm thấy location regex của API trong {ten}"
     co = set(m.group(1).split("|"))
     thieu = _prefix_backend() - co
     assert not thieu, (
-        f"nginx example thiếu tiền tố: {sorted(thieu)}. "
+        f"{ten} thiếu tiền tố: {sorted(thieu)}. "
         "Thêm vào location regex, không thì request rơi xuống SPA và trả HTML.")
+
+
+def test_hai_khoi_nginx_dung_CUNG_danh_sach():
+    """Lệch nhau là một domain chạy, domain kia chết — rất khó lần ra."""
+    ds = []
+    for ten in NGINX_HOST:
+        conf = (GOC / "infra" / ten).read_text()
+        ds.append(set(re.search(r"location ~ \^/\(([^)]+)\)", conf).group(1).split("|")))
+    assert ds[0] == ds[1], f"lệch: {sorted(ds[0] ^ ds[1])}"
 
 
 def _proxy_vite(f: Path) -> set[str]:
@@ -64,8 +80,9 @@ def test_vite_proxy_du_cho_duong_dan_app_do_goi(app_dir):
 
 
 def test_on_tap_co_trong_ca_hai_noi():
-    """Chốt riêng đường dẫn đã gây sự cố hai lần."""
-    conf = (GOC / "infra" / "nginx-dev-domain.conf.example").read_text()
-    assert "on-tap" in re.search(r"location ~ \^/\(([^)]+)\)", conf).group(1)
+    """Chốt riêng đường dẫn đã gây sự cố ba lần (vite, nginx học sinh, nginx CMS)."""
+    for ten in NGINX_HOST:
+        conf = (GOC / "infra" / ten).read_text()
+        assert "on-tap" in re.search(r"location ~ \^/\(([^)]+)\)", conf).group(1), ten
     for d in ("web", "web-admin"):
         assert "on-tap" in _proxy_vite(GOC / d / "vite.config.ts"), d

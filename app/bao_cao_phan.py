@@ -22,6 +22,7 @@ from sqlalchemy import select
 from app.db.models import CurriculumTopic, Grade, Subject, TopicContent
 from app.db.session import async_session_factory
 from app.lessons import bo_cuc as bo_cuc_svc
+from app.lessons import ingest as ingest_svc
 
 # (id phần, nhãn ngắn để in bảng)
 PHAN = [(p["id"], p["ten"]) for p in bo_cuc_svc.PHAN]
@@ -66,6 +67,13 @@ async def bao_cao(mon: str, khoi: str, chi_thieu: bool) -> None:
             continue
         dong.append((t, c, co, n))
 
+    # Ví dụ nhắc "như hình vẽ" mà chưa có hình -> học sinh không làm được bài đó.
+    thieu_hinh = [
+        (t.id, i + 1, e.get("de", "")[:52])
+        for t in topics
+        for i, e in enumerate(json.loads((nd.get(t.id).vi_du_json if nd.get(t.id) else None) or "[]"))
+        if ingest_svc.can_hinh(e)
+    ]
     print(f"{mon} · {khoi} — {len(topics)} đơn vị · đủ 7 mục: {du} · đã xuất bản: {xuat_ban}\n")
     print("     " + " ".join(f"{i+1}" for i in range(len(PHAN))) + "  n/7  tt   đơn vị")
     for t, c, co, n in dong:
@@ -83,6 +91,15 @@ async def bao_cao(mon: str, khoi: str, chi_thieu: bool) -> None:
         print("\nCòn thiếu ở một số bài: " + ", ".join(thieu))
         print("  → chữ:  python -m app.seed_all_lessons --phan")
         print("  → ảnh:  python -m app.seed_all_lessons --media")
+    if thieu_hinh:
+        print(f"\n⚠️  {len(thieu_hinh)} ví dụ nhắc tới hình vẽ mà CHƯA có hình "
+              "— học sinh không làm được:")
+        for tid, so, de in thieu_hinh[:10]:
+            print(f"     bài {tid} · ví dụ {so}: {de}")
+        if len(thieu_hinh) > 10:
+            print(f"     …và {len(thieu_hinh) - 10} ví dụ nữa")
+        print("  → python -m app.seed_all_lessons --hinh-vi-du")
+
     if du and xuat_ban < len(topics):
         print(f"\n⚠️  {len(topics) - xuat_ban} bài CHƯA xuất bản — học sinh không thấy. "
               "Xuất bản trong CMS, hoặc chạy lại kèm --publish.")
