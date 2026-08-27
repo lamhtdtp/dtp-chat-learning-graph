@@ -94,17 +94,21 @@
 .learn .tp-item.done .ic{background:var(--teal);border-color:var(--teal);color:#fff}
 /* Thứ bậc: ĐANG XEM > TIẾP > chưa học. Bài đang xem là NEO của cả mục lục nên
    phải nặng nhất trên mọi kênh (nền đặc, viền dày, thanh trái, pill tô đầy);
-   "tiếp theo" chỉ là lời mời -> viền mảnh, nền nhạt, pill viền rỗng.
+   "tiếp theo" chỉ là lời mời -> TRUNG TÍNH hoàn toàn, vai trò do nhãn chữ gánh.
+   CHỈ MỘT dòng trong mục lục được có màu. Trước đây .next tô cam: cam là màu
+   nóng, bão hoà cao nên luôn tiến lên trước tím lạnh — hạ opacity không cứu
+   được vì salience nằm ở SẮC, không ở độ đậm.
    KHÔNG dùng chuyển động cho cả hai: nhấp nháy là tín hiệu mạnh nhất, đặt ở mục
    phụ thì nó lấn mục chính (bug cũ), mà đặt ở mục đang đọc thì gây khó chịu. */
 .learn .tp-item.current{background:var(--primary-weak);border-color:color-mix(in srgb,var(--primary) 62%,transparent);color:var(--primary-ink);font-weight:800;box-shadow:0 0 0 1px color-mix(in srgb,var(--primary) 22%,transparent)}
 .learn .tp-item.current::before{content:"";position:absolute;left:-1px;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;background:var(--primary)}
 .learn .tp-item.current .ic{border-color:var(--primary);color:var(--primary);background:var(--surface)}
-.learn .tp-item.next{background:color-mix(in srgb,var(--accent-weak) 50%,transparent);border-color:color-mix(in srgb,var(--accent) 32%,transparent);color:var(--ink-2)}
-.learn .tp-item.next .ic{border-color:color-mix(in srgb,var(--accent) 60%,transparent);color:var(--accent-ink);background:var(--surface)}
-/* Pill mặc định = TIẾP: viền rỗng, chữ ăn màu accent (chữ trắng trên nền accent
-   sáng tương phản rất kém). Pill ĐANG XEM tô đầy nên tự nổi hơn — xem .flag.xem */
-.learn .tp-item .flag{flex:none;align-self:center;font-size:8.5px;font-weight:900;letter-spacing:.04em;color:var(--accent-ink);background:transparent;border:1px solid color-mix(in srgb,var(--accent) 55%,transparent);padding:2px 6px;border-radius:20px}
+.learn .tp-item.next{background:color-mix(in srgb,var(--accent-weak) 40%,transparent);border-color:var(--border);color:var(--ink-2)}
+.learn .tp-item.next .ic{border-color:var(--border);color:var(--ink-3);background:var(--surface)}
+/* Pill mặc định = TIẾP: xám trung tính, viền rỗng — chỉ là nhãn, không phải đèn
+   báo. Pill ĐANG XEM tô đầy màu primary nên là mảng màu DUY NHẤT ở khu vực này
+   (xem .flag.xem). */
+.learn .tp-item .flag{flex:none;align-self:center;font-size:8.5px;font-weight:900;letter-spacing:.04em;color:var(--ink-3);background:transparent;border:1px solid var(--border);padding:2px 6px;border-radius:20px}
 
 /* ---------- Main ---------- */
 .learn .main{grid-area:main;padding:22px clamp(16px,3.6vw,48px) 64px}
