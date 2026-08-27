@@ -11,6 +11,9 @@
   --surface:#FFFFFF; --surface-2:#F4F6FC; --surface-3:#EEF1FA; --border:#E1E5F2;
   --ink:#181F38; --ink-2:#586080; --ink-3:#949CB8;
   --primary:#5B54F0; --primary-2:#8266FF; --primary-weak:#ECEBFE; --primary-ink:#4038C7;
+  /* Mực đặt TRÊN nền --primary. Sáng: primary tối -> chữ trắng. Tối: primary
+     sáng (#8B84FF) nên chữ trắng chỉ ~2.9:1 -> dùng mực tối. */
+  --on-primary:#FFFFFF;
   --accent:#FF9E2C; --accent-2:#FFBB5C; --accent-weak:#FFF2DE; --accent-ink:#B5680A;
   --teal:#10B5A4; --teal-weak:#DDF6F2; --danger:#EC5A63; --ring:rgba(91,84,240,.32);
   --shadow-sm:0 1px 2px rgba(24,31,56,.06);
@@ -29,6 +32,7 @@
     --surface:#141A2E; --surface-2:#1A2137; --surface-3:#212a44; --border:#2A3452;
     --ink:#EBEEFA; --ink-2:#A5AECB; --ink-3:#6E7799;
     --primary:#8B84FF; --primary-2:#A88BFF; --primary-weak:#221F45; --primary-ink:#C3BDFF;
+    --on-primary:#1B1836;
     --accent:#FFB454; --accent-2:#FFCE86; --accent-weak:#38290F; --accent-ink:#FFC978;
     --teal:#2ED4C0; --teal-weak:#0F2E2A; --danger:#FF6B72; --ring:rgba(139,132,255,.42);
     --shadow-sm:0 1px 2px rgba(0,0,0,.35);
@@ -42,6 +46,7 @@
   --surface:#141A2E; --surface-2:#1A2137; --surface-3:#212a44; --border:#2A3452;
   --ink:#EBEEFA; --ink-2:#A5AECB; --ink-3:#6E7799;
   --primary:#8B84FF; --primary-2:#A88BFF; --primary-weak:#221F45; --primary-ink:#C3BDFF;
+  --on-primary:#1B1836;
   --accent:#FFB454; --accent-2:#FFCE86; --accent-weak:#38290F; --accent-ink:#FFC978;
   --teal:#2ED4C0; --teal-weak:#0F2E2A; --danger:#FF6B72; --ring:rgba(139,132,255,.42);
   --shadow-sm:0 1px 2px rgba(0,0,0,.35);
@@ -87,13 +92,19 @@
 .learn .tp-item .tx{min-width:0;flex:1}
 .learn .tp-item.done{color:var(--ink-3)}
 .learn .tp-item.done .ic{background:var(--teal);border-color:var(--teal);color:#fff}
-.learn .tp-item.current{background:linear-gradient(135deg,var(--primary-weak),transparent);border-color:color-mix(in srgb,var(--primary) 30%,transparent);color:var(--primary-ink);font-weight:700}
+/* Thứ bậc: ĐANG XEM > TIẾP > chưa học. Bài đang xem là NEO của cả mục lục nên
+   phải nặng nhất trên mọi kênh (nền đặc, viền dày, thanh trái, pill tô đầy);
+   "tiếp theo" chỉ là lời mời -> viền mảnh, nền nhạt, pill viền rỗng.
+   KHÔNG dùng chuyển động cho cả hai: nhấp nháy là tín hiệu mạnh nhất, đặt ở mục
+   phụ thì nó lấn mục chính (bug cũ), mà đặt ở mục đang đọc thì gây khó chịu. */
+.learn .tp-item.current{background:var(--primary-weak);border-color:color-mix(in srgb,var(--primary) 62%,transparent);color:var(--primary-ink);font-weight:800;box-shadow:0 0 0 1px color-mix(in srgb,var(--primary) 22%,transparent)}
+.learn .tp-item.current::before{content:"";position:absolute;left:-1px;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;background:var(--primary)}
 .learn .tp-item.current .ic{border-color:var(--primary);color:var(--primary);background:var(--surface)}
-.learn .tp-item.next{background:var(--accent-weak);border-color:color-mix(in srgb,var(--accent) 55%,transparent);color:var(--accent-ink);animation:learn-pulse 2.1s ease-in-out infinite}
-.learn .tp-item.next .ic{border-color:var(--accent);color:var(--accent-ink);background:var(--surface)}
-.learn .tp-item .flag{flex:none;align-self:center;font-size:8.5px;font-weight:900;letter-spacing:.04em;color:#fff;background:var(--accent);padding:2px 6px;border-radius:20px;box-shadow:var(--shadow-accent)}
-@keyframes learn-pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 45%,transparent)}50%{box-shadow:0 0 0 5px transparent}}
-@media (prefers-reduced-motion:reduce){.learn .tp-item.next{animation:none}}
+.learn .tp-item.next{background:color-mix(in srgb,var(--accent-weak) 50%,transparent);border-color:color-mix(in srgb,var(--accent) 32%,transparent);color:var(--ink-2)}
+.learn .tp-item.next .ic{border-color:color-mix(in srgb,var(--accent) 60%,transparent);color:var(--accent-ink);background:var(--surface)}
+/* Pill mặc định = TIẾP: viền rỗng, chữ ăn màu accent (chữ trắng trên nền accent
+   sáng tương phản rất kém). Pill ĐANG XEM tô đầy nên tự nổi hơn — xem .flag.xem */
+.learn .tp-item .flag{flex:none;align-self:center;font-size:8.5px;font-weight:900;letter-spacing:.04em;color:var(--accent-ink);background:transparent;border:1px solid color-mix(in srgb,var(--accent) 55%,transparent);padding:2px 6px;border-radius:20px}
 
 /* ---------- Main ---------- */
 .learn .main{grid-area:main;padding:22px clamp(16px,3.6vw,48px) 64px}
@@ -584,7 +595,7 @@
    cả hình lẫn màu nên không phụ thuộc màu để phân biệt. */
 .learn .tp-item .ic{border-radius:50%;font-size:11px}
 .learn .tp-item.current .ic{color:var(--primary);border-color:var(--primary);font-size:9px}
-.learn .flag.xem{background:var(--primary);box-shadow:none}
+.learn .flag.xem{background:var(--primary);color:var(--on-primary);border-color:transparent;box-shadow:var(--shadow-primary)}
 
 /* ═══ Thân bài theo mockup ═══ */
 /* Badge "3/6" đứng sau tên mục, không phải "3." đứng trước */
