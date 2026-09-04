@@ -57,7 +57,33 @@ async def test_complete_vision_doc_dung_noi_dung_anh_that():
     assert "Số tự nhiên" in text
 
 
+async def _model_co_san() -> list[str]:
+    """Model tài khoản THẬT SỰ được dùng. Rỗng/không gọi được -> []."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(settings.ai_platform_base_url.rstrip("/") + "/v1/models",
+                            headers={"Authorization": f"Bearer {settings.ai_platform_api_key}"})
+        if r.status_code != 200:
+            return []
+        return [x.get("id", "") for x in (r.json().get("data") or []) if isinstance(x, dict)]
+    except Exception:  # noqa: BLE001 — mạng lỗi thì coi như không biết
+        return []
+
+
 async def test_embed_that_qua_vngcloud():
+    """Bỏ qua khi tài khoản CHƯA được gán model embedding — đó là chuyện gói dịch
+    vụ, không phải code sai. Nhưng nếu model CÓ trong danh sách mà vẫn lỗi thì
+    phải đỏ: lúc đó là hồi quy thật.
+
+    (2026-09-04: tài khoản chỉ có google/gemma-4-31b-it, không có embedding ->
+    tra SGK bằng vector đang tắt, xem `python -m app.llm.tu_kiem`.)
+    """
+    if settings.embedding_model not in await _model_co_san():
+        pytest.skip(f"tài khoản không có model embedding {settings.embedding_model!r} "
+                    "-> tra cứu SGK bằng vector đang tắt")
+
     vectors = await gateway.embed(["xin chào"])
 
     assert len(vectors) == 1

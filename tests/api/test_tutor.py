@@ -1,6 +1,8 @@
 import json
 import uuid
 
+import pytest
+
 from sqlalchemy import select
 
 from app.db.models import CurriculumTopic, Grade, QuizAttempt, Subject, TopicContent, User
@@ -469,3 +471,53 @@ async def test_hinh_khong_khop_caption_van_dinh_hinh_dau_khi_hoi_ro_ve_hinh(
     b = (await client.post("/tutor/ask", headers=h, json={
         "question": "Cho mình xem hình vẽ với", "topic_id": tid})).json()
     assert len(b["anh"]) == 1 and b["anh"][0]["caption"] == "Hình minh hoạ"
+
+
+# ─────────── Không được 500 vì cột JSON của nội dung bị rác ───────────
+
+@pytest.mark.parametrize("rac", [
+    "{}",                       # dict -> vòng for lặp qua KHOÁ (chuỗi) -> AttributeError
+    "[1, 2, 3]",                # list số -> .get() trên int
+    '["chuoi"]',                # list chuỗi
+    "khong-phai-json",          # JSONDecodeError
+    "null",
+])
+async def test_ask_khong_500_khi_cot_json_bi_rac(client, session, mocker, rac):
+    """Nội dung do AI sinh + chuyên gia sửa tay trong CMS -> đầu vào không tin được.
+
+    Trước đây `for m in json.loads(...)` trên một dict sẽ lặp qua khoá rồi
+    `m.get(...)` nổ AttributeError -> 500 cho cả câu hỏi.
+    """
+    from app.db.models import TopicContent
+
+    mocker.patch("app.api.tutor.retriever.retrieve", mocker.AsyncMock(return_value=[]))
+    mocker.patch("app.api.tutor.qa_node",
+                 mocker.AsyncMock(return_value={"answer": "Hình này có trục đối xứng."}))
+    h = await _auth(client)
+    tid = await _topic(session)
+    session.add(TopicContent(topic_id=tid, khai_niem="<p>Nội dung</p>",
+                             trang_thai="published",
+                             minh_hoa_json=rac, vi_du_json=rac, quiz_json=rac))
+    await session.commit()
+
+    r = await client.post("/tutor/ask", headers=h, json={
+        "question": "Hình nào có trục đối xứng?", "topic_id": tid})
+    assert r.status_code == 200, r.text
+    assert r.json()["anh"] == []
+
+
+async def test_ask_van_tra_loi_khi_chon_hinh_no_loi(client, session, mocker):
+    """Đính hình chạy SAU khi đã tiêu lượt hỏi — lỗi ở đó không được xoá câu trả lời."""
+    mocker.patch("app.api.tutor.retriever.retrieve", mocker.AsyncMock(return_value=[]))
+    mocker.patch("app.api.tutor.qa_node",
+                 mocker.AsyncMock(return_value={"answer": "Đáp án đây."}))
+    mocker.patch("app.api.tutor._chon_anh", side_effect=RuntimeError("hỏng"))
+    h = await _auth(client)
+    tid = await _topic(session)
+    session.add(_ct(tid))
+    await session.commit()
+
+    r = await client.post("/tutor/ask", headers=h, json={
+        "question": "Hình nào có trục đối xứng?", "topic_id": tid})
+    assert r.status_code == 200
+    assert r.json()["answer"] == "Đáp án đây." and r.json()["anh"] == []

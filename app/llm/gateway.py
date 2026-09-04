@@ -1,3 +1,4 @@
+import logging
 """LLM Gateway — mọi lời gọi model đi qua đây, node KHÔNG được gọi SDK provider
 trực tiếp (xem skill rag-orchestration Phần D, infra-observability Phần A).
 
@@ -43,12 +44,30 @@ class LLMUnavailable(Exception):
 
 # Lỗi provider coi là "tạm thời, thử lại sau" (429/quota + mất kết nối), gộp cả
 # 2 SDK vì gateway dùng cả Anthropic lẫn OpenAI.
+log = logging.getLogger(__name__)
+
 _TRANSIENT_ERRORS = (
     openai.RateLimitError,
     openai.APIConnectionError,
     anthropic.RateLimitError,
     anthropic.APIConnectionError,
 )
+
+# Model không tồn tại / tài khoản không có quyền dùng nó -> provider trả 404.
+# Đây là lỗi CẤU HÌNH, không phải tạm thời, nên trước đây nó xuyên qua gateway
+# thành HTTP 500 trơ trọi: log chỉ có traceback NotFoundError, không nói model
+# nào sai. Gói lại thành LLMUnavailable để mọi endpoint đã bắt LLMUnavailable
+# trả 503 với lời nhắn tử tế, CÒN LOG thì nêu đúng tên model + việc phải làm.
+_MODEL_ERRORS = (openai.NotFoundError, anthropic.NotFoundError)
+
+
+def _loi_model(model: str, e: Exception) -> LLMUnavailable:
+    log.error(
+        "Model %r bị provider từ chối (%s): %s. Kiểm: (1) `python -m app.llm.tu_kiem` "
+        "xem tài khoản có model nào; (2) GEMINI_MODEL_CHEAP/STRONG, EMBEDDING_MODEL "
+        "trong .env; (3) gói/quota trên Console VNGCloud.",
+        model, type(e).__name__, str(e)[:200])
+    return LLMUnavailable(f"model {model} không dùng được")
 
 TASK_TIER: dict[str, Tier] = {
     "route_intent": "cheap",
@@ -92,6 +111,11 @@ _PROTOCOL_BY_MODEL: dict[str, Protocol] = {
     "gemini/gemini-2.5-pro": "anthropic_messages",
     "gemini/gemini-2.5-flash": "openai_chat",
     "gemini/gemini-3.1-flash-lite": "openai_chat",
+    # Verify thật 2026-09-04 qua /v1/chat/completions: text tiếng Việt OK, nhận cả
+    # role system lẫn assistant, max_tokens=16384 + trả JSON hợp lệ OK, và ĐỌC
+    # ĐƯỢC ẢNH (thử data/books/maths/6/1/30.png -> tả đúng "thứ tự thực hiện phép
+    # tính"). Nên dùng được cho cả ocr_page, không chỉ text.
+    "google/gemma-4-31b-it": "openai_chat",
     "gemini/gemini-3.1-pro-preview": "openai_chat",
 }
 
@@ -203,6 +227,8 @@ async def complete(
             answer = await _complete_anthropic(model, messages, max_tokens)
         else:
             answer = await _complete_openai(model, messages, max_tokens)
+    except _MODEL_ERRORS as e:
+        raise _loi_model(model, e) from e
     except _TRANSIENT_ERRORS as e:
         raise LLMUnavailable(str(e)) from e
 
@@ -219,6 +245,8 @@ async def embed(texts: list[str]) -> list[list[float]]:
             input=texts,
             encoding_format="float",
         )
+    except _MODEL_ERRORS as e:
+        raise _loi_model(settings.embedding_model, e) from e
     except _TRANSIENT_ERRORS as e:
         raise LLMUnavailable(str(e)) from e
     return [item.embedding for item in response.data]
@@ -235,6 +263,8 @@ async def generate_image(prompt: str, *, size: str = "1536x1024") -> bytes:
         response = await client.images.generate(
             model=settings.image_model, prompt=prompt, size=size, n=1,
         )
+    except _MODEL_ERRORS as e:
+        raise _loi_model(settings.image_model, e) from e
     except _TRANSIENT_ERRORS as e:
         raise LLMUnavailable(str(e)) from e
     return base64.b64decode(response.data[0].b64_json)

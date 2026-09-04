@@ -12,8 +12,11 @@ class Settings(BaseSettings):
     # Tên model PHẢI có tiền tố provider ("gemini/...") theo quy ước LiteLLM mà
     # VNGCloud dùng nội bộ — thiếu tiền tố này gây lỗi 404 "model not found"
     # (đã gặp thật, dễ nhầm vì lỗi không nói rõ nguyên nhân là thiếu tiền tố).
-    gemini_model_cheap: str = "gemini/gemini-3.1-flash-lite"
-    gemini_model_strong: str = "gemini/gemini-3.1-pro-preview"
+    # Tài khoản VNGCloud hiện CHỈ có google/gemma-4-31b-it (xem
+    # `python -m app.llm.tu_kiem`). Hai tầng trỏ cùng model: không còn
+    # model reasoning riêng nên "strong" chỉ khác ở max_tokens.
+    gemini_model_cheap: str = "google/gemma-4-31b-it"
+    gemini_model_strong: str = "google/gemma-4-31b-it"
     embedding_model: str = "openai/text-embedding-3-large"
     image_model: str = "openai/gpt-image-1"  # sinh ảnh nền cảnh video (đã verify)
 

@@ -12,6 +12,7 @@
 #   ./deploy.sh video-up            # bật worker render video (queue 'video')
 #   ./deploy.sh pregen-video        # dựng sẵn video cho các khái niệm (inline)
 #   ./deploy.sh requeue-video       # cứu job video mồ côi sau khi sửa REDIS_URL
+#   ./deploy.sh llm-check           # 500 ở đường gọi AI? chạy cái này trước
 #   ./deploy.sh logs api            # xem log 1 service
 #   ./deploy.sh ps | down | restart | build | exec ...
 set -euo pipefail
@@ -59,6 +60,9 @@ case "$cmd" in
   requeue-video)# CỨU HỘ: đẩy lại job QUEUED bị mồ côi vì broker chết lúc tạo
                $DC run --rm worker python -m app.video.pregenerate --requeue ;;
 
+  llm-check)   # 500 ở các đường gọi AI -> chạy cái này TRƯỚC khi đọc traceback
+               $DC run --rm --no-deps api python -m app.llm.tu_kiem ;;
+
   health)      curl -fsS "${PUBLIC_API_URL:-http://localhost:8000}/health" && echo ;;
 
   help|*)
@@ -88,6 +92,7 @@ deploy.sh — lệnh vận hành server dev
   video-up                bật worker render video (queue 'video')
   pregen-video            dựng sẵn video các khái niệm (inline)
   requeue-video           đẩy lại job video QUEUED mồ côi (Redis chết lúc tạo job)
+  llm-check               tự kiểm LLM: key, danh sách model, gọi thử từng tầng
   health                  gọi /health (PUBLIC_API_URL hoặc localhost:8000)
 USAGE
     ;;

@@ -140,11 +140,11 @@ def _anh_cua_bai(c: TopicContent) -> list[tuple[str, str, str]]:
     chat thì học sinh phải xem hai lần cùng một thứ.
     """
     ra: list[tuple[str, str, str]] = []
-    for m in json.loads(c.minh_hoa_json or "[]"):
+    for m in _ds(c.minh_hoa_json):
         url = (m.get("url") or "").strip()
         if url and m.get("type") != "video":
             ra.append((url, (m.get("caption") or "Hình minh hoạ").strip(), "Minh hoạ"))
-    for i, e in enumerate(json.loads(c.vi_du_json or "[]"), start=1):
+    for i, e in enumerate(_ds(c.vi_du_json), start=1):
         url = (e.get("anh") or "").strip()
         if url:
             # Caption của hình ví dụ = đề bài: đó là thứ tả đúng hình đang vẽ gì.
@@ -198,6 +198,24 @@ def _chon_anh(c: TopicContent | None, anchor: str | None, cau_hoi: str,
     return [AnhKem(url=security.sign_media(u), caption=cap, tu=tu) for u, cap, tu in chon]
 
 
+def _ds(raw: str | None) -> list[dict]:
+    """Cột JSON -> list các dict. Rác/kiểu lạ -> [] chứ KHÔNG nổ.
+
+    `json.loads` trên cột bị sửa tay có thể ra dict, số, hoặc JSONDecodeError; khi
+    đó vòng `for m in ...` lặp qua KHOÁ (chuỗi) rồi `m.get(...)` nổ AttributeError
+    -> 500 cho cả câu hỏi. Nội dung do AI sinh + chuyên gia sửa tay trong CMS nên
+    đây là đầu vào không tin được, phải chặn ở một chỗ.
+    """
+    try:
+        d = json.loads(raw or "[]")
+    except (TypeError, ValueError):
+        log.warning("Cột JSON của nội dung bài không đọc được, bỏ qua")
+        return []
+    if not isinstance(d, list):
+        return []
+    return [x for x in d if isinstance(x, dict)]
+
+
 def _bo_the(s: str) -> str:
     """HTML chuyên gia soạn -> văn bản thuần cho prompt. Thẻ không mang thông tin
     gì cho mô hình mà vẫn tính tiền token."""
@@ -213,7 +231,7 @@ def _doan_bai(c: TopicContent, anchor: str | None) -> tuple[str, str | None]:
     Neo không hợp lệ / trỏ ra ngoài mảng -> rơi về cả bài, KHÔNG lỗi: học sinh
     đang giữa chừng bài học, một cái neo lệch không đáng để chặn câu hỏi."""
     kn = _bo_the(c.khai_niem)
-    vd = json.loads(c.vi_du_json or "[]")
+    vd = _ds(c.vi_du_json)
 
     # `kien_thuc` là TÊN MỚI của phần khái niệm (§1.1); `khai_niem` giữ lại cho
     # client cũ. Hai neo cùng trỏ một chỗ.
@@ -235,7 +253,7 @@ def _doan_bai(c: TopicContent, anchor: str | None) -> tuple[str, str | None]:
             return f"KIẾN THỨC TRỌNG TÂM:\n{kn}\n\n{ten.upper()}:\n{noi}", ten
 
     if anchor == "minh_hoa":
-        mh = json.loads(c.minh_hoa_json or "[]")
+        mh = _ds(c.minh_hoa_json)
         caps = "\n".join(f"- {m.get('caption') or m.get('type') or ''}" for m in mh)
         # Minh hoạ là ảnh/video: trợ lý chỉ có chú thích trong tay, nên kèm khái
         # niệm để còn nói được điều gì có ích thay vì tả một cái poster.
@@ -250,7 +268,7 @@ def _doan_bai(c: TopicContent, anchor: str | None) -> tuple[str, str | None]:
 
     if anchor and anchor.startswith("quiz:"):
         i = int(anchor.split(":")[1]) - 1
-        quiz = json.loads(c.quiz_json or "[]")
+        quiz = _ds(c.quiz_json)
         if 0 <= i < len(quiz):
             q = quiz[i]
             pa = "\n".join(f"{chr(65 + j)}. {_bo_the(str(o))}" for j, o in enumerate(q.get("o", [])))
@@ -338,7 +356,16 @@ async def ask(
                 cits.append(Citation(page_no=c.page_no, nguon=c.nguon))
     # Không đính hình khi trợ lý đã nói "không có trong sách": kèm một cái hình
     # vào câu từ chối thì đọc thành trả lời nửa vời.
-    anh = [] if ktf else _chon_anh(noi_dung, anchor, q, answer)
+    # Đính hình là việc PHỤ. Nó chạy SAU khi đã gọi LLM, tức là đã tiêu một lượt
+    # hỏi của học sinh và đã tốn tiền — để nó ném lên thành 500 là mất luôn câu
+    # trả lời đã trả tiền. Lỗi ở đây chỉ được ghi log rồi trả lời không kèm hình.
+    anh: list[AnhKem] = []
+    if not ktf:
+        try:
+            anh = _chon_anh(noi_dung, anchor, q, answer)
+        except Exception:  # noqa: BLE001 — không được làm vỡ câu trả lời
+            log.exception("Chọn hình minh hoạ lỗi (topic=%s, anchor=%s)",
+                          body.topic_id, anchor)
     return AskResponse(answer=answer, citations=cits[:3], khong_tim_thay=ktf,
                        remaining=remaining, nguon_bai=None if ktf else nguon_bai,
                        anh=anh)
