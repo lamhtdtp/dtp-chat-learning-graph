@@ -60,6 +60,21 @@ _TRANSIENT_ERRORS = (
 # trả 503 với lời nhắn tử tế, CÒN LOG thì nêu đúng tên model + việc phải làm.
 _MODEL_ERRORS = (openai.NotFoundError, anthropic.NotFoundError)
 
+# 403 "Access denied. Please check your MaaS credit balance, budget quota" — hết
+# tiền/hết hạn mức tháng. Cũng KHÔNG nằm trong _TRANSIENT_ERRORS nên trước đây
+# thành HTTP 500 trơ. Khác 429 (chờ là hết) và khác 404 (sai model): cái này phải
+# nạp tiền / nới budget, nên log nói riêng ra.
+_QUOTA_ERRORS = (openai.PermissionDeniedError, anthropic.PermissionDeniedError)
+
+
+def _loi_quota(e: Exception) -> LLMUnavailable:
+    log.error(
+        "Provider TỪ CHỐI vì credit/budget (%s): %s. Nạp tiền hoặc nới budget trên "
+        "Console VNGCloud. Trong lúc chờ, bật TRO_LY_BAO_TRI=true để học sinh thấy "
+        "thông báo thay vì lỗi (xem docs/RUNBOOK-DEPLOY.md §2c).",
+        type(e).__name__, str(e)[:200])
+    return LLMUnavailable("hết credit/budget trên nền tảng AI")
+
 
 def _loi_model(model: str, e: Exception) -> LLMUnavailable:
     log.error(
@@ -227,6 +242,8 @@ async def complete(
             answer = await _complete_anthropic(model, messages, max_tokens)
         else:
             answer = await _complete_openai(model, messages, max_tokens)
+    except _QUOTA_ERRORS as e:
+        raise _loi_quota(e) from e
     except _MODEL_ERRORS as e:
         raise _loi_model(model, e) from e
     except _TRANSIENT_ERRORS as e:
@@ -245,6 +262,8 @@ async def embed(texts: list[str]) -> list[list[float]]:
             input=texts,
             encoding_format="float",
         )
+    except _QUOTA_ERRORS as e:
+        raise _loi_quota(e) from e
     except _MODEL_ERRORS as e:
         raise _loi_model(settings.embedding_model, e) from e
     except _TRANSIENT_ERRORS as e:
@@ -263,6 +282,8 @@ async def generate_image(prompt: str, *, size: str = "1536x1024") -> bytes:
         response = await client.images.generate(
             model=settings.image_model, prompt=prompt, size=size, n=1,
         )
+    except _QUOTA_ERRORS as e:
+        raise _loi_quota(e) from e
     except _MODEL_ERRORS as e:
         raise _loi_model(settings.image_model, e) from e
     except _TRANSIENT_ERRORS as e:

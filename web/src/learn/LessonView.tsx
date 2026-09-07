@@ -3,6 +3,7 @@ import type { Lesson, MinhHoa, Neo, PhanBoCuc, QuizResult } from "../types";
 import { renderMath } from "../mathHtml";
 import { QuizView } from "./QuizView";
 import { TroLyCard } from "./TroLyCard";
+import { useBaoTri } from "./useBaoTri";
 import { useMocDoc } from "./useMocDoc";
 
 // Học sinh tắt gợi ý chủ động -> nhớ máy này, không hỏi lại mỗi bài.
@@ -97,6 +98,8 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
   // hội thoại, chứ bắt hỏi lại là mất thêm một lượt của học sinh.
   type Muc = { neo: Neo | null; nhan: string; hoi: string; an?: boolean };
   const [the, setThe] = useState<Record<string, Muc>>({});
+  // null = trợ lý đang hoạt động; có chuỗi = lời nhắn bảo trì.
+  const baoTri = useBaoTri();
   const [moLichSu, setMoLichSu] = useState(false);
 
   const moThe = (k: string, m: Muc) =>
@@ -112,8 +115,9 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
   const daHoi = Object.entries(the);
 
   const NutHoi = ({ neo, nhan, hoi, ngan }: { neo: Neo; nhan: string; hoi: string; ngan?: boolean }) => (
-    <button className="hoi-doan" type="button" onClick={() => moThe(neo, { neo, nhan, hoi })}
-      title={`Hỏi trợ lý về ${nhan.toLowerCase()}`}>
+    <button className="hoi-doan" type="button" disabled={!!baoTri}
+      onClick={() => moThe(neo, { neo, nhan, hoi })}
+      title={baoTri ?? `Hỏi trợ lý về ${nhan.toLowerCase()}`}>
       💬 {ngan ? "Hỏi" : "Hỏi về đoạn này"}
     </button>
   );
@@ -297,7 +301,11 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
           Đặt TRƯỚC bài kiểm tra: gỡ rối xong mới thi. Trước đây chip gợi ý nằm
           dưới bài kiểm tra, hoá ra hỏi "chưa rõ chỗ nào?" sau khi các em đã nộp. */}
       <div className="suggest">
-        <div className="s-label">✨ Chưa rõ chỗ nào trong bài <b>{lesson.dv}</b>?</div>
+        <div className="s-label">
+          {baoTri
+            ? <>🛠️ <b>Trợ lý AI đang bảo trì</b> — em cứ đọc bài và làm kiểm tra nhanh nhé.</>
+            : <>✨ Chưa rõ chỗ nào trong bài <b>{lesson.dv}</b>?</>}
+        </div>
         {/* Hộp chat LUÔN MỞ, gợi ý nằm bên trong. Trước đây chỉ có 3 chip: bấm
             chip mới hiện hộp, nên em nào muốn hỏi câu của riêng mình thì không
             thấy chỗ gõ. Cố ý KHÔNG truyền `hoiDau` — mở bài là gửi câu hỏi luôn

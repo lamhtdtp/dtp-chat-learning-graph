@@ -129,10 +129,11 @@ export function askTutor(
  *  Cache theo phiên: một bài có thể mở nhiều thẻ trợ lý cùng lúc, mỗi thẻ tự gọi
  *  là N request cho một con số không đổi. Lỗi thì KHÔNG cache để lần sau còn thử
  *  lại (mạng chập một nhịp không nên khoá con số fallback đến hết phiên). */
-let _limits: Promise<{ max_chars: number }> | null = null;
-export function getTutorLimits(): Promise<{ max_chars: number }> {
+let _limits: Promise<TutorLimits> | null = null;
+export type TutorLimits = { max_chars: number; bao_tri: boolean; bao_tri_nhan: string };
+export function getTutorLimits(): Promise<TutorLimits> {
   if (!_limits) {
-    _limits = req<{ max_chars: number }>("/tutor/limits", { auth: true })
+    _limits = req<TutorLimits>("/tutor/limits", { auth: true })
       .catch((e) => { _limits = null; throw e; });
   }
   return _limits;

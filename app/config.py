@@ -49,6 +49,14 @@ class Settings(BaseSettings):
     # vượt 200 rất dễ, mà 500 ký tự ≈ 150 token — không đáng kể về chi phí.
     # Frontend đọc lại con số này qua GET /tutor/limits, không hardcode.
     chat_max_chars: int = 500
+    # Tắt trợ lý AI có thông báo tử tế (đổi bằng env, KHÔNG cần deploy lại code).
+    # Dùng khi provider mất model / hết quota / đang bảo trì: học sinh thấy lời
+    # nhắn thay vì gõ câu hỏi rồi nhận lỗi và mất lượt.
+    tro_ly_bao_tri: bool = False
+    tro_ly_bao_tri_nhan: str = (
+        "Trợ lý AI đang bảo trì nên tạm thời chưa trả lời được. "
+        "Em cứ đọc bài và làm bài kiểm tra nhanh nhé, mai quay lại hỏi mình!"
+    )
     # Độ dài tối đa ô "Tư liệu nguồn cho AI" trong CMS. Rộng hơn ô chat nhiều vì
     # đây là chỗ dán nguyên trích đoạn SGK, nhưng vẫn phải có trần: chuỗi này đi
     # THẲNG vào prompt soạn bài nên dán cả chương vào là phình token + dễ tràn

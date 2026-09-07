@@ -72,8 +72,16 @@ export function TroLyCard({
   // Chặn độ dài ở client cho mọi đường vào: để 400 của server là nơi đầu tiên
   // học sinh biết mình viết quá dài thì đã mất một vòng request.
   const [maxChars, setMaxChars] = useState(FALLBACK_MAX_CHARS);
+  // Bảo trì: biết TRƯỚC khi học sinh gõ. Không có nó thì các em viết xong câu
+  // hỏi, bấm gửi, rồi mới nhận lỗi — và tưởng mình làm sai gì.
+  const [baoTri, setBaoTri] = useState<string | null>(null);
   useEffect(() => {
-    getTutorLimits().then((l) => setMaxChars(l.max_chars)).catch(() => { /* giữ fallback */ });
+    getTutorLimits()
+      .then((l) => {
+        setMaxChars(l.max_chars);
+        setBaoTri(l.bao_tri ? (l.bao_tri_nhan || "Trợ lý AI đang bảo trì.") : null);
+      })
+      .catch(() => { /* giữ fallback */ });
   }, []);
   const themLoiNoi = useCallback((t: string) => {
     setInput((cu) => (cu && !cu.endsWith(" ") ? cu + " " + t : cu + t).slice(0, maxChars));
@@ -149,7 +157,7 @@ export function TroLyCard({
         ))}
         {/* Gợi ý nằm TRONG hộp, mất đi sau lượt đầu: giữ lại thì chiếm chỗ của
             hội thoại, mà lúc đó học sinh đã biết gõ vào đâu rồi. */}
-        {!!goiY?.length && luots.length === 0 && !dangCho && (
+        {!!goiY?.length && luots.length === 0 && !dangCho && !baoTri && (
           <div className="tl-goiy">
             {goiY.map((q) => (
               <button type="button" key={q} onClick={() => hoi(q)}>💬 {q}</button>
@@ -168,6 +176,13 @@ export function TroLyCard({
         )}
       </div>
 
+      {baoTri && (
+        <div className="tl-baotri" role="status">
+          <span aria-hidden>🛠️</span>
+          <div>{baoTri}</div>
+        </div>
+      )}
+
       {mic.listening && (
         <div className="tl-mic-live" aria-live="polite">
           <span className="mic-wave" aria-hidden><i /><i /><i /></span>
@@ -176,6 +191,7 @@ export function TroLyCard({
       )}
       {mic.loi && <div className="tl-mic-loi">⚠️ {mic.loi}</div>}
 
+      {!baoTri && (
       <div className="tl-in">
         <input value={input}
           placeholder={moiNhap ?? `Hỏi tiếp về ${nhan.toLowerCase()}…`} disabled={dangCho}
@@ -196,6 +212,7 @@ export function TroLyCard({
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" /></svg>
         </button>
       </div>
+      )}
     </div>
   );
 }

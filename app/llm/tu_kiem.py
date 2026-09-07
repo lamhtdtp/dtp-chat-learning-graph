@@ -27,6 +27,11 @@ async def _danh_sach_model() -> list[str] | None:
         r = await c.get(f"{base}/v1/models",
                         headers={"Authorization": f"Bearer {settings.ai_platform_api_key}"})
         print(f"2. GET /v1/models -> {r.status_code}")
+        if r.status_code == 403:
+            print("   ✗ 403 — HẾT CREDIT / vượt budget quota của tài khoản MaaS.")
+            print("     -> Nạp tiền hoặc nới budget trên Console VNGCloud.")
+            print("     -> Trong lúc chờ: TRO_LY_BAO_TRI=true rồi `./deploy.sh up -d api`")
+            return None
         if r.status_code == 401:
             print("   ✗ Key SAI hoặc hết hạn (401). Sửa AI_PLATFORM_API_KEY.")
             return None

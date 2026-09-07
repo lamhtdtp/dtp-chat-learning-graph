@@ -5,6 +5,7 @@ import pytest
 
 from sqlalchemy import select
 
+from app.config import settings
 from app.db.models import CurriculumTopic, Grade, QuizAttempt, Subject, TopicContent, User
 from app.retrieval.retriever import RetrievedChunk
 
@@ -84,7 +85,10 @@ async def test_tutor_limits_tra_dung_gioi_han_cau_hinh(client):
 
     h = await _auth(client)
     r = await client.get("/tutor/limits", headers=h)
-    assert r.status_code == 200 and r.json() == {"max_chars": settings.chat_max_chars}
+    assert r.status_code == 200
+    # Thêm `bao_tri`/`bao_tri_nhan` để client tắt ô nhập TRƯỚC khi HS gõ.
+    assert r.json() == {"max_chars": settings.chat_max_chars,
+                        "bao_tri": False, "bao_tri_nhan": ""}
 
 
 async def test_tutor_limits_can_dang_nhap(client):
@@ -521,3 +525,49 @@ async def test_ask_van_tra_loi_khi_chon_hinh_no_loi(client, session, mocker):
         "question": "Hình nào có trục đối xứng?", "topic_id": tid})
     assert r.status_code == 200
     assert r.json()["answer"] == "Đáp án đây." and r.json()["anh"] == []
+
+
+# ─────────── Bảo trì trợ lý ───────────
+
+async def test_bao_tri_chan_ask_va_KHONG_tru_luot(client, session, mocker):
+    """Bảo trì thì chặn NGAY ĐẦU: không gọi LLM, không trừ lượt hỏi của học sinh."""
+    mocker.patch.object(settings, "tro_ly_bao_tri", True)
+    goi = mocker.patch("app.api.tutor.qa_node", mocker.AsyncMock())
+    dem = mocker.patch("app.api.tutor.llm_cache.incr_quota", mocker.AsyncMock(return_value=1))
+    h = await _auth(client)
+
+    r = await client.post("/tutor/ask", headers=h, json={"question": "Số nguyên tố là gì?"})
+    assert r.status_code == 503
+    assert "bảo trì" in r.json()["detail"].lower()
+    assert goi.await_count == 0, "không được gọi LLM"
+    assert dem.await_count == 0, "không được trừ lượt hỏi"
+
+
+async def test_limits_bao_trang_thai_bao_tri(client, session, mocker):
+    """Client phải biết TRƯỚC khi học sinh gõ, để tắt ô nhập thay vì báo lỗi sau."""
+    h = await _auth(client)
+    b = (await client.get("/tutor/limits", headers=h)).json()
+    assert b["bao_tri"] is False and b["bao_tri_nhan"] == ""
+
+    mocker.patch.object(settings, "tro_ly_bao_tri", True)
+    b2 = (await client.get("/tutor/limits", headers=h)).json()
+    assert b2["bao_tri"] is True and "bảo trì" in b2["bao_tri_nhan"].lower()
+    assert b2["max_chars"] == settings.chat_max_chars   # vẫn trả giới hạn như cũ
+
+
+async def test_bao_tri_doi_duoc_loi_nhan_bang_env(client, session, mocker):
+    mocker.patch.object(settings, "tro_ly_bao_tri", True)
+    mocker.patch.object(settings, "tro_ly_bao_tri_nhan", "Nâng cấp tới 20h nhé!")
+    h = await _auth(client)
+    assert (await client.get("/tutor/limits", headers=h)).json()["bao_tri_nhan"] \
+        == "Nâng cấp tới 20h nhé!"
+    r = await client.post("/tutor/ask", headers=h, json={"question": "x"})
+    assert r.status_code == 503 and r.json()["detail"] == "Nâng cấp tới 20h nhé!"
+
+
+async def test_tat_bao_tri_thi_chat_binh_thuong(client, session, mocker):
+    mocker.patch("app.api.tutor.retriever.retrieve", mocker.AsyncMock(return_value=[]))
+    mocker.patch("app.api.tutor.qa_node", mocker.AsyncMock(return_value={"answer": "Đáp án."}))
+    h = await _auth(client)
+    r = await client.post("/tutor/ask", headers=h, json={"question": "Số nguyên tố là gì?"})
+    assert r.status_code == 200 and r.json()["answer"] == "Đáp án."

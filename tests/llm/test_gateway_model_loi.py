@@ -63,3 +63,27 @@ async def test_429_van_la_loi_tam_thoi_khong_doi_thong_diep(mocker):
     with pytest.raises(LLMUnavailable) as e:
         await gateway.complete(task="qa", messages=[{"role": "user", "content": "x"}])
     assert "không dùng được" not in str(e.value)
+
+
+def _403() -> openai.PermissionDeniedError:
+    req = httpx.Request("POST", "https://x/v1/chat/completions")
+    res = httpx.Response(403, json={
+        "message": "Access denied. Please check your MaaS credit balance, budget quota"},
+        request=req)
+    return openai.PermissionDeniedError("denied", response=res, body=None)
+
+
+async def test_403_het_credit_thanh_503_kem_huong_xu_ly(mocker, caplog):
+    """403 credit/budget cũng không nằm trong _TRANSIENT_ERRORS -> từng thành 500.
+
+    Khác 429 (chờ là hết) và khác 404 (sai model): cái này phải nạp tiền, nên log
+    phải nói ra điều đó và chỉ luôn cờ bảo trì để học sinh không thấy lỗi trần.
+    """
+    mocker.patch.object(gateway, "_complete_openai", side_effect=_403())
+    with caplog.at_level("ERROR"):
+        with pytest.raises(LLMUnavailable) as e:
+            await gateway.complete(task="qa", messages=[{"role": "user", "content": "x"}])
+    assert "credit" in str(e.value)
+    assert "Console VNGCloud" in caplog.text and "TRO_LY_BAO_TRI" in caplog.text
+    # KHÔNG được lẫn với lỗi sai model
+    assert "bị provider từ chối" not in caplog.text

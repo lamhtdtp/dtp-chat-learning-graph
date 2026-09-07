@@ -9,8 +9,11 @@ from pathlib import Path
 
 import pytest
 
+import openai
+
 from app.config import settings
 from app.llm import gateway
+from app.llm.gateway import LLMUnavailable
 
 pytestmark = pytest.mark.skipif(
     not settings.ai_platform_api_key, reason="Cần AI_PLATFORM_API_KEY thật trong .env"
@@ -20,7 +23,24 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SAMPLE_PAGE = REPO_ROOT / "data" / "books" / "maths" / "6" / "1" / "5.png"
 
 
+async def _bo_qua_neu_het_credit() -> None:
+    """403 credit/budget = chuyện gói dịch vụ, không phải code sai -> skip có lý do.
+
+    KHÔNG skip khi lỗi khác: 404 sai model hay 500 vẫn phải đỏ.
+    """
+    try:
+        await gateway.complete(task="qa", messages=[{"role": "user", "content": "ping"}],
+                               max_tokens=4)
+    except LLMUnavailable as e:
+        if "credit" in str(e):
+            pytest.skip("tài khoản MaaS hết credit/budget -> bật TRO_LY_BAO_TRI=true "
+                        "và nạp tiền trên Console VNGCloud")
+    except Exception:  # noqa: BLE001 — lỗi khác thì để test thật chạy và đỏ
+        return
+
+
 async def test_complete_tang_re_that_qua_vngcloud():
+    await _bo_qua_neu_het_credit()
     text = await gateway.complete(
         "qa", [{"role": "user", "content": "Trả lời đúng 1 câu: 2+2 bằng mấy?"}]
     )
@@ -28,6 +48,7 @@ async def test_complete_tang_re_that_qua_vngcloud():
 
 
 async def test_complete_tang_manh_that_qua_vngcloud():
+    await _bo_qua_neu_het_credit()
     text = await gateway.complete(
         "solve", [{"role": "user", "content": "Trả lời đúng 1 câu: 2+2 bằng mấy?"}]
     )
@@ -36,6 +57,7 @@ async def test_complete_tang_manh_that_qua_vngcloud():
 
 @pytest.mark.skipif(not SAMPLE_PAGE.exists(), reason="Cần ảnh trang SGK thật để test vision")
 async def test_complete_vision_doc_dung_noi_dung_anh_that():
+    await _bo_qua_neu_het_credit()
     import base64
 
     img_b64 = base64.standard_b64encode(SAMPLE_PAGE.read_bytes()).decode()

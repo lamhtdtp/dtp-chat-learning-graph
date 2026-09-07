@@ -54,6 +54,10 @@ _MAX_BAI = 6000
 
 class Limits(BaseModel):
     max_chars: int
+    # Client hỏi TRƯỚC khi học sinh gõ, để hiện thông báo ngay thay vì để các em
+    # viết xong câu hỏi rồi mới nhận lỗi.
+    bao_tri: bool = False
+    bao_tri_nhan: str = ""
 
 
 @router.get("/limits", response_model=Limits)
@@ -63,7 +67,11 @@ async def limits(user: User = Depends(get_current_user)) -> Limits:
     Có endpoint riêng vì `chat_max_chars` override được bằng env: frontend
     hardcode con số sẽ lệch âm thầm với backend, và HS chỉ biết mình viết quá dài
     sau khi đã mất một vòng request."""
-    return Limits(max_chars=settings.chat_max_chars)
+    return Limits(
+        max_chars=settings.chat_max_chars,
+        bao_tri=settings.tro_ly_bao_tri,
+        bao_tri_nhan=settings.tro_ly_bao_tri_nhan if settings.tro_ly_bao_tri else "",
+    )
 
 
 class AskRequest(BaseModel):
@@ -306,6 +314,11 @@ async def ask(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> AskResponse:
+    # Chặn NGAY ĐẦU, trước cả kiểm tra độ dài và trước khi trừ lượt hỏi: bảo trì
+    # thì không được tính lượt của học sinh.
+    if settings.tro_ly_bao_tri:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            settings.tro_ly_bao_tri_nhan)
     q = body.question.strip()
     if not q:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Câu hỏi trống.")
