@@ -59,10 +59,14 @@ const PHAN_CHUAN = [
   { id: "bai_tap", ten: "Bài tập", em: "📚", cot: "bai_tap" },
 ];
 
+// Gợi ý cho thẻ cuối bài — thẻ này hỏi CẢ CUỐN (pham_vi="ca_cuon") nên câu mời
+// phải là câu hỏi xuyên sách. Ba chip cũ ("giải thích lại phần khái niệm…") là
+// câu hỏi TRONG BÀI: để nguyên thì mời học sinh làm đúng thứ thẻ này không làm,
+// vì backend không nạp nội dung bài ở phạm vi cả cuốn.
 const SUGGESTS = [
-  "Giải thích lại phần khái niệm dễ hiểu hơn",
-  "Cho mình thêm một ví dụ",
-  "Phần này học sinh hay nhầm chỗ nào?",
+  "Phần này liên quan tới bài nào khác?",
+  "Trước khi học bài này cần biết gì?",
+  "Toán 6 có những mạch kiến thức nào?",
 ];
 
 /** Câu hỏi mở đầu khi bấm "Hỏi về đoạn này" — tự nhiên hơn là mở thẻ trống rồi
@@ -297,9 +301,12 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
         </div>
       )}
 
-      {/* Hỏi chung cả bài — neo null, backend ghép khái niệm + ví dụ (không quiz).
-          Đặt TRƯỚC bài kiểm tra: gỡ rối xong mới thi. Trước đây chip gợi ý nằm
-          dưới bài kiểm tra, hoá ra hỏi "chưa rõ chỗ nào?" sau khi các em đã nộp. */}
+      {/* Thẻ hỏi CẢ CUỐN. Đặt TRƯỚC bài kiểm tra: gỡ rối xong mới thi. Trước đây
+          chip gợi ý nằm dưới bài kiểm tra, hoá ra hỏi "chưa rõ chỗ nào?" sau khi
+          các em đã nộp.
+          Phạm vi cố định "ca_cuon", KHÔNG cho học sinh chuyển: các thẻ "Hỏi" ở
+          từng mục đã lo phần hỏi trong bài, thẻ này lo phần hỏi xuyên sách —
+          mỗi chỗ một việc, không cần công tắc. */}
       <div className="suggest">
         <div className="s-label">
           {baoTri
@@ -309,9 +316,11 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
         {/* Hộp chat LUÔN MỞ, gợi ý nằm bên trong. Trước đây chỉ có 3 chip: bấm
             chip mới hiện hộp, nên em nào muốn hỏi câu của riêng mình thì không
             thấy chỗ gõ. Cố ý KHÔNG truyền `hoiDau` — mở bài là gửi câu hỏi luôn
-            thì mỗi lần vào bài mất một lượt hỏi trong ngày. */}
-        <TroLyCard topicId={lesson.topic_id} anchor={null} nhan="Bài này"
-          goiY={SUGGESTS} khongDong moiNhap="Hỏi trợ lý về bài này…"
+            thì mỗi lần vào bài mất một lượt hỏi trong ngày.
+            `anchor={null}` giữ nguyên nhưng backend BỎ neo ở phạm vi cả cuốn. */}
+        <TroLyCard topicId={lesson.topic_id} anchor={null} phamVi="ca_cuon"
+          nhan="Tất cả mục Toán lớp 6"
+          goiY={SUGGESTS} khongDong moiNhap="Hỏi bất cứ điều gì trong Toán lớp 6…"
           onDong={() => { /* hộp luôn mở */ }} />
       </div>
 

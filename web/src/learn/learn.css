@@ -328,18 +328,6 @@
 .learn .tl-nguon .ng.cuon{background:var(--teal-weak);color:var(--teal);
   border-color:color-mix(in srgb,var(--teal) 30%,transparent)}
 
-/* Công tắc phạm vi câu hỏi. Hai nút liền khối (segmented) chứ không phải
-   checkbox: học sinh lớp 6 đọc "Trong bài này | Cả cuốn sách" là hiểu ngay đang
-   hỏi ở đâu, còn một ô tick "hỏi cả cuốn" thì phải suy trạng thái ngược. */
-.learn .tl-pv{display:flex;gap:4px;margin:0 14px 9px;padding:3px;border-radius:11px;
-  background:var(--surface-2);border:1px solid var(--border);width:fit-content}
-.learn .tl-pv button{border:none;background:transparent;color:var(--ink-3);font:inherit;
-  font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:8px;transition:.14s}
-.learn .tl-pv button:hover:not(.on){color:var(--ink-2)}
-.learn .tl-pv button.on{background:var(--surface);color:var(--primary-ink);
-  box-shadow:var(--shadow-sm)}
-.learn .tl-pv button:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
-
 .learn .tl-in{display:flex;gap:8px;padding:0 14px 14px}
 .learn .tl-in input{flex:1;min-width:0;border:1px solid var(--border);background:var(--surface);
   color:var(--ink);border-radius:11px;padding:10px 13px;font:inherit;font-size:13.5px}

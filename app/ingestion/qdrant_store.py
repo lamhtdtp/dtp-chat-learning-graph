@@ -16,10 +16,15 @@ from app.config import settings
 from app.ingestion.chunking import Chunk
 from app.llm import gateway
 
-# Vector 3072 chiều — trùng cho cả openai/text-embedding-3-large (đang dùng) lẫn
-# gemini/gemini-embedding-001 (đã verify thật). Đổi model embedding KHÁC dim thì
-# phải tạo lại collection.
-_EMBEDDING_DIM = 3072
+# Vector 1024 chiều — baai/bge-m3 (dense). Trước là 3072 cho
+# openai/text-embedding-3-large / gemini/gemini-embedding-001, nhưng provider đã
+# bỏ model đó (404 "model is not found").
+#
+# ĐỔI MODEL EMBEDDING LUÔN PHẢI NẠP LẠI TOÀN BỘ, không chỉ khi lệch chiều: vector
+# của hai model nằm ở hai không gian khác nhau nên cosine giữa chúng vô nghĩa.
+# Lệch chiều thì Qdrant báo lỗi lúc upsert (còn dễ), CÙNG chiều mà khác model thì
+# truy hồi thành rác trong IM LẶNG — đó là ca nguy hiểm hơn.
+_EMBEDDING_DIM = 1024
 # Namespace cố định để sinh point id ổn định theo (sach, page, thứ tự chunk) —
 # ingest lại cùng trang sẽ ghi đè đúng point cũ, không tạo bản trùng.
 _ID_NAMESPACE = uuid.UUID("6f9619ff-8b86-d011-b42d-00c04fc964ff")
@@ -39,6 +44,24 @@ async def ensure_collection(client: AsyncQdrantClient | None = None) -> None:
         await client.create_collection(
             collection_name=settings.qdrant_collection,
             vectors_config=VectorParams(size=_EMBEDDING_DIM, distance=Distance.COSINE),
+        )
+        return
+
+    # Collection đã tồn tại: chiều vector KHÔNG sửa được tại chỗ. Không chặn ở
+    # đây thì đổi model lệch chiều sẽ nổ giữa lúc nạp, dưới dạng lỗi Qdrant khó
+    # lần và có thể đã ghi dở nửa cuốn. Chặn TRƯỚC, nói rõ phải làm gì.
+    info = await client.get_collection(settings.qdrant_collection)
+    # Chỉ đọc được `.size` khi collection dùng MỘT vector không tên (đúng như
+    # create_collection ở trên). Dạng nhiều vector có tên -> bỏ kiểm, không đoán.
+    dim = getattr(info.config.params.vectors, "size", None)
+    if dim is not None and dim != _EMBEDDING_DIM:
+        raise RuntimeError(
+            f"Collection {settings.qdrant_collection!r} đang là {dim} chiều nhưng "
+            f"model {settings.embedding_model!r} sinh {_EMBEDDING_DIM} chiều.\n"
+            "Chiều vector không đổi được tại chỗ — phải XOÁ collection rồi nạp lại "
+            "toàn bộ SGK (dữ liệu vector sẽ mất, nội dung bài trong Postgres thì không):\n"
+            f"  curl -X DELETE {settings.qdrant_url}/collections/{settings.qdrant_collection}\n"
+            "rồi chạy lại ingest cho từng cuốn đã nạp."
         )
 
 

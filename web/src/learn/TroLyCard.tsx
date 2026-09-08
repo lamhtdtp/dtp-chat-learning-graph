@@ -5,18 +5,10 @@ import type { AnhKem, Neo, PhamVi } from "../types";
 import { useSpeech } from "./useSpeech";
 
 type Luot = { hoi: string; dap: string; nguonBai: string | null; loi?: boolean;
-              anh?: AnhKem[]; phamVi?: PhamVi };
+              anh?: AnhKem[] };
 
 // Dùng khi GET /tutor/limits lỗi. Giữ khớp mặc định settings.chat_max_chars.
 const FALLBACK_MAX_CHARS = 500;
-
-// Gợi ý riêng cho phạm vi CẢ CUỐN. Câu hỏi tổng thể khó tự nghĩ ra hơn câu hỏi
-// trong bài ("chỗ này em không hiểu" là đủ), nên phần mời gọi phải cụ thể hơn.
-const GOI_Y_CUON = [
-  "Phần này liên quan tới bài nào khác trong sách?",
-  "Trước khi học bài này cần biết gì?",
-  "Cả cuốn có những mạch kiến thức nào?",
-];
 
 /** Chuẩn hoá câu trả lời -> HTML. Giống ChatPanel: renderMath lo LaTeX và bỏ
  *  trích trang [tr.45]; ở đây chỉ thêm markdown nhẹ. */
@@ -38,13 +30,18 @@ function toHtml(answer: string): string {
  */
 export function TroLyCard({
   topicId, anchor, nhan, hoiDau, chuDong, noiDungSan, nguonSan, dapNhanh, an, onDong,
-  goiY, khongDong, moiNhap,
+  goiY, khongDong, moiNhap, phamVi = "bai",
 }: {
   topicId: number;
   /** null = hỏi chung cả bài (backend ghép khái niệm + ví dụ, không kèm quiz). */
   anchor: Neo | null;
   /** Nhãn hiển thị của đoạn, vd "Ví dụ 2". */
   nhan: string;
+  /** Phạm vi của thẻ — CỐ ĐỊNH, do cha quyết định, không phải học sinh chuyển.
+   *  Trước đây là công tắc trong thẻ; bỏ đi vì mỗi chỗ đặt thẻ đã hàm ý phạm vi
+   *  rồi (thẻ ở một mục = hỏi mục đó; thẻ cuối bài = hỏi cả cuốn), thêm một lựa
+   *  chọn nữa chỉ là bắt học sinh quyết định thứ ngữ cảnh đã nói rõ. */
+  phamVi?: PhamVi;
   /** Câu hỏi bắn ngay khi thẻ mở. Bỏ trống nếu dùng `noiDungSan`. */
   hoiDau?: string;
   /** Thẻ do trợ lý tự mở (đổi màu + gắn nhãn "Trợ lý chủ động"). */
@@ -74,10 +71,6 @@ export function TroLyCard({
   );
   const [dangCho, setDangCho] = useState(false);
   const [input, setInput] = useState("");
-  // Phạm vi câu hỏi TIẾP THEO. Ở mức thẻ chứ không phải mức trang: học sinh
-  // thường hỏi một câu tổng thể rồi quay ngay về bài, nên bắt các em đi đổi cài
-  // đặt ở đâu khác rồi quay lại là quá nhiều bước.
-  const [phamVi, setPhamVi] = useState<PhamVi>("bai");
   const caCuon = phamVi === "ca_cuon";
   // Bắn câu mở đầu ĐÚNG MỘT LẦN: StrictMode gọi effect hai lượt, không chốt lại
   // thì mỗi lần mở thẻ là hai request và trừ hai lượt hỏi của học sinh.
@@ -107,20 +100,17 @@ export function TroLyCard({
     if (mic.listening) mic.stop();   // gửi rồi thì tắt micro, không nghe tiếp vào câu đã gửi
     setInput("");
     setDangCho(true);
-    // Chốt phạm vi NGAY LÚC GỬI: học sinh bấm đổi công tắc trong khi đang chờ
-    // thì lượt đang bay vẫn phải được gắn nhãn theo đúng phạm vi đã hỏi.
-    const pv = phamVi;
     try {
-      const a = await askTutor(q, "Toán", { topicId, anchor, phamVi: pv });
+      const a = await askTutor(q, "Toán", { topicId, anchor, phamVi });
       // `a.citations` (số trang SGK) CỐ Ý không hiển thị: học sinh không tra
       // sách giấy khi đang học trên máy, mà mỗi câu trả lời lại đính 2-3 nhãn
       // trang thành ra nhiễu. Nhãn "Bài đang học" mới là thứ các em cần biết.
       setLuots((l) => [...l, { hoi: q, dap: toHtml(a.answer), nguonBai: a.nguon_bai,
-                               anh: a.anh, phamVi: pv }]);
+                               anh: a.anh }]);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) { tokenStore.clear(); location.reload(); return; }
       const msg = e instanceof ApiError ? e.message : "Không kết nối được máy chủ";
-      setLuots((l) => [...l, { hoi: q, dap: "⚠️ " + msg, nguonBai: null, loi: true, phamVi: pv }]);
+      setLuots((l) => [...l, { hoi: q, dap: "⚠️ " + msg, nguonBai: null, loi: true }]);
     } finally {
       setDangCho(false);
     }
@@ -167,7 +157,7 @@ export function TroLyCard({
             {/* Phạm vi cả cuốn -> backend không trả `nguon_bai` (không dựa vào
                 bài nào), nên nhãn phải nói rõ câu trả lời lấy từ đâu. Không có
                 nhãn thì hai loại câu trả lời trông y hệt nhau. */}
-            {!l.loi && (l.phamVi === "ca_cuon"
+            {!l.loi && (caCuon
               ? <div className="tl-nguon"><span className="ng cuon">📚 Cả cuốn SGK</span></div>
               : l.nguonBai && (
                 <div className="tl-nguon">
@@ -177,12 +167,10 @@ export function TroLyCard({
           </div>
         ))}
         {/* Gợi ý nằm TRONG hộp, mất đi sau lượt đầu: giữ lại thì chiếm chỗ của
-            hội thoại, mà lúc đó học sinh đã biết gõ vào đâu rồi.
-            Đổi sang cả cuốn thì gợi ý cũng phải đổi — chip "chỗ này em chưa hiểu"
-            là câu hỏi trong bài, để nguyên thì mời sai việc. */}
-        {luots.length === 0 && !dangCho && !baoTri && (caCuon || !!goiY?.length) && (
+            hội thoại, mà lúc đó học sinh đã biết gõ vào đâu rồi. */}
+        {!!goiY?.length && luots.length === 0 && !dangCho && !baoTri && (
           <div className="tl-goiy">
-            {(caCuon ? GOI_Y_CUON : goiY!).map((q) => (
+            {goiY.map((q) => (
               <button type="button" key={q} onClick={() => hoi(q)}>💬 {q}</button>
             ))}
           </div>
@@ -214,26 +202,10 @@ export function TroLyCard({
       )}
       {mic.loi && <div className="tl-mic-loi">⚠️ {mic.loi}</div>}
 
-      {/* Công tắc phạm vi. Đặt NGAY TRÊN ô nhập, không nhét vào đầu thẻ: nó đổi
-          nghĩa của câu sắp gõ, nên phải nằm trong tầm mắt lúc gõ. Ẩn khi bảo trì
-          cùng ô nhập — không có gì để hỏi thì phạm vi cũng vô nghĩa. */}
-      {!baoTri && (
-        <div className="tl-pv" role="group" aria-label="Phạm vi câu hỏi">
-          <button type="button" className={caCuon ? "" : "on"} aria-pressed={!caCuon}
-            onClick={() => setPhamVi("bai")}>Trong bài này</button>
-          <button type="button" className={caCuon ? "on" : ""} aria-pressed={caCuon}
-            onClick={() => setPhamVi("ca_cuon")}>Cả cuốn sách</button>
-        </div>
-      )}
-
       {!baoTri && (
       <div className="tl-in">
-        {/* caCuon phải THẮNG `moiNhap`: hộp luôn mở được cha truyền placeholder
-            riêng, giữ nó thì đổi sang cả cuốn mà lời mời vẫn nói "về bài này". */}
         <input value={input}
-          placeholder={caCuon
-            ? "Hỏi bất cứ điều gì trong cả cuốn sách…"
-            : (moiNhap ?? `Hỏi tiếp về ${nhan.toLowerCase()}…`)} disabled={dangCho}
+          placeholder={moiNhap ?? `Hỏi tiếp về ${nhan.toLowerCase()}…`} disabled={dangCho}
           maxLength={maxChars} onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); hoi(input); } }} />
         {/* Trình duyệt không có Web Speech API (Firefox…) -> ẩn hẳn nút micro */}

@@ -260,18 +260,34 @@ async def complete(
     return answer
 
 
+# `encoding_format` KHÁC NHAU THEO MODEL — cùng lý do như `_PROTOCOL_BY_MODEL`
+# ở trên: VNGCloud không thống nhất một giao thức cho mọi model.
+#   - baai/bge-m3 sinh được BA loại vector (dense / sparse / colbert) nên phải
+#     nói rõ muốn loại nào -> "dense". Ta chỉ dùng dense (Qdrant đang cấu hình
+#     một vector không tên, cosine).
+#   - Model OpenAI/Gemini chỉ có một loại -> "float" theo chuẩn OpenAI.
+# KHÔNG suy đoán cho model mới: thử bằng curl trước rồi mới thêm vào đây.
+_EMBED_FORMAT_BY_MODEL: dict[str, str] = {
+    "baai/bge-m3": "dense",
+    "openai/text-embedding-3-large": "float",
+    "gemini/gemini-embedding-001": "float",
+}
+_EMBED_FORMAT_MAC_DINH = "float"
+
+
 async def embed(texts: list[str]) -> list[list[float]]:
     client = _openai_client()
+    model = settings.embedding_model
     try:
         response = await client.embeddings.create(
-            model=settings.embedding_model,
+            model=model,
             input=texts,
-            encoding_format="float",
+            encoding_format=_EMBED_FORMAT_BY_MODEL.get(model, _EMBED_FORMAT_MAC_DINH),
         )
     except _QUOTA_ERRORS as e:
         raise _loi_quota(e) from e
     except _MODEL_ERRORS as e:
-        raise _loi_model(settings.embedding_model, e) from e
+        raise _loi_model(model, e) from e
     except _TRANSIENT_ERRORS as e:
         raise LLMUnavailable(str(e)) from e
     return [item.embedding for item in response.data]

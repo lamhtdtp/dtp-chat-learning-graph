@@ -12,6 +12,7 @@ import pytest
 import openai
 
 from app.config import settings
+from app.ingestion import qdrant_store
 from app.llm import gateway
 from app.llm.gateway import LLMUnavailable
 
@@ -100,7 +101,8 @@ async def test_embed_that_qua_vngcloud():
     phải đỏ: lúc đó là hồi quy thật.
 
     (2026-09-04: tài khoản chỉ có google/gemma-4-31b-it, không có embedding ->
-    tra SGK bằng vector đang tắt, xem `python -m app.llm.tu_kiem`.)
+    tra SGK bằng vector đang tắt, xem `python -m app.llm.tu_kiem`.
+     2026-09-08: đổi sang baai/bge-m3 sau khi text-embedding-3-large bị bỏ.)
     """
     if settings.embedding_model not in await _model_co_san():
         pytest.skip(f"tài khoản không có model embedding {settings.embedding_model!r} "
@@ -109,4 +111,10 @@ async def test_embed_that_qua_vngcloud():
     vectors = await gateway.embed(["xin chào"])
 
     assert len(vectors) == 1
-    assert len(vectors[0]) == 3072
+    # So với hằng số Qdrant đang dùng, KHÔNG hardcode lại con số: lệch giữa hai
+    # chỗ này nghĩa là upsert sẽ nổ lúc nạp sách, và đây là chỗ duy nhất phát
+    # hiện được sớm bằng lời gọi thật.
+    assert len(vectors[0]) == qdrant_store._EMBEDDING_DIM, (
+        f"model {settings.embedding_model!r} trả {len(vectors[0])} chiều nhưng "
+        f"qdrant_store._EMBEDDING_DIM = {qdrant_store._EMBEDDING_DIM}"
+    )

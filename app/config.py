@@ -17,7 +17,11 @@ class Settings(BaseSettings):
     # model reasoning riêng nên "strong" chỉ khác ở max_tokens.
     gemini_model_cheap: str = "google/gemma-4-31b-it"
     gemini_model_strong: str = "google/gemma-4-31b-it"
-    embedding_model: str = "openai/text-embedding-3-large"
+    # baai/bge-m3 — dense 1024 chiều (KHÁC 3072 của text-embedding-3-large, vốn
+    # đã bị provider bỏ: 404 "model is not found"). Đổi model embedding thì PHẢI
+    # nạp lại toàn bộ Qdrant, và vì lệch chiều nên còn phải tạo lại collection —
+    # xem app/ingestion/qdrant_store.py.
+    embedding_model: str = "baai/bge-m3"
     image_model: str = "openai/gpt-image-1"  # sinh ảnh nền cảnh video (đã verify)
 
     qdrant_url: str = "http://localhost:6333"
