@@ -82,11 +82,15 @@ function _html(n: ChildNode): string {
   return (n as Element).outerHTML ?? "";
 }
 
-/** Cắt một <p> luyện tập thành (đề, đáp số). null = không nhận ra -> không có nút.
+/** Cắt một <p> luyện tập thành (đề, đáp số).
+ *    {de, ds}    — cắt được trong chính đoạn đó
+ *    "ca-doan"   — CẢ đoạn là đáp số (soạn thành đoạn riêng) -> chỗ gọi gộp vào
+ *                  bài đứng trước
+ *    null        — không nhận ra -> không có nút
  *
  *  Đi trên NODE, không cắt chuỗi HTML: đáp số hay nằm trong <b>, cắt chuỗi ở
  *  giữa thẻ là hở thẻ và trình duyệt tự "sửa" thành DOM khác hẳn. */
-function _tachDapSo(p: Element): { de: string; ds: string } | null {
+function _tachDapSo(p: Element): { de: string; ds: string } | "ca-doan" | null {
   const kids = Array.from(p.childNodes);
   for (let i = kids.length - 1; i >= 0; i--) {
     const n = kids[i];
@@ -98,7 +102,10 @@ function _tachDapSo(p: Element): { de: string; ds: string } | null {
     // text của các node đứng trước.
     const truocText = kids.slice(0, i).map((k) => k.textContent ?? "").join("")
       + (n.nodeType === Node.TEXT_NODE ? t.slice(0, m.index) : "");
-    if (!truocText.trim()) return null;             // cả <p> là đáp số -> không có đề để ẩn
+    // Cả <p> LÀ đáp số (chuyên gia soạn đáp số thành đoạn riêng). Không có đề để
+    // ẩn trong chính nó -> báo lên để chỗ gọi gộp vào bài ĐỨNG TRƯỚC. Trước đây
+    // trả null ở đây, nên kiểu soạn này không có nút mà đáp số hiện nguyên.
+    if (!truocText.trim()) return "ca-doan";
     if (!DS_TRUOC_OK.test(truocText)) return null;  // marker nằm giữa câu -> là đề
     const truoc = kids.slice(0, i).map(_html).join("");
     const sau = kids.slice(i + 1).map(_html).join("");
@@ -126,10 +133,20 @@ export function chiaLuyenTap(html: string): { de: string; ds: string | null }[] 
   const doc = new DOMParser().parseFromString(`<body>${html}</body>`, "text/html");
   const ps = Array.from(doc.body.children).filter((e) => e.tagName === "P");
   if (!ps.length) return null;
-  const bai = ps.map((p) => {
+  const bai: { de: string; ds: string | null }[] = [];
+  for (const p of ps) {
     const t = _tachDapSo(p);
-    return t ? { de: t.de, ds: t.ds } : { de: p.innerHTML, ds: null };
-  });
+    if (t === "ca-doan") {
+      // Đáp số soạn thành đoạn riêng -> gộp vào bài trước. Không có bài nào
+      // trước (đoạn đầu tiên đã là đáp số) thì để nguyên như đề: dữ liệu lạ,
+      // không đoán.
+      const truoc = bai[bai.length - 1];
+      if (truoc && !truoc.ds) truoc.ds = p.innerHTML;
+      else bai.push({ de: p.innerHTML, ds: null });
+      continue;
+    }
+    bai.push(t ? { de: t.de, ds: t.ds } : { de: p.innerHTML, ds: null });
+  }
   return bai.some((b) => b.ds) ? bai : null;
 }
 
