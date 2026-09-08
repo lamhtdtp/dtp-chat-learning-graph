@@ -278,7 +278,7 @@ export function LearnApp({ name, email, role, onLogout }: {
             ? <SlideView lesson={lesson} />
             : lesson
               ? <LessonView lesson={lesson} teacher={teacher} onMarkDone={markDone}
-                  onQuizGraded={onQuizGraded} />
+                  onQuizGraded={onQuizGraded} onMoBai={openTopic} />
               : <div className="lesson-empty">Đang tải bài học…</div>)}
       </main>
     </div>

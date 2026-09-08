@@ -49,6 +49,11 @@ _LUAT_CUON = (
     "ngữ liệu cho phần đó.\n"
     "Nếu câu hỏi trải nhiều phần của sách, trả lời theo thứ tự các phần xuất "
     "hiện trong mục lục để em ấy dễ lần theo.\n"
+    "KHI nhắc tới một đơn vị kiến thức có trong MỤC LỤC, bọc tên nó trong dấu "
+    "[[...]] và ghi ĐÚNG NGUYÊN VĂN tên trong mục lục (ví dụ: '...phần này học "
+    "sau bài [[Số nguyên tố. Hợp số]].'). Giao diện dùng dấu đó để tạo lối mở "
+    "sang bài tương ứng, nên tên sai một chữ là mất lối đi. Chỉ bọc tên CÓ trong "
+    "mục lục; không bọc tên tự nghĩ ra, không bọc tên mạch.\n"
     + _LUAT_TRANG
 )
 

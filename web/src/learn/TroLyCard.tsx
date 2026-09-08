@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, askTutor, getTutorLimits, tokenStore } from "../api";
 import { renderMath } from "../mathHtml";
-import type { AnhKem, Neo, PhamVi } from "../types";
+import type { AnhKem, MucLienQuan, Neo, PhamVi } from "../types";
 import { useSpeech } from "./useSpeech";
 
 type Luot = { hoi: string; dap: string; nguonBai: string | null; loi?: boolean;
-              anh?: AnhKem[] };
+              anh?: AnhKem[]; muc?: MucLienQuan[] };
 
 // Dùng khi GET /tutor/limits lỗi. Giữ khớp mặc định settings.chat_max_chars.
 const FALLBACK_MAX_CHARS = 500;
@@ -30,7 +30,7 @@ function toHtml(answer: string): string {
  */
 export function TroLyCard({
   topicId, anchor, nhan, hoiDau, chuDong, noiDungSan, nguonSan, dapNhanh, an, onDong,
-  goiY, khongDong, moiNhap, phamVi = "bai",
+  goiY, khongDong, moiNhap, phamVi = "bai", onMoBai,
 }: {
   topicId: number;
   /** null = hỏi chung cả bài (backend ghép khái niệm + ví dụ, không kèm quiz). */
@@ -42,6 +42,9 @@ export function TroLyCard({
    *  rồi (thẻ ở một mục = hỏi mục đó; thẻ cuối bài = hỏi cả cuốn), thêm một lựa
    *  chọn nữa chỉ là bắt học sinh quyết định thứ ngữ cảnh đã nói rõ. */
   phamVi?: PhamVi;
+  /** Mở sang bài mà câu trả lời nhắc tới. Thiếu -> KHÔNG hiện lối mở nào: chỉ
+   *  LearnApp biết cách đổi bài, thẻ tự vẽ chip rồi bấm không đi đâu là tệ hơn. */
+  onMoBai?: (topicId: number) => void;
   /** Câu hỏi bắn ngay khi thẻ mở. Bỏ trống nếu dùng `noiDungSan`. */
   hoiDau?: string;
   /** Thẻ do trợ lý tự mở (đổi màu + gắn nhãn "Trợ lý chủ động"). */
@@ -106,7 +109,7 @@ export function TroLyCard({
       // sách giấy khi đang học trên máy, mà mỗi câu trả lời lại đính 2-3 nhãn
       // trang thành ra nhiễu. Nhãn "Bài đang học" mới là thứ các em cần biết.
       setLuots((l) => [...l, { hoi: q, dap: toHtml(a.answer), nguonBai: a.nguon_bai,
-                               anh: a.anh }]);
+                               anh: a.anh, muc: a.muc_lien_quan }]);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) { tokenStore.clear(); location.reload(); return; }
       const msg = e instanceof ApiError ? e.message : "Không kết nối được máy chủ";
@@ -164,6 +167,19 @@ export function TroLyCard({
                   <span className="ng bai">📖 Bài đang học · {l.nguonBai}</span>
                 </div>
               ))}
+            {/* Lối mở sang bài trợ lý vừa nhắc. Hỏi cả cuốn thì câu trả lời hay
+                trỏ sang bài khác ("phần này học sau bài X") mà học sinh lại phải
+                tự dò trong mục lục bên trái — chip này bỏ hẳn bước dò đó. */}
+            {!l.loi && !!l.muc?.length && onMoBai && (
+              <div className="tl-muc">
+                {l.muc.map((m) => (
+                  <button type="button" key={m.topic_id} onClick={() => onMoBai(m.topic_id)}>
+                    <span aria-hidden>📖</span> {m.ten}
+                    <span className="mui" aria-hidden>↗</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ))}
         {/* Gợi ý nằm TRONG hộp, mất đi sau lượt đầu: giữ lại thì chiếm chỗ của

@@ -54,6 +54,15 @@ _MAX_BAI = 6000
 # Trần mục lục (phạm vi "ca_cuon"). Toán 6 khoảng 40 đơn vị nên thực tế không
 # chạm trần; đặt để một khối bị nạp ma trận lỗi không kéo prompt phình vô hạn.
 _MAX_MUC_LUC = 4000
+# Tên đơn vị trợ lý nhắc trong câu trả lời, do prompt bọc trong [[...]].
+# `[^\[\]\n]` chặn ngoặc lồng và bắt buộc nằm trong MỘT dòng: mô hình quên đóng
+# ngoặc thì regex tham lam sẽ ăn hết phần còn lại của câu trả lời.
+_MUC_RE = re.compile(r"\[\[([^\[\]\n]{1,200})\]\]")
+# Ngoặc còn sót sau khi bóc (mô hình quên đóng / bọc qua nhiều dòng).
+_NGOAC_RE = re.compile(r"\[\[|\]\]")
+# Trần số lối mở bài mỗi câu trả lời. Nhiều hơn thì hàng chip dài hơn cả câu trả
+# lời, mà học sinh cũng không mở 6 bài một lúc.
+_MAX_MUC = 4
 # Số đoạn SGK lấy về theo phạm vi. Hỏi trong bài là câu hỏi ĐIỂM (5 đoạn dư sức,
 # vì đã có nội dung bài làm nguồn chính); hỏi cả cuốn thường trải nhiều chương
 # nên 5 đoạn là quá ít để nói được điều gì đầy đủ.
@@ -107,6 +116,17 @@ class Citation(BaseModel):
     nguon: str
 
 
+class MucLienQuan(BaseModel):
+    """Lối mở sang một đơn vị kiến thức mà câu trả lời có nhắc tới.
+
+    Chỉ có ở phạm vi "ca_cuon": hỏi cả cuốn thì câu trả lời hay trỏ sang bài khác
+    ("phần này học sau bài X"), mà học sinh lại phải tự dò trong mục lục bên trái.
+    """
+
+    topic_id: int
+    ten: str
+
+
 class AnhKem(BaseModel):
     """Hình minh hoạ đính theo câu trả lời."""
 
@@ -125,6 +145,8 @@ class AskResponse(BaseModel):
     nguon_bai: str | None = None
     # Hình của CHÍNH bài đang học, đính khi câu hỏi/câu trả lời nói tới hình vẽ.
     anh: list[AnhKem] = []
+    # Bài mà câu trả lời có nhắc tới, để client mở sang được. Chỉ ở "ca_cuon".
+    muc_lien_quan: list[MucLienQuan] = []
 
 
 # Dấu hiệu câu hỏi/câu trả lời đang nói về HÌNH. Không có hàng rào này thì bài
@@ -335,23 +357,32 @@ async def _mon_khoi(session: AsyncSession, topic_id: int | None, mon_ten: str) -
     return (mon or mac_dinh[0], khoi or mac_dinh[1])
 
 
-async def _muc_luc(session: AsyncSession, topic_id: int | None) -> str:
-    """Mục lục cuốn sách của topic: mạch nội dung -> các đơn vị, theo order_index.
+async def _danh_muc(session: AsyncSession, topic_id: int | None) -> list[CurriculumTopic]:
+    """Toàn bộ đơn vị của CUỐN SÁCH mà topic thuộc về, theo order_index.
+
+    Trả về BẢN GHI chứ không phải chuỗi: cùng danh sách này vừa dựng mục lục cho
+    prompt, vừa để giải tên đơn vị mà trợ lý nhắc trong câu trả lời thành
+    topic_id. Truy vấn hai lần cho hai việc đó là vô ích.
+    """
+    if topic_id is None:
+        return []
+    topic = await session.get(CurriculumTopic, topic_id)
+    if topic is None:
+        return []
+    return list(await session.scalars(
+        select(CurriculumTopic)
+        .filter_by(subject_id=topic.subject_id, grade_id=topic.grade_id)
+        .order_by(CurriculumTopic.order_index)))
+
+
+def _muc_luc_text(rows: list[CurriculumTopic]) -> str:
+    """Mục lục cho prompt: mạch nội dung -> các đơn vị.
 
     Chỉ dùng ở phạm vi "ca_cuon". Retrieval 16 đoạn văn không bao giờ dựng lại
     được CẤU TRÚC sách, nên câu hỏi kiểu "phần này nằm ở chương nào", "nên học
     cái gì trước" cần bản đồ này. Là danh mục chương trình, không phải ngữ liệu
     -> node cố ý không tính nó vào grounding.
     """
-    if topic_id is None:
-        return ""
-    topic = await session.get(CurriculumTopic, topic_id)
-    if topic is None:
-        return ""
-    rows = (await session.scalars(
-        select(CurriculumTopic)
-        .filter_by(subject_id=topic.subject_id, grade_id=topic.grade_id)
-        .order_by(CurriculumTopic.order_index))).all()
     dong: list[str] = []
     mach_truoc: str | None = None
     for r in rows:
@@ -360,6 +391,37 @@ async def _muc_luc(session: AsyncSession, topic_id: int | None) -> str:
             mach_truoc = r.mach_noi_dung
         dong.append(f"- {r.don_vi_kien_thuc}")
     return "\n".join(dong)[:_MAX_MUC_LUC]
+
+
+def _boc_muc(answer: str, rows: list[CurriculumTopic]) -> tuple[str, list[MucLienQuan]]:
+    """Bóc dấu [[Tên đơn vị]] khỏi câu trả lời -> (văn sạch, danh sách lối mở bài).
+
+    Prompt phạm vi cả cuốn dặn mô hình bọc tên đơn vị trong [[...]] (xem
+    app/graph/nodes/qa.py). Ở đây:
+      - luôn BỎ dấu ngoặc khỏi văn bản, kể cả khi không giải được tên: để lại
+        "[[...]]" trên màn hình học sinh là rác;
+      - chỉ tạo lối mở bài khi khớp CHẮC CHẮN (>= diem_khop.CAO). Mô hình sao tên
+        từ mục lục nên khớp cao là chuyện thường; khớp lỏng thì thà không có link
+        hơn là bấm vào ra sai bài.
+    Mô hình không tuân thủ -> không có dấu nào -> trả về đúng văn gốc, danh sách
+    rỗng. Tính năng tự tắt, không lỗi.
+    """
+    tim: list[MucLienQuan] = []
+    da_co: set[int] = set()
+
+    def _the(m: re.Match) -> str:
+        ten = m.group(1).strip()
+        t, d = diem_khop.khop_ten_don_vi(ten, rows)
+        if t is not None and d >= diem_khop.CAO and t.id not in da_co and len(tim) < _MAX_MUC:
+            da_co.add(t.id)
+            tim.append(MucLienQuan(topic_id=t.id, ten=t.don_vi_kien_thuc))
+        return ten
+
+    van = _MUC_RE.sub(_the, answer)
+    # Ngoặc MỒ CÔI: mô hình quên đóng, hoặc bọc qua nhiều dòng -> _MUC_RE không
+    # khớp và "[[" còn nằm trên màn hình học sinh. Không giải được thành lối mở
+    # bài thì thôi, nhưng dấu ngoặc thì phải sạch trong mọi trường hợp.
+    return _NGOAC_RE.sub("", van), tim
 
 
 async def _enforce_limit(user: User) -> int | None:
@@ -401,11 +463,12 @@ async def ask(
     anchor = None if ca_cuon else (
         body.anchor if (body.anchor and _NEO_RE.match(body.anchor)) else None)
     bai_hoc, nguon_bai, ten_dv, noi_dung = "", None, body.context, None
-    muc_luc = ""
+    muc_luc, danh_muc = "", []
     if ca_cuon:
         # KHÔNG nạp nội dung bài: để lại là mô hình có một bài cụ thể trong tay
         # rồi câu trả lời bám về đó, đúng thứ chế độ này muốn tránh.
-        muc_luc = await _muc_luc(session, body.topic_id)
+        danh_muc = await _danh_muc(session, body.topic_id)
+        muc_luc = _muc_luc_text(danh_muc)
     elif body.topic_id is not None:
         bai_hoc, nguon_bai, ten_dv, noi_dung = await _ngu_canh_bai(
             session, user, body.topic_id, anchor, ten_dv)
@@ -446,6 +509,12 @@ async def ask(
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Trợ lý đang quá tải, thử lại sau ít phút nhé.")
 
     answer = out.get("answer", "")
+    # Bóc [[Tên đơn vị]] NGAY, trước cả kiểm `khong_tim_thay`: dấu ngoặc phải rời
+    # khỏi văn bản trong MỌI đường ra, kể cả câu từ chối, không thì học sinh thấy
+    # "[[...]]" trên màn hình.
+    muc_lq: list[MucLienQuan] = []
+    if ca_cuon:
+        answer, muc_lq = _boc_muc(answer, danh_muc)
     ktf = KHONG_TIM_THAY in answer
     cits: list[Citation] = []
     if not ktf:
@@ -468,7 +537,9 @@ async def ask(
                           body.topic_id, anchor)
     return AskResponse(answer=answer, citations=cits[:3], khong_tim_thay=ktf,
                        remaining=remaining, nguon_bai=None if ktf else nguon_bai,
-                       anh=anh)
+                       anh=anh,
+                       # Câu từ chối "không có trong SGK" thì không mời đi đâu cả.
+                       muc_lien_quan=[] if ktf else muc_lq)
 
 
 async def _ngu_canh_bai(

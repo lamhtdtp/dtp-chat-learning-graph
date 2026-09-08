@@ -115,6 +115,10 @@ export interface AuthResult {
 export interface TutorCitation { page_no: number; nguon: string }
 /** Hình của chính bài đang học, đính theo câu trả lời khi câu hỏi nói về hình. */
 export interface AnhKem { url: string; caption: string; tu: string }
+/** Lối mở sang một bài mà câu trả lời có nhắc tới. Chỉ có ở phạm vi "ca_cuon" —
+ *  khớp `MucLienQuan` ở app/api/tutor.py. */
+export interface MucLienQuan { topic_id: number; ten: string }
+
 export interface TutorAnswer {
   answer: string;
   citations: TutorCitation[];
@@ -123,6 +127,8 @@ export interface TutorAnswer {
   /** Nhãn đoạn bài học trợ lý đã dựa vào ("Ví dụ 2", "Khái niệm"…). null = chỉ có SGK. */
   nguon_bai: string | null;
   anh: AnhKem[];
+  /** Bài mà câu trả lời nhắc tới (phạm vi cả cuốn). Mặc định [] cho client cũ. */
+  muc_lien_quan?: MucLienQuan[];
 }
 
 /** Đoạn bài học đang hỏi. Khớp với `anchor` ở backend (app/api/tutor.py). */

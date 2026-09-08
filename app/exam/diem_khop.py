@@ -57,6 +57,26 @@ def khop_tot_nhat(dv_nguon: str, mach_nguon: str, ung_vien: list) -> tuple[objec
     return tot, cao_nhat
 
 
+def khop_ten_don_vi(ten: str, ung_vien: list) -> tuple[object | None, float]:
+    """Ứng viên khớp nhất CHỈ theo tên đơn vị, không xét mạch.
+
+    Khác `khop_tot_nhat`: hàm kia trộn 0.7×đơn vị + 0.3×mạch cho bước đối chiếu
+    ma trận (mỗi dòng ma trận có cả tên mạch). Chỗ gọi không có tên mạch — ví dụ
+    trợ lý nhắc tên một bài trong câu trả lời — thì công thức đó chặn trần ở 0.7,
+    dưới cả ngưỡng CAO, nên không bao giờ khớp được.
+
+    Đặt ở đây chứ không viết riêng tại chỗ gọi để `chuan()` (NFC + bỏ dấu câu)
+    chỉ có MỘT bản: hai bản chuẩn hoá lệch nhau là hai kết quả khớp khác nhau cho
+    cùng một cái tên.
+    """
+    tot, cao_nhat = None, 0.0
+    for t in ung_vien:
+        d = _giong(ten, getattr(t, "don_vi_kien_thuc", "") or "")
+        if d > cao_nhat:
+            tot, cao_nhat = t, round(d, 4)
+    return tot, cao_nhat
+
+
 def tong_ti_le_theo_muc_do(cells: list) -> dict[str, float]:
     """Cộng tỉ lệ theo mức độ từ `BlueprintCell`, MỖI NHÓM ô gộp một lần (§2.5).
 

@@ -156,9 +156,12 @@ const CAU_MO: Record<string, string> = {
 };
 const cauMoViDu = (i: number) => `Ví dụ ${i + 1}: giải thích từng bước giúp mình`;
 
-export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
+export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded, onMoBai }: {
   lesson: Lesson; teacher: boolean; onMarkDone?: () => void;
   onQuizGraded?: (r: QuizResult) => void;
+  /** Mở sang bài khác — dùng cho lối mở bài trong câu trả lời "cả cuốn". Chỉ
+   *  LearnApp đổi được bài đang mở nên phải truyền từ trên xuống. */
+  onMoBai?: (topicId: number) => void;
 }) {
   const [showQuiz, setShowQuiz] = useState(false);
   /** Cuộn tới một phần + loé viền 2.2s (§3.4 "↑ Đọc lại phần này").
@@ -437,7 +440,7 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
             thì mỗi lần vào bài mất một lượt hỏi trong ngày.
             `anchor={null}` giữ nguyên nhưng backend BỎ neo ở phạm vi cả cuốn. */}
         <TroLyCard topicId={lesson.topic_id} anchor={null} phamVi="ca_cuon"
-          nhan="Tất cả mục Toán lớp 6"
+          nhan="Tất cả mục Toán lớp 6" onMoBai={onMoBai}
           goiY={SUGGESTS} khongDong moiNhap="Hỏi bất cứ điều gì trong Toán lớp 6…"
           onDong={() => { /* hộp luôn mở */ }} />
       </div>

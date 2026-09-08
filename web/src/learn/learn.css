@@ -328,6 +328,19 @@
 .learn .tl-nguon .ng.cuon{background:var(--teal-weak);color:var(--teal);
   border-color:color-mix(in srgb,var(--teal) 30%,transparent)}
 
+/* Lối mở sang bài trợ lý vừa nhắc (chỉ phạm vi cả cuốn). Sắc teal cùng họ với
+   nhãn nguồn "📚 Cả cuốn SGK" ngay trên nó — cùng một mạch thông tin.
+   Không dùng <a>: đây là đổi bài trong app (setState), không phải điều hướng
+   URL, nên phải là <button> để bàn phím và trình đọc màn hình hiểu đúng. */
+.learn .tl-muc{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.learn .tl-muc button{display:inline-flex;align-items:center;gap:6px;max-width:100%;
+  border:1px solid color-mix(in srgb,var(--teal) 32%,transparent);background:var(--surface);
+  color:var(--teal);font:inherit;font-size:12px;font-weight:700;text-align:left;
+  padding:5px 11px;border-radius:20px;transition:.14s;cursor:pointer}
+.learn .tl-muc button:hover{background:var(--teal-weak);border-color:var(--teal)}
+.learn .tl-muc button:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
+.learn .tl-muc .mui{opacity:.65;font-size:11px}
+
 .learn .tl-in{display:flex;gap:8px;padding:0 14px 14px}
 .learn .tl-in input{flex:1;min-width:0;border:1px solid var(--border);background:var(--surface);
   color:var(--ink);border-radius:11px;padding:10px 13px;font:inherit;font-size:13.5px}
