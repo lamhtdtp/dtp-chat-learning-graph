@@ -40,8 +40,20 @@ def build_cache_key(
     khoi: str,
     chuong: int | None,
     role: str,
+    topic_id: int | None = None,
+    anchor: str | None = None,
+    pham_vi: str | None = None,
 ) -> str:
-    raw = "|".join([task, mon, khoi, str(chuong), role, _normalize(question)])
+    """Key phải gồm ĐỦ mọi chiều làm câu trả lời khác nhau.
+
+    `topic_id`/`anchor`/`pham_vi` mặc định None để chỗ gọi ngoài chat (task
+    review_suggestion) không phải truyền — nhưng với task "qa" thì thiếu chúng là
+    trả nhầm cache: câu hỏi ngắn ("giải thích lại đi") ở hai đơn vị kiến thức
+    khác nhau vốn băm ra cùng một key, nhất là khi truy hồi rỗng (`chuong` =
+    None) nên phần còn lại của key giống hệt nhau.
+    """
+    raw = "|".join([task, mon, khoi, str(chuong), role, str(topic_id), str(anchor),
+                    str(pham_vi), _normalize(question)])
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     return f"llmcache:{digest}"
 

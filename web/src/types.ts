@@ -133,6 +133,12 @@ export type Neo =
   | "luyen_tap" | "bai_tap"
   | `vi_du:${number}` | `quiz:${number}`;
 
+/** Phạm vi câu hỏi. Khớp `AskRequest.pham_vi` ở app/api/tutor.py.
+ *  - "bai": trong đơn vị đang mở — nội dung bài là nguồn ưu tiên.
+ *  - "ca_cuon": xuyên cả cuốn SGK của khối đó — bỏ nội dung bài, kèm mục lục,
+ *    lấy nhiều đoạn SGK hơn và không ghép tên bài vào truy vấn. */
+export type PhamVi = "bai" | "ca_cuon";
+
 // Hero gamification (GET /me/stats)
 export interface MachTienDo { mach: string; em: string; phan_tram: number }
 export interface MyStats {

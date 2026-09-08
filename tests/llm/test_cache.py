@@ -10,6 +10,28 @@ def test_key_gom_du_mon_khoi_chuong_role():
     assert k1 != cache.build_cache_key("qa", "Tập hợp là gì?", mon="ly", khoi="lop_6", chuong=1, role="hoc_sinh")
 
 
+def test_key_gom_topic_anchor_pham_vi():
+    """`qa_node` đã truyền topic_id/anchor vào cache_ctx kèm bình luận "BẮT BUỘC
+    có mặt", nhưng key trước đây bỏ rơi cả hai -> cùng một câu hỏi ngắn ("giải
+    thích lại đi") hỏi ở hai đơn vị khác nhau trả về CÙNG câu trả lời đã cache.
+
+    Nguy nhất khi truy hồi rỗng (Qdrant lỗi, hoặc chế độ hỏi cả cuốn không có
+    chunk nào vượt ngưỡng): `chuong` là None nên key co lại còn
+    task|mon|khoi|None|role|câu hỏi — trùng nhau giữa mọi bài.
+
+    `pham_vi` cũng phải vào key: cùng câu hỏi ở chế độ "trong bài" và "cả cuốn"
+    được trả lời bằng hai khối ngữ cảnh khác nhau."""
+    def k(**kw):
+        return cache.build_cache_key("qa", "giải thích lại đi", mon="toan", khoi="lop_6",
+                                     chuong=None, role="hoc_sinh", **kw)
+
+    base = k(topic_id=1, anchor="kien_thuc", pham_vi="bai")
+    assert base != k(topic_id=2, anchor="kien_thuc", pham_vi="bai")   # bài khác
+    assert base != k(topic_id=1, anchor="vi_du:2", pham_vi="bai")     # đoạn khác
+    assert base != k(topic_id=1, anchor="kien_thuc", pham_vi="ca_cuon")
+    assert base != k(topic_id=1, anchor=None, pham_vi="bai")
+
+
 def test_key_chuan_hoa_cau_hoi_bat_bien_vun_vat():
     # hoa/thường, khoảng trắng thừa, dấu ? cuối -> cùng key (bắt câu gần trùng)
     base = cache.build_cache_key("qa", "Tập hợp là gì?", mon="toan", khoi="lop_6", chuong=1, role="hoc_sinh")

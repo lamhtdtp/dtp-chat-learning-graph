@@ -31,6 +31,7 @@ from app.db.session import get_session
 from app.exam import diem_khop
 from app.graph.grounding import KHONG_TIM_THAY
 from app.graph.nodes.qa import qa_node
+from app.graph.state import PhamVi
 from app.llm import cache as llm_cache
 from app.llm.gateway import LLMUnavailable
 from app.retrieval import retriever
@@ -50,6 +51,16 @@ _NEO_RE = re.compile(
 # Trần ngữ cảnh bài học trong prompt. Bài dài (nhiều ví dụ) mà nhét hết thì mỗi
 # lượt hỏi đội token vô ích, trong khi phần trả lời chỉ cần đúng đoạn đang đọc.
 _MAX_BAI = 6000
+# Trần mục lục (phạm vi "ca_cuon"). Toán 6 khoảng 40 đơn vị nên thực tế không
+# chạm trần; đặt để một khối bị nạp ma trận lỗi không kéo prompt phình vô hạn.
+_MAX_MUC_LUC = 4000
+# Số đoạn SGK lấy về theo phạm vi. Hỏi trong bài là câu hỏi ĐIỂM (5 đoạn dư sức,
+# vì đã có nội dung bài làm nguồn chính); hỏi cả cuốn thường trải nhiều chương
+# nên 5 đoạn là quá ít để nói được điều gì đầy đủ.
+_TOP_K = {"bai": 5, "ca_cuon": 16}
+# Giữ NGUYÊN ngưỡng điểm cho cả hai phạm vi: hạ ngưỡng ở chế độ cả cuốn thì đoạn
+# lạc chủ đề lọt vào, mà guard chống bịa lại dựa trên "có chunk nào không".
+_NGUONG_DIEM = 0.4
 
 
 class Limits(BaseModel):
@@ -84,6 +95,11 @@ class AskRequest(BaseModel):
     anchor: str | None = None
     # (Cũ) tên bài dạng chuỗi — giữ cho client chưa cập nhật; `topic_id` ưu tiên hơn.
     context: str | None = None
+    # "bai" (mặc định) = hỏi trong đơn vị đang mở. "ca_cuon" = hỏi xuyên cả cuốn
+    # sách của khối đó: bỏ nội dung bài, bỏ ghép tên đơn vị vào truy vấn, lấy
+    # nhiều đoạn hơn và kèm mục lục. Dùng Literal để client gửi giá trị lạ là 422
+    # ngay, thay vì âm thầm rơi về chế độ khác với ý người dùng.
+    pham_vi: PhamVi = "bai"
 
 
 class Citation(BaseModel):
@@ -293,6 +309,59 @@ def _doan_bai(c: TopicContent, anchor: str | None) -> tuple[str, str | None]:
     return f"KHÁI NIỆM:\n{kn}" + (f"\n\n{vds}" if vds else ""), "Toàn bài"
 
 
+async def _mon_khoi(session: AsyncSession, topic_id: int | None, mon_ten: str) -> tuple[str, str]:
+    """(mon, khoi) dạng Qdrant. Suy từ topic khi có topic_id.
+
+    Trước đây `khoi` viết cứng "lop_6" ở chỗ gọi retrieve, nên nạp cuốn thứ hai
+    là trợ lý vẫn đi tìm trong sách lớp 6 — và vì `khoi` cũng nằm trong khoá
+    cache, câu trả lời còn lẫn giữa các khối. Hệ thống vốn đa khối:
+    `CurriculumTopic.grade_id`, `BookJob.khoi`, CMS nhận `body.khoi`.
+
+    Không có topic (hỏi ngoài trang bài học) -> rơi về tên môn client gửi +
+    lop_6 như bản cũ, KHÔNG lỗi.
+    """
+    mac_dinh = (_MON_QDRANT.get(mon_ten, "toan"), "lop_6")
+    if topic_id is None:
+        return mac_dinh
+    topic = await session.get(CurriculumTopic, topic_id)
+    if topic is None:
+        return mac_dinh
+    # Import trong hàm như chỗ dùng `bo_cuc` dưới — tránh vòng import giữa
+    # app.api và app.lessons. Dùng lại hàm slug của lessons thay vì tự chuẩn hoá
+    # tên môn/khối lần nữa: hai bản slug lệch nhau là filter Qdrant không khớp gì.
+    from app.lessons.ingest import _mon_khoi as _slug_mon_khoi
+
+    mon, khoi = await _slug_mon_khoi(session, topic)
+    return (mon or mac_dinh[0], khoi or mac_dinh[1])
+
+
+async def _muc_luc(session: AsyncSession, topic_id: int | None) -> str:
+    """Mục lục cuốn sách của topic: mạch nội dung -> các đơn vị, theo order_index.
+
+    Chỉ dùng ở phạm vi "ca_cuon". Retrieval 16 đoạn văn không bao giờ dựng lại
+    được CẤU TRÚC sách, nên câu hỏi kiểu "phần này nằm ở chương nào", "nên học
+    cái gì trước" cần bản đồ này. Là danh mục chương trình, không phải ngữ liệu
+    -> node cố ý không tính nó vào grounding.
+    """
+    if topic_id is None:
+        return ""
+    topic = await session.get(CurriculumTopic, topic_id)
+    if topic is None:
+        return ""
+    rows = (await session.scalars(
+        select(CurriculumTopic)
+        .filter_by(subject_id=topic.subject_id, grade_id=topic.grade_id)
+        .order_by(CurriculumTopic.order_index))).all()
+    dong: list[str] = []
+    mach_truoc: str | None = None
+    for r in rows:
+        if r.mach_noi_dung != mach_truoc:
+            dong.append(r.mach_noi_dung)
+            mach_truoc = r.mach_noi_dung
+        dong.append(f"- {r.don_vi_kien_thuc}")
+    return "\n".join(dong)[:_MAX_MUC_LUC]
+
+
 async def _enforce_limit(user: User) -> int | None:
     limit = user.daily_limit_override if user.daily_limit_override is not None else settings.chat_daily_limit
     if user.role == "admin" or limit <= 0:
@@ -325,23 +394,40 @@ async def ask(
     if len(q) > settings.chat_max_chars:
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             f"Câu hỏi quá dài (tối đa {settings.chat_max_chars} ký tự).")
-    anchor = body.anchor if (body.anchor and _NEO_RE.match(body.anchor)) else None
+    ca_cuon = body.pham_vi == "ca_cuon"
+    # Cả cuốn thì neo vô nghĩa (không hỏi về một đoạn cụ thể nào) -> bỏ luôn, kể
+    # cả khi client gửi. Bỏ ở đây cũng khiến hàng rào "chưa nộp quiz" không bị
+    # vòng qua bằng cách gửi pham_vi=ca_cuon kèm anchor=quiz:N.
+    anchor = None if ca_cuon else (
+        body.anchor if (body.anchor and _NEO_RE.match(body.anchor)) else None)
     bai_hoc, nguon_bai, ten_dv, noi_dung = "", None, body.context, None
-    if body.topic_id is not None:
+    muc_luc = ""
+    if ca_cuon:
+        # KHÔNG nạp nội dung bài: để lại là mô hình có một bài cụ thể trong tay
+        # rồi câu trả lời bám về đó, đúng thứ chế độ này muốn tránh.
+        muc_luc = await _muc_luc(session, body.topic_id)
+    elif body.topic_id is not None:
         bai_hoc, nguon_bai, ten_dv, noi_dung = await _ngu_canh_bai(
             session, user, body.topic_id, anchor, ten_dv)
 
     remaining = await _enforce_limit(user)
 
-    mon_q = _MON_QDRANT.get(body.mon, "toan")
-    query = f"{ten_dv}. {q}" if ten_dv else q
+    mon_q, khoi_q = await _mon_khoi(session, body.topic_id, body.mon)
+    # Ghép tên đơn vị vào truy vấn là thứ kéo embedding về bài đang mở — rất tốt
+    # cho câu hỏi trong bài ("giải thích lại phần này"), nhưng phản tác dụng khi
+    # hỏi cả cuốn: "Tập hợp. số nguyên tố là gì?" đi tìm sai chỗ.
+    query = q if ca_cuon else (f"{ten_dv}. {q}" if ten_dv else q)
     role = user.role if user.role in ("hoc_sinh", "giao_vien") else "hoc_sinh"
     # Qdrant/embedding hỏng KHÔNG còn được phép giết câu trả lời: nếu học sinh
     # đang hỏi về một bài đã biên soạn thì nội dung bài đủ để trả lời tử tế.
     # (Trước lát 1 thì chỉ có SGK nên lỗi ở đây là hết đường -> 500.)
     try:
-        chunks = await retriever.retrieve(query, mon=mon_q, khoi="lop_6", top_k=5, score_threshold=0.4)
+        chunks = await retriever.retrieve(query, mon=mon_q, khoi=khoi_q,
+                                          top_k=_TOP_K[body.pham_vi],
+                                          score_threshold=_NGUONG_DIEM)
     except Exception as exc:  # noqa: BLE001 — client Qdrant ném nhiều loại lỗi mạng
+        # Cả cuốn thì `bai_hoc` luôn rỗng nên nhánh này là 503 — đúng: mất SGK là
+        # mất nguồn DUY NHẤT của chế độ này, không có gì để trả lời tử tế.
         if not bai_hoc:
             log.warning("Truy hồi SGK lỗi và không có nội dung bài để thay: %s", exc)
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -352,8 +438,9 @@ async def ask(
     try:
         out = await qa_node({
             "messages": [{"role": "user", "content": q}],
-            "mon": mon_q, "role": role, "retrieved": chunks,
+            "mon": mon_q, "khoi": khoi_q, "role": role, "retrieved": chunks,
             "bai_hoc": bai_hoc, "topic_id": body.topic_id, "anchor": anchor,
+            "pham_vi": body.pham_vi, "muc_luc": muc_luc,
         })
     except LLMUnavailable:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Trợ lý đang quá tải, thử lại sau ít phút nhé.")

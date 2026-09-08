@@ -9,6 +9,7 @@ import type {
   AuthResult,
   Me,
   Neo,
+  PhamVi,
   QuizResult,
   Role,
   ThoiGianHoc,
@@ -113,15 +114,26 @@ export function submitQuiz(topicId: number, answers: number[]): Promise<QuizResu
   return req("/quiz/submit", { auth: true, body: { topic_id: topicId, answers } });
 }
 /** Hỏi trợ lý. `topicId`+`anchor` cho trợ lý đọc ĐÚNG đoạn học sinh đang mở
- *  (xem app/api/tutor.py); thiếu chúng thì chỉ còn SGK như bản cũ. */
+ *  (xem app/api/tutor.py); thiếu chúng thì chỉ còn SGK như bản cũ.
+ *
+ *  `phamVi: "ca_cuon"` chuyển sang hỏi xuyên cả cuốn sách của khối đó. Vẫn PHẢI
+ *  gửi `topicId`: backend suy môn + khối từ topic để lọc Qdrant và dựng mục lục —
+ *  thiếu nó thì rơi về mặc định lớp 6. `anchor` khi đó bị bỏ (không hỏi về đoạn
+ *  nào cụ thể), gửi kèm cũng vô hại. */
 export function askTutor(
   question: string,
   mon = "Toán",
-  opts: { topicId?: number; anchor?: Neo | null; context?: string } = {},
+  opts: { topicId?: number; anchor?: Neo | null; context?: string; phamVi?: PhamVi } = {},
 ): Promise<TutorAnswer> {
   return req("/tutor/ask", {
     auth: true,
-    body: { question, mon, topic_id: opts.topicId, anchor: opts.anchor ?? undefined, context: opts.context },
+    body: {
+      question, mon, topic_id: opts.topicId, anchor: opts.anchor ?? undefined,
+      context: opts.context,
+      // Không gửi khi là "bai": để backend dùng mặc định, và request của client
+      // cũ với client mới ở chế độ thường trông giống nhau -> dễ so khi debug.
+      pham_vi: opts.phamVi === "ca_cuon" ? "ca_cuon" : undefined,
+    },
   });
 }
 /** Giới hạn ô nhập (đọc từ server — settings.chat_max_chars override được bằng env).

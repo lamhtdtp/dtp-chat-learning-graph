@@ -7,6 +7,7 @@ from typing import Literal, TypedDict
 from app.retrieval.retriever import RetrievedChunk
 
 Intent = Literal["hoi_dap", "giai_bai", "sinh_de", "on_tap"]
+PhamVi = Literal["bai", "ca_cuon"]
 
 
 class ChatState(TypedDict, total=False):
@@ -24,3 +25,13 @@ class ChatState(TypedDict, total=False):
     # được dùng chung câu trả lời đã cache.
     topic_id: int | None
     anchor: str | None
+    # Khối (dạng Qdrant, vd "lop_6") để tách cache theo khối. Endpoint suy từ
+    # `CurriculumTopic.grade_id`; thiếu thì node mặc định lop_6 như cũ.
+    khoi: str | None
+    # "bai" (mặc định) = hỏi trong đơn vị đang mở, có nội dung bài làm nguồn ưu
+    # tiên. "ca_cuon" = hỏi xuyên cả cuốn: bỏ nội dung bài, thêm mục lục, và
+    # prompt KHÔNG dặn ưu tiên bài nào.
+    pham_vi: PhamVi | None
+    # Mục lục cuốn sách (mạch + tên đơn vị) — chỉ dùng ở phạm vi "ca_cuon". Là
+    # BẢN ĐỒ, không phải ngữ liệu: không tính là căn cứ grounding.
+    muc_luc: str | None

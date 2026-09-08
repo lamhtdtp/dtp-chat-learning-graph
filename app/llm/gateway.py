@@ -228,9 +228,15 @@ async def complete(
     use_cache = cache_ctx is not None and cache.is_cacheable(task)
     key: str | None = None
     if use_cache:
+        # Chuyển tiếp ĐỦ mọi khoá node đã đặt vào cache_ctx. Trước đây chỉ lấy 5
+        # khoá đầu nên topic_id/anchor bị bỏ rơi im lặng dù qa_node truyền vào
+        # kèm bình luận "BẮT BUỘC có mặt" — cache trả nhầm bài.
         key = cache.build_cache_key(task, cache_ctx["question"], mon=cache_ctx["mon"],
                                     khoi=cache_ctx["khoi"], chuong=cache_ctx.get("chuong"),
-                                    role=cache_ctx["role"])
+                                    role=cache_ctx["role"],
+                                    topic_id=cache_ctx.get("topic_id"),
+                                    anchor=cache_ctx.get("anchor"),
+                                    pham_vi=cache_ctx.get("pham_vi"))
         hit = await cache.get(key)
         if hit is not None:
             return hit
