@@ -626,6 +626,25 @@
 .learn .phan-bai_tap .bd > p > strong:first-child{display:inline-block;font-size:10px;
   font-weight:900;letter-spacing:.05em;text-transform:uppercase;color:var(--primary-ink);
   background:var(--primary-weak);border-radius:20px;padding:3px 9px;margin-right:8px;vertical-align:2px}
+/* Nút ẩn/hiện đáp số (phần Luyện tập). Nút NHỎ và trung tính: nó là lối thoát
+   sau khi đã thử, không phải hành động chính của phần này — tô đậm là mời bấm
+   trước khi làm bài. Đặt inline cuối đề để không tốn thêm một dòng cho mỗi bài. */
+.learn .nut-ds{display:inline-flex;align-items:center;gap:6px;margin-left:8px;
+  border:1px solid var(--border);background:var(--surface-2);color:var(--ink-3);
+  font:inherit;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:20px;
+  vertical-align:1px;transition:.14s;cursor:pointer}
+.learn .nut-ds:hover{color:var(--primary-ink);border-color:var(--primary);background:var(--primary-weak)}
+.learn .nut-ds:focus-visible{outline:2px solid var(--ring);outline-offset:1px}
+/* Hộp đáp số xuống DÒNG RIÊNG: đáp số nằm cùng dòng với đề thì mắt bắt được
+   ngay cả khi chưa bấm — mất tác dụng của việc ẩn ở lần đọc lại. */
+.learn .ds-hop{display:block;margin-top:9px;padding:8px 12px;border-radius:0;
+  border-left:3px solid var(--teal);background:var(--teal-weak);color:var(--teal);
+  font-size:13.5px;font-weight:700}
+/* BẮT BUỘC: `display:block` ở trên là style TÁC GIẢ nên nó đè mất
+   `[hidden]{display:none}` của trình duyệt (style UA) — thiếu dòng này thì đáp
+   số hiện suốt, nút bấm không có tác dụng gì. Đã gặp thật khi kiểm. */
+.learn .ds-hop[hidden]{display:none}
+
 /* Nếu về sau chuyên gia soạn bằng danh sách thì cũng ra bước đánh số + hộp đáp án */
 .learn .phan-hoat_dong .bd ol{list-style:none;counter-reset:bhd;padding:0;margin:0;
   display:flex;flex-direction:column;gap:11px}

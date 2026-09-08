@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Lesson, MinhHoa, Neo, PhanBoCuc, QuizResult } from "../types";
 import { renderMath } from "../mathHtml";
 import { QuizView } from "./QuizView";
@@ -58,6 +58,80 @@ const PHAN_CHUAN = [
   { id: "luyen_tap", ten: "Luyện tập – Vận dụng", em: "🎯", cot: "luyen_tap" },
   { id: "bai_tap", ten: "Bài tập", em: "📚", cot: "bai_tap" },
 ];
+
+// ── Ẩn/hiện đáp số phần Luyện tập ───────────────────────────────────────────
+// Prompt soạn bài chỉ yêu cầu "CÓ đáp số ngắn ở cuối mỗi bài"
+// (app/lessons/ingest.py) — KHÔNG có thẻ nào bọc đáp số, nên phải tự nhận dạng.
+// Nhận sai thì cắt mất một phần đề, tệ hơn là không có nút; vì vậy mọi chỗ dưới
+// đây đều chọn "không chắc thì bỏ qua".
+const DS_RE = /(?:Đáp\s*số|Đáp\s*án|ĐS)\s*[:.]?/i;
+// Đáp số là một mẩu NGẮN ("Đáp số: 12"). Trần độ dài là hàng rào phụ.
+const DS_MAX = 80;
+// Hàng rào CHÍNH: đáp số luôn MỞ ĐẦU MỘT CÂU MỚI, nên ngay trước nó phải là dấu
+// kết câu (hoặc đầu đoạn). Chỉ dựa vào độ dài thì "Chọn đáp án đúng và giải
+// thích vì sao em chọn như vậy, trình bày rõ từng bước làm." (76 ký tự) lọt qua
+// và bị cắt mất đề — đã gặp khi kiểm thật.
+const DS_TRUOC_OK = /[.;:!?)\]]\s*$/;
+
+function _html(n: ChildNode): string {
+  if (n.nodeType === Node.TEXT_NODE) {
+    const d = document.createElement("span");
+    d.textContent = n.textContent ?? "";
+    return d.innerHTML;              // escape lại, không nối text thô vào HTML
+  }
+  return (n as Element).outerHTML ?? "";
+}
+
+/** Cắt một <p> luyện tập thành (đề, đáp số). null = không nhận ra -> không có nút.
+ *
+ *  Đi trên NODE, không cắt chuỗi HTML: đáp số hay nằm trong <b>, cắt chuỗi ở
+ *  giữa thẻ là hở thẻ và trình duyệt tự "sửa" thành DOM khác hẳn. */
+function _tachDapSo(p: Element): { de: string; ds: string } | null {
+  const kids = Array.from(p.childNodes);
+  for (let i = kids.length - 1; i >= 0; i--) {
+    const n = kids[i];
+    const t = n.textContent ?? "";
+    const m = t.match(DS_RE);
+    if (!m || m.index === undefined) continue;
+    if (t.length - m.index > DS_MAX) return null;   // "đáp số" dài quá -> là đề
+    // Chữ ngay TRƯỚC marker: với text node là phần đầu chính nó, với element là
+    // text của các node đứng trước.
+    const truocText = kids.slice(0, i).map((k) => k.textContent ?? "").join("")
+      + (n.nodeType === Node.TEXT_NODE ? t.slice(0, m.index) : "");
+    if (!truocText.trim()) return null;             // cả <p> là đáp số -> không có đề để ẩn
+    if (!DS_TRUOC_OK.test(truocText)) return null;  // marker nằm giữa câu -> là đề
+    const truoc = kids.slice(0, i).map(_html).join("");
+    const sau = kids.slice(i + 1).map(_html).join("");
+    if (n.nodeType === Node.TEXT_NODE) {
+      const d = document.createElement("span");
+      d.textContent = t.slice(0, m.index);
+      const e = document.createElement("span");
+      e.textContent = t.slice(m.index);
+      return { de: truoc + d.innerHTML, ds: e.innerHTML + sau };
+    }
+    // Element: chỉ nhận khi marker nằm ở ĐẦU nó (cả element là đáp số). Nếu
+    // marker nằm sâu bên trong element có cả đề thì cắt sẽ xé đôi thẻ -> bỏ.
+    if (m.index === 0) return { de: truoc, ds: _html(n) + sau };
+    return null;
+  }
+  return null;
+}
+
+/** HTML phần luyện tập -> danh sách bài. null = không bài nào có đáp số nhận ra
+ *  được, để chỗ gọi render y như cũ (không đổi gì với bài soạn kiểu khác).
+ *
+ *  Export để kiểm được bằng dữ liệu thật: đây là chỗ duy nhất có thể cắt sai
+ *  vào đề bài, mà nhận dạng lại dựa trên văn chuyên gia viết tự do. */
+export function chiaLuyenTap(html: string): { de: string; ds: string | null }[] | null {
+  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, "text/html");
+  const ps = Array.from(doc.body.children).filter((e) => e.tagName === "P");
+  if (!ps.length) return null;
+  const bai = ps.map((p) => {
+    const t = _tachDapSo(p);
+    return t ? { de: t.de, ds: t.ds } : { de: p.innerHTML, ds: null };
+  });
+  return bai.some((b) => b.ds) ? bai : null;
+}
 
 // Gợi ý cho thẻ cuối bài — thẻ này hỏi CẢ CUỐN (pham_vi="ca_cuon") nên câu mời
 // phải là câu hỏi xuyên sách. Ba chip cũ ("giải thích lại phần khái niệm…") là
@@ -140,6 +214,17 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
   // ── Trợ lý CHỦ ĐỘNG ở mốc "đọc xong khái niệm" (lát 4) ────────────────────
   // Nội dung đã sinh sẵn lúc biên soạn (topic_content.nhac_json) nên bấm chọn là
   // có phản hồi ngay: KHÔNG gọi LLM, KHÔNG trừ lượt hỏi trong ngày.
+  // Đáp số đang mở ở phần Luyện tập. Reset khi ĐỔI BÀI: LessonView không có
+  // `key` nên React tái dùng instance, state sẽ theo sang bài mới — mở bài kế
+  // tiếp mà đáp số đã hiện sẵn thì mất hết ý nghĩa của việc ẩn.
+  const [dsMo, setDsMo] = useState<Set<number>>(() => new Set());
+  useEffect(() => { setDsMo(new Set()); }, [lesson.topic_id]);
+  const toggleDs = (i: number) => setDsMo((cu) => {
+    const m = new Set(cu);
+    m.has(i) ? m.delete(i) : m.add(i);
+    return m;
+  });
+
   const [tatNhac, setTatNhac] = useState(() => localStorage.getItem(KHOA_TAT_NHAC) === "1");
   const nhacKN = lesson.nhac?.find((n) => n.moc === "khai_niem") ?? null;
   const moc = useMocDoc(!!nhacKN && !tatNhac && !teacher);
@@ -225,6 +310,39 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded }: {
           <NhacChuDong />
         </>
       );
+    }
+    // Luyện tập: đáp số ẩn sau một nút. Nhìn ngay đáp số thì học sinh đọc xuôi
+    // chứ không làm bài. `chiaLuyenTap` trả null khi không nhận ra đáp số nào ->
+    // rơi về render thường, KHÔNG cố đoán.
+    if (p.id === "luyen_tap") {
+      const bai = chiaLuyenTap(renderMath(html));
+      if (bai) {
+        return (
+          <>
+            <DeMuc p={p} />
+            <div className="bd">
+              {bai.map((b, i) => (
+                <p key={i}>
+                  <span dangerouslySetInnerHTML={{ __html: b.de }} />
+                  {b.ds && (
+                    <>
+                      <button className="nut-ds" type="button" onClick={() => toggleDs(i)}
+                        aria-expanded={dsMo.has(i)} aria-controls={`ds-${p.id}-${i}`}>
+                        {dsMo.has(i) ? "Ẩn đáp số" : "Xem đáp số"}
+                      </button>
+                      {/* Dùng `hidden` chứ không bỏ khỏi DOM: aria-controls phải
+                          trỏ tới một phần tử có thật mới có nghĩa. */}
+                      <span className="ds-hop" id={`ds-${p.id}-${i}`} hidden={!dsMo.has(i)}
+                        dangerouslySetInnerHTML={{ __html: b.ds }} />
+                    </>
+                  )}
+                </p>
+              ))}
+            </div>
+            <The k={p.id} />
+          </>
+        );
+      }
     }
     return (
       <>
