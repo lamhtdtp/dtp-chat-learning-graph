@@ -50,13 +50,28 @@ services:
       # Model đọc từ env để đổi không cần rebuild image (default = giá trị trong
       # app/config.py). Embedding hiện dùng openai/text-embedding-3-large vì
       # gemini-embedding-001 đang bị rate-limit trên VNGCloud.
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-openai/text-embedding-3-large}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-baai/bge-m3}
       GEMINI_MODEL_CHEAP: ${GEMINI_MODEL_CHEAP:-gemini/gemini-3.1-flash-lite}
       GEMINI_MODEL_STRONG: ${GEMINI_MODEL_STRONG:-gemini/gemini-3.1-pro-preview}
       # i-Test (EPIC-10): DB ngân hàng câu hỏi ngoài (MySQL, READ-ONLY) để mời
       # học sinh làm bài trắc nghiệm. Rỗng -> tính năng tắt.
       ITEST_DATABASE_URL: ${ITEST_DATABASE_URL:-}
       ITEST_CDN_BASE: ${ITEST_CDN_BASE:-https://cdn.i-test.vn/prod/}
+      # ⚠️ KHỐI environment NÀY LÀ DANH SÁCH TRẮNG. Không có `env_file:`, và image
+      # KHÔNG chứa .env — nên `env_file=".env"` của pydantic (app/config.py) không
+      # tìm thấy gì trong container. Đặt một biến trong .env mà KHÔNG khai ở đây
+      # thì nó chỉ dùng để nội suy ${...} trong compose, container không hề thấy,
+      # và app im lặng chạy bằng giá trị mặc định trong code.
+      # Đã mất thời gian vì đúng chuyện này: sửa CHAT_DAILY_LIMIT=50 trong .env mà
+      # vẫn báo "đã hỏi 20 lượt", vì 20 là mặc định ở config.py.
+      # => THÊM SETTING MỚI vào config.py thì thêm luôn một dòng ở đây.
+      CHAT_DAILY_LIMIT: ${CHAT_DAILY_LIMIT:-20}
+      CHAT_MAX_CHARS: ${CHAT_MAX_CHARS:-500}
+      # Tắt trợ lý AI kèm thông báo tử tế. deploy.sh và config.py đều nói đổi
+      # bằng env là đủ — nhưng thiếu hai dòng này thì cờ đó chưa bao giờ tới
+      # container, tức tính năng bảo trì không hoạt động.
+      TRO_LY_BAO_TRI: ${TRO_LY_BAO_TRI:-false}
+      TRO_LY_BAO_TRI_NHAN: ${TRO_LY_BAO_TRI_NHAN:-}
     extra_hosts:
       - "host.docker.internal:host-gateway" # Linux cần dòng này; Docker Desktop đã có sẵn
     volumes:
@@ -93,7 +108,7 @@ services:
       DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+asyncpg://lamthanh@host.docker.internal:5432/chat_learning}
       REDIS_URL: redis://redis:6379/0
       QDRANT_URL: http://qdrant:6333
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-openai/text-embedding-3-large}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-baai/bge-m3}
       GEMINI_MODEL_CHEAP: ${GEMINI_MODEL_CHEAP:-gemini/gemini-3.1-flash-lite}
       GEMINI_MODEL_STRONG: ${GEMINI_MODEL_STRONG:-gemini/gemini-3.1-pro-preview}
       ITEST_DATABASE_URL: ${ITEST_DATABASE_URL:-}  # đồng bộ Itest (read-only) cần DB nguồn

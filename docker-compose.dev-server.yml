@@ -40,7 +40,7 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       QDRANT_URL: http://qdrant:6333
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-openai/text-embedding-3-large}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-baai/bge-m3}
       GEMINI_MODEL_CHEAP: ${GEMINI_MODEL_CHEAP:-gemini/gemini-3.1-flash-lite}
       GEMINI_MODEL_STRONG: ${GEMINI_MODEL_STRONG:-gemini/gemini-3.1-pro-preview}
     extra_hosts:
