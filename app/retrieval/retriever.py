@@ -77,15 +77,32 @@ async def retrieve(
     (query_vector,) = await gateway.embed([query])
 
     client = _client()
-    response = await client.query_points(
-        collection_name=settings.qdrant_collection,
-        query=query_vector,
-        query_filter=_build_filter(
-            mon=mon, khoi=khoi, sach=sach, chuong_so=chuong_so, loai_noi_dung=loai_noi_dung
-        ),
-        limit=top_k,
-        with_payload=True,
-    )
+    try:
+        response = await client.query_points(
+            collection_name=settings.qdrant_collection,
+            query=query_vector,
+            query_filter=_build_filter(
+                mon=mon, khoi=khoi, sach=sach, chuong_so=chuong_so, loai_noi_dung=loai_noi_dung
+            ),
+            limit=top_k,
+            with_payload=True,
+        )
+    except Exception as exc:  # noqa: BLE001 — chỉ để DỊCH lỗi, vẫn ném ra ngoài
+        # Lệch chiều là hậu quả của việc đổi model embedding mà chưa nạp lại
+        # Qdrant. Qdrant chỉ trả "Unexpected Response: 400" + một dòng raw body,
+        # mà chỗ gọi (app/api/tutor.py) lại log gọn thành "Truy hồi SGK lỗi" —
+        # đọc log không ra nguyên nhân, dù đây là lỗi CẤU HÌNH có cách sửa rõ
+        # ràng chứ không phải sự cố tạm thời.
+        if "dimension" in str(exc).lower():
+            raise RuntimeError(
+                f"Collection {settings.qdrant_collection!r} lệch chiều với model "
+                f"{settings.embedding_model!r} (vector truy vấn {len(query_vector)} chiều). "
+                "Đổi model embedding thì PHẢI nạp lại Qdrant; lệch chiều thì còn phải "
+                "xoá và tạo lại collection:\n"
+                f"  curl -X DELETE {settings.qdrant_url}/collections/{settings.qdrant_collection}\n"
+                "rồi ingest lại từng cuốn đã nạp."
+            ) from exc
+        raise
 
     results: list[RetrievedChunk] = []
     for point in response.points:
