@@ -53,10 +53,14 @@ services:
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-baai/bge-m3}
       GEMINI_MODEL_CHEAP: ${GEMINI_MODEL_CHEAP:-gemini/gemini-3.1-flash-lite}
       GEMINI_MODEL_STRONG: ${GEMINI_MODEL_STRONG:-gemini/gemini-3.1-pro-preview}
-      # i-Test (EPIC-10): DB ngân hàng câu hỏi ngoài (MySQL, READ-ONLY) để mời
-      # học sinh làm bài trắc nghiệm. Rỗng -> tính năng tắt.
-      ITEST_DATABASE_URL: ${ITEST_DATABASE_URL:-}
-      ITEST_CDN_BASE: ${ITEST_CDN_BASE:-https://cdn.i-test.vn/prod/}
+      # DTP Testbank — đề cuối kỳ (app/integrations/testbank). Thiếu bất kỳ biến
+      # nào -> đề cuối kỳ báo "chưa được kết nối với kho câu hỏi".
+      TESTBANK_IDENTITY_URL: ${TESTBANK_IDENTITY_URL:-}
+      TESTBANK_CONTENT_URL: ${TESTBANK_CONTENT_URL:-}
+      TESTBANK_EXAM_URL: ${TESTBANK_EXAM_URL:-}
+      TESTBANK_EMAIL: ${TESTBANK_EMAIL:-}
+      TESTBANK_PASSWORD: ${TESTBANK_PASSWORD:-}
+      DE_CUOI_KY_DAILY_LIMIT: ${DE_CUOI_KY_DAILY_LIMIT:-10}
       # ⚠️ KHỐI environment NÀY LÀ DANH SÁCH TRẮNG. Không có `env_file:`, và image
       # KHÔNG chứa .env — nên `env_file=".env"` của pydantic (app/config.py) không
       # tìm thấy gì trong container. Đặt một biến trong .env mà KHÔNG khai ở đây
