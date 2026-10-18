@@ -16,6 +16,18 @@ _DAU_ANH = re.compile(r"\[\[anh:([0-9a-f]{32})(?:\|w=(\d{1,4}(?:\.\d{1,2})?))?\]
 # Thẻ được giữ — sau khi đã thoát, nên khớp trên dạng &lt;…&gt;. Chỉ thẻ trần,
 # không thuộc tính: `<p onclick=…>` không khớp, ở lại dạng chữ.
 _THE_CHO_PHEP = re.compile(r"&lt;(/?)(p|u|b|i|em|strong|sub|sup|br\s*/?)&gt;", re.IGNORECASE)
+# Thẻ bảng — đề có bảng số liệu ("Tiền lời từng ngày…"). Thuộc tính chỉ giữ
+# colspan/rowspan dạng SỐ, dựng lại thẻ từ đầu nên mọi thứ khác (onclick, style)
+# rơi mất chứ không lọt qua.
+_THE_BANG = re.compile(
+    r"&lt;(/?)(table|thead|tbody|tfoot|tr|td|th)((?:\s(?:(?!&gt;).)*)?)&gt;", re.IGNORECASE)
+_O_GOP = re.compile(r"\b(colspan|rowspan)\s*=\s*(?:&quot;|&#x27;)?(\d{1,2})(?:&quot;|&#x27;)?",
+                    re.IGNORECASE)
+# Khoảng trắng / <br> / &nbsp; nằm GIỮA các thẻ cấu trúc bảng (không phải trong ô)
+# là nút chữ trong <table>: trình duyệt đẩy nó ra ngoài, thành dòng trống trên bảng.
+_RAC_GIUA_BANG = re.compile(
+    r"(<(?:/?(?:table|thead|tbody|tfoot|tr)|/t[dh])\b[^>]*>)(?:\s|&nbsp;|<br>)+"
+    r"(?=</?(?:table|thead|tbody|tfoot|tr|td|th)\b)")
 _THE_BAT_KY = re.compile(r"<[^>]+>")
 _TIEN_TO_CONG = "/api/content"
 # Word đo bằng point, trình duyệt bằng px (96/72).
@@ -40,6 +52,14 @@ def url_anh(url: str, goc: str) -> str:
     return goc.rstrip("/") + "/" + duoi.lstrip("/")
 
 
+def _the_bang(m: re.Match) -> str:
+    dong, ten = m.group(1), m.group(2).lower()
+    if dong or ten not in ("td", "th"):
+        return f"<{dong}{ten}>"
+    attrs = "".join(f' {a.lower()}="{n}"' for a, n in _O_GOP.findall(m.group(3) or ""))
+    return f"<{ten}{attrs}>"
+
+
 def sang_html(text: str | None, assets: dict[str, str], sizes: dict[str, dict],
               *, goc: str) -> str:
     """Chữ testbank -> HTML an toàn. `assets`/`sizes` lấy nguyên từ
@@ -48,9 +68,11 @@ def sang_html(text: str | None, assets: dict[str, str], sizes: dict[str, dict],
         return ""
     s = html.escape(text.replace("\r\n", "\n"), quote=True)
     s = _THE_CHO_PHEP.sub(lambda m: f"<{m.group(1)}{m.group(2).lower().replace(' ', '')}>", s)
+    s = _THE_BANG.sub(_the_bang, s)
     # Đề canh "Hình 1      Hình 2" dưới ảnh bằng khoảng trắng: gộp lại là lệch nhãn.
     s = re.sub(r" {2,}", lambda m: " " + "&nbsp;" * (len(m.group(0)) - 1), s)
     s = s.replace("\n", "<br>")
+    s = _RAC_GIUA_BANG.sub(r"\1", s)
 
     def _anh(m: re.Match) -> str:
         id_, w = m.group(1), m.group(2)

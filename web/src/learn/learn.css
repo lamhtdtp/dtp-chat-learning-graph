@@ -907,3 +907,12 @@
 .learn .tp-ck .tp-ontap:hover,.learn .tp-ck .tp-ontap.dang{background:color-mix(in srgb,var(--primary) 15%,transparent);
   border-color:var(--primary)}
 .learn .tp-ck .tp-ontap b{color:var(--primary-ink)}
+/* Bảng số liệu trong đề testbank ("Tiền lời từng ngày…"). display:block +
+   overflow để bảng nhiều cột cuộn ngang trong ô đề trên điện thoại, không đẩy
+   tràn cả trang. */
+.learn .ck table{display:block;max-width:100%;overflow-x:auto;border-collapse:collapse;
+  margin:10px 0;font-size:14px;font-weight:400}
+.learn .ck td,.learn .ck th{border:1px solid var(--border);padding:6px 10px;text-align:center;
+  min-width:44px;background:var(--surface)}
+.learn .ck th,.learn .ck tr:first-child td{background:var(--surface-3);font-weight:700}
+.learn .ck td:first-child{text-align:left;font-weight:600;white-space:nowrap}

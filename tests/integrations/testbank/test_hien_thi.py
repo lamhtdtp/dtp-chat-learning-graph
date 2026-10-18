@@ -73,3 +73,45 @@ def test_van_ban_cho_prompt_thay_anh_bang_nhan_va_bo_the():
 
 def test_co_anh():
     assert co_anh(f"x [[anh:{ID}|w=3]]") and not co_anh("x")
+
+
+# ── Bảng ─────────────────────────────────────────────────────────────────────
+BANG = ("Hỏi có bao nhiêu ngày bị lỗ\n<table><tbody><tr><td>Ngày</td><td>19/6</td></tr>"
+        "<tr><td>Tiền lời (nghìn đồng)</td><td></td></tr></tbody></table>")
+
+
+def test_giu_bang_cua_de():
+    """Đề có bảng số liệu (gặp thật ở đề cuối kỳ Toán 6) — trước đây bảng bị
+    thoát thành chữ, học sinh thấy nguyên "<table><tbody>…" trên màn hình."""
+    h = sang_html(BANG, {}, {}, goc=GOC)
+    assert "&lt;table" not in h and "&lt;td" not in h
+    assert "<table><tbody><tr><td>Ngày</td><td>19/6</td></tr>" in h
+
+
+def test_xuong_dong_va_khoang_trang_giua_the_bang_bi_bo():
+    """`<br>` / khoảng trắng nằm giữa các thẻ bảng là nút chữ trong <table> —
+    trình duyệt đẩy chúng ra NGOÀI bảng, thành dòng trống phía trên bảng."""
+    h = sang_html("<table>\n<tr>\n  <td>a</td>\n  <td>b</td>\n</tr>\n</table>", {}, {}, goc=GOC)
+    assert h == "<table><tr><td>a</td><td>b</td></tr></table>"
+
+
+def test_xuong_dong_trong_o_van_giu():
+    h = sang_html("<table><tr><td>dòng 1\ndòng 2</td></tr></table>", {}, {}, goc=GOC)
+    assert "<td>dòng 1<br>dòng 2</td>" in h
+
+
+def test_o_gop_giu_colspan_rowspan_bo_thuoc_tinh_khac():
+    h = sang_html('<table><tr><td colspan="2" rowspan="3" onclick="x()" style="a">a</td></tr></table>',
+                  {}, {}, goc=GOC)
+    assert '<td colspan="2" rowspan="3">a</td>' in h
+    assert "onclick" not in h and "style" not in h
+
+
+def test_anh_trong_o_bang_van_thanh_img():
+    h = sang_html(f"<table><tr><td>[[anh:{ID}]]</td></tr></table>",
+                  {ID: "/api/content/media/a.png"}, {}, goc=GOC)
+    assert '<td><img class="tb-anh"' in h
+
+
+def test_van_ban_cho_prompt_bo_the_bang():
+    assert "<t" not in sang_van_ban(BANG)
