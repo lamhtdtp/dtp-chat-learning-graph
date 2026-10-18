@@ -1,0 +1,178 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1442"
+  width="1440" height="1442" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif">
+<style>
+  :root { color-scheme: light dark; }
+  .bg    { fill:#F7F8FC }
+  .card  { fill:#FFFFFF; stroke:#E2E6F2 }
+  .store { fill:#FDF6E9; stroke:#E0860055 }
+  .exit  { fill:#FCEDEF; stroke:#C4404B55 }
+  .okbox { fill:#E7F7F1; stroke:#10A97C66 }
+  .t1    { fill:#12172A; font-size:16px; font-weight:700 }
+  .t2    { fill:#4E566E; font-size:12.5px }
+  .mono  { fill:#4E566E; font-size:12px;
+            font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace }
+  .num   { fill:#FFFFFF; font-size:13px; font-weight:800 }
+  .numbg { fill:#5B54F0 }
+  .sthead{ fill:#B5680A; font-size:12.5px; font-weight:800 }
+  .exhead{ fill:#C4404B; font-size:12.5px; font-weight:800 }
+  .okhead{ fill:#0E8F76; font-size:12.5px; font-weight:800 }
+  .cap   { fill:#858FA8; font-size:11.5px }
+  .t2s   { fill:#4E566E; font-size:11.5px }
+  .h1    { fill:#12172A; font-size:27px; font-weight:800 }
+  .h2    { fill:#4E566E; font-size:14px }
+  .lane  { fill:#858FA8; font-size:11px; font-weight:800; letter-spacing:.09em }
+  .spine { stroke:#5B54F0; stroke-width:2.5; fill:none }
+  .dash  { stroke:#E08600; stroke-width:1.6; fill:none; stroke-dasharray:5 4 }
+  .dashe { stroke:#C4404B; stroke-width:1.6; fill:none; stroke-dasharray:5 4 }
+  @media (prefers-color-scheme: dark) {
+    .bg    { fill:#0A0E1B }
+    .card  { fill:#141A2B; stroke:#2A3350 }
+    .store { fill:#2A2110; stroke:#C8851C66 }
+    .exit  { fill:#2E1518; stroke:#E4626C55 }
+    .okbox { fill:#0E2A22; stroke:#18A07866 }
+    .t1    { fill:#EDF0FA } .t2 { fill:#A8B1C9 } .mono { fill:#A8B1C9 }
+    .numbg { fill:#6F68E0 } .spine { stroke:#6F68E0 }
+    .sthead{ fill:#E0A83C } .exhead{ fill:#E4626C } .okhead{ fill:#34D399 }
+    .cap   { fill:#6F7994 } .h1 { fill:#EDF0FA } .h2 { fill:#A8B1C9 }
+    .t2s   { fill:#A8B1C9 }
+    .lane  { fill:#6F7994 }
+    .dash  { stroke:#C8851C } .dashe { stroke:#E4626C }
+  }
+</style>
+<defs>
+  <marker id="mp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7"
+    orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5B54F0"/></marker>
+  <marker id="ms" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6"
+    orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#E08600"/></marker>
+  <marker id="me" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6"
+    orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#C4404B"/></marker>
+</defs>
+<rect class="bg" width="1440" height="1442"/>
+<text x="56" y="60" class="h1">Một câu hỏi của học sinh đi qua đâu</text>
+<text x="56" y="88" class="h2">POST /tutor/ask — từ lúc bấm gửi tới lúc có câu trả lời trên màn hình</text>
+<text x="56" y="112" class="cap">Nguồn: app/api/tutor.py::ask · app/graph/nodes/qa.py · app/retrieval/retriever.py · app/llm/gateway.py</text>
+<text x="56" y="150" class="lane">KHO DỮ LIỆU / MODEL</text>
+<text x="470" y="150" class="lane">LUỒNG CHÍNH</text>
+<text x="970" y="150" class="lane">ĐƯỜNG THOÁT SỚM</text>
+<path class="spine" d="M690 207 L690 1167"/>
+<path class="spine" marker-end="url(#mp)" d="M690 233 L690 273"/>
+<rect class="card" x="470" y="176" width="440" height="62" rx="12"/>
+<circle class="numbg" cx="496" cy="207" r="14"/>
+<text x="496" y="212" class="num" text-anchor="middle">1</text>
+<text x="522" y="202" class="t1">Học sinh gửi câu hỏi</text>
+<text x="522" y="222" class="mono">TroLyCard.tsx → askTutor() → POST /tutor/ask</text>
+<path class="spine" marker-end="url(#mp)" d="M690 329 L690 369"/>
+<rect class="card" x="470" y="272" width="440" height="62" rx="12"/>
+<circle class="numbg" cx="496" cy="303" r="14"/>
+<text x="496" y="308" class="num" text-anchor="middle">2</text>
+<text x="522" y="298" class="t1">Chặn bảo trì · kiểm câu hỏi</text>
+<text x="522" y="318" class="mono">tro_ly_bao_tri · rỗng · quá chat_max_chars</text>
+<rect class="exit" x="970" y="275" width="340" height="57" rx="10"/>
+<text x="984" y="298" class="exhead">503 Bảo trì · 400 Câu hỏi lỗi</text>
+<text x="984" y="317" class="t2" text-anchor="start">Chặn TRƯỚC khi trừ lượt</text>
+<path class="dashe" marker-end="url(#me)" d="M918 303 L964 303"/>
+<path class="spine" marker-end="url(#mp)" d="M690 425 L690 465"/>
+<rect class="card" x="470" y="368" width="440" height="62" rx="12"/>
+<circle class="numbg" cx="496" cy="399" r="14"/>
+<text x="496" y="404" class="num" text-anchor="middle">3</text>
+<text x="522" y="394" class="t1">Lấy nội dung bài đang học</text>
+<text x="522" y="414" class="mono">_ngu_canh_bai() → _doan_bai(c, anchor)</text>
+<rect class="store" x="56" y="371" width="300" height="56" rx="10"/>
+<text x="70" y="394" class="sthead">PostgreSQL</text>
+<text x="70" y="413" class="t2s">topic_content: khái niệm · ví dụ · quiz</text>
+<path class="dash" marker-end="url(#ms)" marker-start="url(#ms)" d="M364 399 L462 399"/>
+<path class="spine" marker-end="url(#mp)" d="M690 521 L690 561"/>
+<rect class="card" x="470" y="464" width="440" height="62" rx="12"/>
+<circle class="numbg" cx="496" cy="495" r="14"/>
+<text x="496" y="500" class="num" text-anchor="middle">4</text>
+<text x="522" y="490" class="t1">Trừ lượt hỏi</text>
+<text x="522" y="510" class="mono">_enforce_limit(user)</text>
+<rect class="store" x="56" y="467" width="300" height="56" rx="10"/>
+<text x="70" y="490" class="sthead">Redis · hạn mức</text>
+<text x="70" y="509" class="t2s">chatquota:{uid}:{yyyymmdd} — TTL 26h</text>
+<path class="dash" marker-end="url(#ms)" marker-start="url(#ms)" d="M364 495 L462 495"/>
+<rect class="exit" x="970" y="467" width="340" height="57" rx="10"/>
+<text x="984" y="490" class="exhead">429 Hết lượt hôm nay</text>
+<text x="984" y="509" class="t2" text-anchor="start">Redis lỗi → cho qua (fail-open)</text>
+<path class="dashe" marker-end="url(#me)" d="M918 495 L964 495"/>
+<path class="spine" marker-end="url(#mp)" d="M690 617 L690 657"/>
+<rect class="card" x="470" y="560" width="440" height="62" rx="12"/>
+<circle class="numbg" cx="496" cy="591" r="14"/>
+<text x="496" y="596" class="num" text-anchor="middle">5</text>
+<text x="522" y="586" class="t1">Nhúng câu hỏi thành vector</text>
+<text x="522" y="606" class="mono">trong retrieve() → gateway.embed([query])</text>
+<rect class="store" x="56" y="563" width="300" height="56" rx="10"/>
+<text x="70" y="586" class="sthead">Model embedding</text>
+<text x="70" y="605" class="t2s">text-embedding-3-large · 3.072 chiều</text>
+<path class="dash" marker-end="url(#ms)" marker-start="url(#ms)" d="M364 591 L462 591"/>
+<path class="spine" marker-end="url(#mp)" d="M690 713 L690 753"/>
+<rect class="card" x="470" y="656" width="440" height="62" rx="12"/>
+<circle class="numbg" cx="496" cy="687" r="14"/>
+<text x="496" y="692" class="num" text-anchor="middle">6</text>
+<text x="522" y="682" class="t1">Tìm đoạn SGK liên quan</text>
+<text x="522" y="702" class="mono">query_points() · lọc theo môn + khối</text>
+<rect class="store" x="56" y="659" width="300" height="56" rx="10"/>
+<text x="70" y="682" class="sthead">Qdrant</text>
+<text x="70" y="701" class="t2s">top_k 5 (bài) / 16 (cả cuốn) · điểm ≥ 0,4</text>
+<path class="dash" marker-end="url(#ms)" marker-start="url(#ms)" d="M364 687 L462 687"/>
+<rect class="exit" x="970" y="650" width="340" height="74" rx="10"/>
+<text x="984" y="673" class="exhead">Lỗi Qdrant</text>
+<text x="984" y="692" class="t2" text-anchor="start">Có nội dung bài → vẫn trả lời</text>
+<text x="984" y="709" class="t2" text-anchor="start">Không có → 503</text>
+<path class="dashe" marker-end="url(#me)" d="M918 687 L964 687"/>
+<path class="spine" marker-end="url(#mp)" d="M690 809 L690 849"/>
+<rect class="card" x="470" y="752" width="440" height="62" rx="12"/>
+<circle class="numbg" cx="496" cy="783" r="14"/>
+<text x="496" y="788" class="num" text-anchor="middle">7</text>
+<text x="522" y="778" class="t1">Kiểm có căn cứ để trả lời</text>
+<text x="522" y="798" class="mono">has_grounding(retrieved, bai_hoc)</text>
+<rect class="exit" x="970" y="755" width="340" height="57" rx="10"/>
+<text x="984" y="778" class="exhead">“Không tìm thấy trong SGK”</text>
+<text x="984" y="797" class="t2" text-anchor="start">KHÔNG gọi model — không tốn tiền</text>
+<path class="dashe" marker-end="url(#me)" d="M918 783 L964 783"/>
+<path class="spine" marker-end="url(#mp)" d="M690 905 L690 945"/>
+<rect class="card" x="470" y="848" width="440" height="62" rx="12"/>
+<circle class="numbg" cx="496" cy="879" r="14"/>
+<text x="496" y="884" class="num" text-anchor="middle">8</text>
+<text x="522" y="874" class="t1">Tra bộ nhớ đệm ngữ nghĩa</text>
+<text x="522" y="894" class="mono">cache.get(key) · khoá có topic_id + anchor</text>
+<rect class="store" x="56" y="851" width="300" height="56" rx="10"/>
+<text x="70" y="874" class="sthead">Redis · semantic cache</text>
+<text x="70" y="893" class="t2s">Trùng câu → trả ngay, bỏ qua model</text>
+<path class="dash" marker-end="url(#ms)" marker-start="url(#ms)" d="M364 879 L462 879"/>
+<path class="spine" marker-end="url(#mp)" d="M690 1001 L690 1041"/>
+<rect class="card" x="470" y="944" width="440" height="62" rx="12"/>
+<circle class="numbg" cx="496" cy="975" r="14"/>
+<text x="496" y="980" class="num" text-anchor="middle">9</text>
+<text x="522" y="970" class="t1">Gọi mô hình sinh câu trả lời</text>
+<text x="522" y="990" class="mono">gateway.complete(task="qa")</text>
+<rect class="store" x="56" y="947" width="300" height="56" rx="10"/>
+<text x="70" y="970" class="sthead">VNGCloud MaaS</text>
+<text x="70" y="989" class="t2s">gemini-3.1-flash-lite · tầng rẻ ≈ 8đ/lượt</text>
+<path class="dash" marker-end="url(#ms)" marker-start="url(#ms)" d="M364 975 L462 975"/>
+<rect class="exit" x="970" y="947" width="340" height="57" rx="10"/>
+<text x="984" y="970" class="exhead">503 Trợ lý quá tải</text>
+<text x="984" y="989" class="t2" text-anchor="start">LLMUnavailable</text>
+<path class="dashe" marker-end="url(#me)" d="M918 975 L964 975"/>
+<path class="spine" marker-end="url(#mp)" d="M690 1097 L690 1137"/>
+<rect class="card" x="470" y="1040" width="440" height="62" rx="12"/>
+<circle class="numbg" cx="496" cy="1071" r="14"/>
+<text x="496" y="1076" class="num" text-anchor="middle">10</text>
+<text x="522" y="1066" class="t1">Hậu xử lý câu trả lời</text>
+<text x="522" y="1086" class="mono">_boc_muc() · gom citations · _chon_anh()</text>
+<rect class="exit" x="970" y="1043" width="340" height="57" rx="10"/>
+<text x="984" y="1066" class="exhead">Đính hình lỗi → chỉ ghi log</text>
+<text x="984" y="1085" class="t2" text-anchor="start">Không được làm vỡ câu đã trả tiền</text>
+<path class="dashe" marker-end="url(#me)" d="M918 1071 L964 1071"/>
+<rect class="okbox" x="470" y="1136" width="440" height="62" rx="12"/>
+<circle class="numbg" cx="496" cy="1167" r="14"/>
+<text x="496" y="1172" class="num" text-anchor="middle">11</text>
+<text x="522" y="1162" class="t1">Trả kết quả về máy học sinh</text>
+<text x="522" y="1182" class="mono">AskResponse</text>
+<rect class="card" x="56" y="1244" width="720" height="86" rx="12"/>
+<text x="76" y="1271" class="okhead">AskResponse trả về gì</text>
+<text x="76" y="1294" class="mono">answer · citations[:3] · khong_tim_thay · remaining · nguon_bai · anh · muc_lien_quan</text>
+<text x="76" y="1315" class="t2">remaining = số lượt còn lại hôm nay · nguon_bai = nhãn đoạn đã dùng · citations = số trang SGK</text>
+<text x="56" y="1362" class="cap">Thứ tự trong prompt cũng là thứ tự ưu tiên: NGỮ CẢNH BÀI ĐANG HỌC đứng trước NGỮ CẢNH SGK. Mục lục cuốn sách không tính là căn cứ.</text>
+<text x="56" y="1382" class="cap">Bước 7 và 8 là hai chỗ trả lời mà KHÔNG gọi model — đó là lý do chi phí trung bình thấp hơn 8đ/lượt.</text>
+</svg>

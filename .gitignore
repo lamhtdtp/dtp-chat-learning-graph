@@ -43,4 +43,13 @@ playwright-report/
 .claude/worktrees/
 # Added by code-review-graph
 .code-review-graph/
-docs/
+
+# Tài liệu kinh doanh (giá bán, so sánh đối thủ) — giữ ngoài git. Phần còn lại
+# của docs/ là tài liệu kỹ thuật, commit bình thường.
+docs/GIA-BAN-VA-HOAN-VON.md
+docs/*.pptx
+
+# Sao lưu DB có dữ liệu người dùng (email, mã băm mật khẩu) và tài liệu cá nhân
+# — không thuộc mã nguồn.
+*.sql
+Thanh_Lam_Ho_CV_*
