@@ -192,17 +192,22 @@ export function LearnApp({ name, email, role, onLogout }: {
           <span className="em" aria-hidden>🧭</span>
           <div><b>Lộ trình học</b><span>Toán 6 · Học kỳ {hkDangXem}</span></div>
         </div>
-        {/* Đề cuối kỳ theo HỌC KỲ đang xem — không thuộc mạch nào nên đứng ngoài
-            cây mạch, ngay dưới lộ trình. */}
+        {/* Đề cuối kỳ không thuộc mạch nào nên đứng ngoài cây mạch, ngay dưới lộ
+            trình. Hiện CẢ HAI đề, không chỉ kỳ của bài đang mở: trước đây chỉ có một nút
+            theo học kỳ đang xem, nên muốn làm đề kỳ 2 phải mở một bài kỳ 2 trước
+            — không ai đoán ra. */}
         <div className="tp-ck">
-          <button className={"tp-ontap" + (trang === "cuoi_ky" ? " dang" : "")} type="button"
-            onClick={() => {
-              setCuoiKy({ exam: `CK${hkDangXem}`, ten: `Đề cuối học kỳ ${hkDangXem} · Toán 6` });
-              setSlide(false); setTrang("cuoi_ky");
-            }}>
-            <span className="ic" aria-hidden>📝</span>
-            <div><b>Làm đề cuối kỳ {hkDangXem}</b><span>12 câu từ kho đề · chấm theo yêu cầu cần đạt</span></div>
-          </button>
+          {[1, 2].map((hk) => (
+            <button key={hk} type="button"
+              className={"tp-ontap" + (trang === "cuoi_ky" && cuoiKy?.exam === `CK${hk}` ? " dang" : "")}
+              onClick={() => {
+                setCuoiKy({ exam: `CK${hk}`, ten: `Đề cuối học kỳ ${hk} · Toán 6` });
+                setSlide(false); setTrang("cuoi_ky");
+              }}>
+              <span className="ic" aria-hidden>📝</span>
+              <div><b>Làm đề cuối kỳ {hk}</b><span>12 câu từ kho đề · chấm theo yêu cầu cần đạt</span></div>
+            </button>
+          ))}
         </div>
         <div className="tp-scroll col">
           {groups.map((g, gi) => {
