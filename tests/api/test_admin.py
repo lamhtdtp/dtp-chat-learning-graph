@@ -303,3 +303,26 @@ async def test_result_co_thoi_gian_hoc_khop_phia_hoc_sinh(client, session):
     assert dv["Bài chỉ đọc, chưa có tiến độ"]["phut"] == 8
     assert dv["Bài chỉ đọc, chưa có tiến độ"]["trang_thai"] == "chua"
     assert dv["Bài có tiến độ"]["lan_cuoi"]
+
+
+async def test_overview_chua_hoc_khong_bi_lan_nop_de_cuoi_ky_xoa_trang(client, session):
+    """Lần nộp đề cuối kỳ có topic_id NULL (không thuộc bài nào). `NOT IN` gặp
+    một NULL là cả điều kiện thành UNKNOWN -> "chưa ai học" rỗng tuếch dù còn
+    cả đống bài chưa ai đụng tới."""
+    from app.db.models import CurriculumTopic, Grade, QuizAttempt, Subject, TopicContent
+
+    gv = (await _reg(client, "giao_vien"))[1]
+    email, _ = await _reg(client, "hoc_sinh")
+    hs = await session.scalar(select(User).where(User.email == email))
+    subj = Subject(name=f"M-{uuid.uuid4().hex[:6]}"); gr = Grade(name=f"K-{uuid.uuid4().hex[:6]}")
+    session.add_all([subj, gr]); await session.flush()
+    t = CurriculumTopic(subject_id=subj.id, grade_id=gr.id, mach_noi_dung="M",
+                        don_vi_kien_thuc="Chưa ai học", order_index=0)
+    session.add(t); await session.flush()
+    session.add(TopicContent(topic_id=t.id, trang_thai="published"))
+    session.add(QuizAttempt(user_id=hs.id, topic_id=None, diem=3, tong=12, dat=False,
+                            nguon="cuoi_ky"))
+    await session.commit()
+
+    b = (await client.get("/admin/overview", headers=gv)).json()
+    assert b["chua_hoc_tong"] >= 1

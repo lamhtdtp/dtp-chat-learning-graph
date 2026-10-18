@@ -11,6 +11,19 @@ async def _hs(client):
     return {"Authorization": f"Bearer {r.json()['token']}"}
 
 
+async def _hs_co_id(client, session):
+    """Như `_hs` nhưng trả thêm id — test nào tự dựng QuizAttempt thì cần nó."""
+    from sqlalchemy import select
+
+    from app.db.models import User
+
+    e = f"hs-{uuid.uuid4().hex[:8]}@vd.vn"
+    r = await client.post("/auth/register", json={
+        "email": e, "password": "matkhau123", "name": "HS", "role": "hoc_sinh"})
+    uid = await session.scalar(select(User.id).filter_by(email=e))
+    return {"Authorization": f"Bearer {r.json()['token']}"}, uid
+
+
 async def _topic(session):
     subj = Subject(name=f"M-{uuid.uuid4().hex[:6]}"); gr = Grade(name=f"K-{uuid.uuid4().hex[:6]}")
     session.add_all([subj, gr]); await session.flush()
@@ -256,3 +269,70 @@ async def test_doc_x_khong_duoc_lon_hon_doc_y_khi_phan_bi_an(client, session):
     assert ph["doc_x"] == 2, "phần đã ẩn không được tính vào tử số"
     assert ph["doc_x"] <= ph["doc_y"]
     assert ph["dang_hoc"] is True        # phiên vừa đóng 1 phút trước
+
+
+async def test_ycd_dem_theo_so_cau_cua_chinh_yeu_cau_can_dat(client, session):
+    """`sai`/`dung`/`tong` đếm theo SỐ CÂU của chính YCCĐ đó, không phải số lần
+    trượt cả bài — một đơn vị có nhiều YCCĐ, vững chỗ này mà hổng chỗ kia phải
+    thấy được. `truot_bai` mới là con số cũ.
+
+    `yeu` do server quyết (ycd_thong_ke.la_yeu) để giao diện không tự so ngưỡng.
+    """
+    from sqlalchemy import select
+
+    from app.db.models import Blueprint, BlueprintCell, QuizAttempt, QuizAttemptItem
+    from app.lessons.ycd_key import chuan_hoa
+
+    h, uid = await _hs_co_id(client, session)
+    mon, khoi, tid = await _topic(session)
+    bp = Blueprint(
+        subject_id=await session.scalar(select(Subject.id).filter_by(name=mon)),
+        grade_id=await session.scalar(select(Grade.id).filter_by(name=khoi)),
+        semester="hk1")
+    session.add(bp)
+    await session.flush()
+    vung, hong = "YCD em vững", "YCD em hổng"
+    for i, y in enumerate([vung, hong]):
+        session.add(BlueprintCell(blueprint_id=bp.id, muc_do="nhan_biet", nang_luc="NL",
+                                  yeu_cau_can_dat=y, topic_id=tid, dang_thuc="TN",
+                                  ti_le=0.3, nhom_ti_le=i))
+    at = QuizAttempt(user_id=uid, topic_id=tid, diem=2, tong=4, dat=False)
+    session.add(at)
+    await session.flush()
+    for y, dung in [(vung, True), (vung, True), (hong, False), (hong, False)]:
+        session.add(QuizAttemptItem(attempt_id=at.id, ycd_key=chuan_hoa(y),
+                                    ycd_text=y, dung=dung))
+    await session.commit()
+
+    ds = {x["ycd"]: x for x in (
+        await client.get(f"/me/ycd?mon={mon}&khoi={khoi}", headers=h)).json()["mach"][0]["ycd"]}
+    assert (ds[vung]["dung"], ds[vung]["tong"], ds[vung]["sai"]) == (2, 2, 0)
+    assert (ds[hong]["dung"], ds[hong]["tong"], ds[hong]["sai"]) == (0, 2, 2)
+    assert ds[hong]["yeu"] is True and ds[vung]["yeu"] is False
+    # Trượt CẢ BÀI là con số khác nghĩa — cùng một lần nộp, nhưng đếm theo bài.
+    assert ds[vung]["truot_bai"] == ds[hong]["truot_bai"] == 1
+
+
+async def test_ycd_chua_lam_cau_nao_khac_voi_lam_roi_sai_het(client, session):
+    """tong == 0 là chưa làm; tong > 0 mà dung == 0 là làm rồi sai hết. Gộp hai
+    trạng thái này là báo cho học sinh một điều không đúng."""
+    from sqlalchemy import select
+
+    from app.db.models import Blueprint, BlueprintCell
+
+    h = await _hs(client)
+    mon, khoi, tid = await _topic(session)
+    bp = Blueprint(
+        subject_id=await session.scalar(select(Subject.id).filter_by(name=mon)),
+        grade_id=await session.scalar(select(Grade.id).filter_by(name=khoi)),
+        semester="hk1")
+    session.add(bp)
+    await session.flush()
+    session.add(BlueprintCell(blueprint_id=bp.id, muc_do="nhan_biet", nang_luc="NL",
+                              yeu_cau_can_dat="YCD chưa đụng tới", topic_id=tid,
+                              dang_thuc="TN", ti_le=0.3, nhom_ti_le=0))
+    await session.commit()
+
+    x = (await client.get(f"/me/ycd?mon={mon}&khoi={khoi}", headers=h)).json()["mach"][0]["ycd"][0]
+    assert (x["dung"], x["tong"], x["sai"]) == (0, 0, 0)
+    assert x["yeu"] is False          # chưa làm thì KHÔNG phải "yếu"

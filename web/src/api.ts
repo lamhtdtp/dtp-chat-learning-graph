@@ -1,7 +1,9 @@
 import { API_BASE } from "./config";
 import type {
   CurriculumGroup,
+  DeCuoiKy,
   DeOnTap,
+  KetQuaCuoiKy,
   OnTap,
   Lesson,
   MyStats,
@@ -183,4 +185,20 @@ export function getThoiGian(ngay = 14): Promise<ThoiGianHoc> {
 }
 export function getYcd(mon = "Toán", khoi = "Lớp 6"): Promise<{ mach: YcdMach[] }> {
   return req(`/me/ycd?mon=${encodeURIComponent(mon)}&khoi=${encodeURIComponent(khoi)}`, { auth: true });
+}
+
+// ── Đề cuối kỳ rút từ DTP Testbank ──
+/** Rút đề. `arIds` = chỉ trong các yêu cầu cần đạt này ("bài làm mới" sau khi
+ *  nộp). Đề trả về KHÔNG có đáp án — chấm ở server khi nộp. */
+export function rutDeCuoiKy(opts: {
+  exam?: string; total?: number; arIds?: string[]; subject?: string; grade?: string;
+} = {}): Promise<DeCuoiKy> {
+  return req("/exam/cuoi-ky/generate", { auth: true, body: {
+    subject: opts.subject ?? "TO", grade: opts.grade ?? "06", exam: opts.exam ?? "CK1",
+    total: opts.total ?? 12, ar_ids: opts.arIds?.length ? opts.arIds : undefined,
+  } });
+}
+/** Nộp bài. `traLoi`: qid -> "B" | "A,C" | "Đ,S,Đ,S" | đáp số đã điền. */
+export function nopDeCuoiKy(deId: string, traLoi: Record<string, string>): Promise<KetQuaCuoiKy> {
+  return req("/exam/cuoi-ky/submit", { auth: true, body: { de_id: deId, tra_loi: traLoi } });
 }

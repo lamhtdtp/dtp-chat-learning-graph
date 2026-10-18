@@ -13,6 +13,10 @@
   --primary:#5B54F0; --primary-2:#8266FF; --primary-weak:#ECEBFE; --primary-ink:#4038C7;
   --accent:#FF9E2C; --accent-2:#FFBB5C; --accent-weak:#FFF2DE; --accent-ink:#B5680A;
   --teal:#10B5A4; --teal-weak:#DDF6F2; --danger:#EC5A63; --ring:rgba(91,84,240,.32);
+  /* Biến thể ĐẬM để làm CHỮ trên nền nhạt cùng tông — như --primary-ink,
+     --accent-ink. Thiếu nó thì mọi chỗ viết color:var(--teal) trên
+     var(--teal-weak) chỉ đạt 2.27:1 (đáp án đúng mờ hơn cả chữ thường). */
+  --teal-ink:#076A5F;
   --shadow-sm:0 1px 2px rgba(24,31,56,.06);
   --shadow:0 2px 5px rgba(24,31,56,.05), 0 14px 34px -12px rgba(24,31,56,.14);
   --shadow-primary:0 10px 26px -10px rgba(91,84,240,.45);
@@ -31,6 +35,7 @@
     --primary:#8B84FF; --primary-2:#A88BFF; --primary-weak:#221F45; --primary-ink:#C3BDFF;
     --accent:#FFB454; --accent-2:#FFCE86; --accent-weak:#38290F; --accent-ink:#FFC978;
     --teal:#2ED4C0; --teal-weak:#0F2E2A; --danger:#FF6B72; --ring:rgba(139,132,255,.42);
+    --teal-ink:#5FE3D2;
     --shadow-sm:0 1px 2px rgba(0,0,0,.35);
     --shadow:0 2px 6px rgba(0,0,0,.32), 0 16px 40px -14px rgba(0,0,0,.6);
     --shadow-primary:0 12px 30px -12px rgba(139,132,255,.5);
@@ -44,6 +49,7 @@
   --primary:#8B84FF; --primary-2:#A88BFF; --primary-weak:#221F45; --primary-ink:#C3BDFF;
   --accent:#FFB454; --accent-2:#FFCE86; --accent-weak:#38290F; --accent-ink:#FFC978;
   --teal:#2ED4C0; --teal-weak:#0F2E2A; --danger:#FF6B72; --ring:rgba(139,132,255,.42);
+  --teal-ink:#5FE3D2;
   --shadow-sm:0 1px 2px rgba(0,0,0,.35);
   --shadow:0 2px 6px rgba(0,0,0,.32), 0 16px 40px -14px rgba(0,0,0,.6);
   --shadow-primary:0 12px 30px -12px rgba(139,132,255,.5);
@@ -229,12 +235,13 @@
 .learn .opt .k{width:22px;height:22px;flex:none;border-radius:7px;display:grid;place-items:center;font-weight:800;font-size:12px;background:var(--surface-3);color:var(--ink-3)}
 .learn .opt.picked{border-color:var(--primary);background:var(--primary-weak)}
 .learn .opt.picked .k{background:var(--primary);color:#fff}
-.learn .opt.correct{border-color:var(--teal);background:var(--teal-weak);color:var(--teal)}
-.learn .opt.wrong{border-color:var(--danger);background:color-mix(in srgb,var(--danger) 13%,transparent);color:var(--danger)}
+.learn .opt.correct{border-color:var(--teal);background:var(--teal-weak);color:var(--teal-ink)}
+/* Chữ đỏ trần chỉ đạt 2.71:1 — trộn với --ink cho đủ đọc mà vẫn ra đỏ. */
+.learn .opt.wrong{border-color:var(--danger);background:color-mix(in srgb,var(--danger) 13%,transparent);color:color-mix(in srgb,var(--danger) 62%,var(--ink))}
 .learn .opt:disabled{cursor:default}
 .learn .ex-giai{margin-top:10px;padding:10px 13px;border-left:3px solid var(--teal);background:var(--teal-weak);border-radius:0 var(--radius-xs) var(--radius-xs) 0;font-size:13.5px;color:var(--ink-2)}
 .learn .ex-foot{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
-.learn .ex-fb{font-size:14px;font-weight:800}.learn .ex-fb.ok{color:var(--teal)}.learn .ex-fb.no{color:var(--accent-ink)}
+.learn .ex-fb{font-size:14px;font-weight:800}.learn .ex-fb.ok{color:var(--teal-ink)}.learn .ex-fb.no{color:var(--accent-ink)}
 .learn .gen-note{font-size:12px;color:var(--ink-3);margin-top:6px}
 /* Hỏi trợ lý ngay tại câu làm sai (lát 4) */
 .learn .hoi-cau{margin-top:11px;display:inline-flex;align-items:center;gap:8px;
@@ -254,7 +261,7 @@
 .learn .ycd{border-top:1px solid var(--border);padding:12px 16px;display:flex;flex-direction:column;gap:9px}
 .learn .ycd-row{display:flex;align-items:center;gap:10px;font-size:13.5px}
 .learn .badge{font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;flex:none}
-.learn .badge.b-dat{background:var(--teal-weak);color:var(--teal)}
+.learn .badge.b-dat{background:var(--teal-weak);color:var(--teal-ink)}
 .learn .badge.b-dang{background:var(--accent-weak);color:var(--accent-ink)}
 .learn .badge.b-chua{background:var(--surface-3);color:var(--ink-3)}
 
@@ -577,7 +584,15 @@
 .learn .hsls-nh{font-size:11.5px;color:var(--ink-2);background:var(--surface-3);
   padding:3px 9px;border-radius:var(--radius-xs)}
 /* Yêu cầu cần đạt */
-.learn .ycd-sai{font-size:11.5px;font-weight:700;color:var(--danger)}
+/* Trước đây ô này luôn đỏ vì nó chỉ hiện khi SAI ("sai 2 lần"). Giờ nó hiện
+   đúng/tổng của yêu cầu cần đạt, nên có cả trường hợp 2/2 — để đỏ thì em làm
+   đúng hết vẫn thấy một dòng đỏ như bị báo lỗi. Đỏ dành riêng cho chỗ còn yếu,
+   và "còn yếu" do server quyết (ycd_thong_ke.la_yeu). */
+.learn .ycd-sai{font-size:11.5px;font-weight:700;color:var(--ink-2)}
+/* --danger nguyên bản làm CHỮ trên nền sáng chỉ đạt 3.38 (cần 4.5) — nó là màu
+   để tô viền/nền, không phải để đọc. Trộn với --ink cho đủ đậm mà vẫn ra đỏ;
+   --ink tự đảo theo theme nên một dòng chạy đúng cả sáng lẫn tối. */
+.learn .ycd-sai.yeu{color:color-mix(in srgb,var(--danger) 62%,var(--ink))}
 .learn .ycd-hl{border:1px solid var(--primary);background:var(--surface);color:var(--primary-ink);
   font:inherit;font-weight:700;font-size:11.5px;padding:4px 10px;border-radius:var(--radius-xs)}
 .learn .ycd-md{font-size:11px;color:var(--ink-3)}
@@ -805,3 +820,90 @@
   padding:11px 13px;border:1px solid var(--accent);border-radius:12px;
   background:var(--accent-weak);color:var(--accent-ink);font-size:13px;line-height:1.5}
 .learn .tl-baotri span{font-size:16px;line-height:1.2;flex:none}
+
+/* ═══ Đề cuối kỳ rút từ DTP Testbank (CuoiKyView) — bố cục theo mockup demo-4-buoc ═══ */
+/* Lý do TỪNG PHƯƠNG ÁN. Nằm ngoài .opt vì .opt là flex ngang — nhét đoạn văn vào
+   trong là vỡ nút; bọc chung trong .b4-pa. Chữ lý do luôn là --ink: tô theo màu
+   trạng thái (teal trên nền teal nhạt) chỉ đạt 2.27:1, đọc ba dòng không nổi.
+   Trạng thái nói bằng VIỀN + dấu ✓/✗ trong nhãn, không phụ thuộc phân biệt màu. */
+.learn .b4-pa{display:flex;flex-direction:column;gap:0}
+.learn .b4-pa.dung .opt,.learn .b4-pa.sai .opt{border-radius:11px 11px 0 0}
+.learn .opt-ly{font-size:13px;line-height:1.6;color:var(--ink);padding:9px 14px 9px 47px;margin-top:-1px;
+  border:1px solid var(--border);border-top:none;border-radius:0 0 11px 11px;background:var(--surface-2)}
+.learn .b4-pa.dung .opt-ly{border-color:var(--teal);background:var(--teal-weak)}
+.learn .b4-pa.sai .opt-ly{border-color:var(--danger);background:color-mix(in srgb,var(--danger) 9%,var(--surface))}
+.learn .opt-ly .nhan{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.04em;margin-right:7px;
+  padding:2px 8px;border-radius:20px;background:var(--surface);border:1px solid var(--border);
+  color:var(--ink-2);vertical-align:1px}
+.learn .b4-pa.dung .opt-ly .nhan{border-color:var(--teal);color:var(--teal-ink)}
+.learn .b4-pa.sai .opt-ly .nhan{border-color:var(--danger)}
+
+.learn .ck .ex-wrap{display:flex;flex-direction:column;gap:14px;margin-bottom:16px}
+.learn .ck-mo{display:flex;flex-direction:column;align-items:flex-start;gap:12px;margin:6px 0 18px}
+.learn .ck-mo .ot-sub{max-width:640px;margin:0}
+.learn .ck-dang{font-size:11px;font-weight:700;color:var(--ink-3)}
+.learn .ck-dv{margin-left:auto;font-size:11px;color:var(--ink-2);background:var(--surface-3);
+  padding:3px 9px;border-radius:var(--radius-xs);max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.learn .ck-q{line-height:1.6}
+.learn .ck-goi{font-weight:400;color:var(--ink-2);font-size:13px}
+.learn .ck-dan{font-size:13px;font-weight:700;color:var(--ink-2);margin-bottom:6px}
+.learn .ck-dukien{border-left:3px solid var(--primary);background:var(--primary-weak);padding:10px 13px;
+  border-radius:0 var(--radius-xs) var(--radius-xs) 0;margin-bottom:10px;font-size:14px;line-height:1.6}
+/* Ảnh công thức của testbank: cỡ gốc (point -> px) do server đặt, không cho tràn
+   cột trên điện thoại. Nền trắng vì ảnh PNG từ Word nền trong suốt, chữ đen — ở
+   giao diện tối là đọc không thấy. */
+.learn .tb-anh{max-width:100%;height:auto;vertical-align:middle;background:#fff;border-radius:3px}
+.learn .tb-thieu-anh{font-size:12px;color:var(--ink-3);font-style:italic}
+.learn .ck-dau{margin-left:auto;font-weight:800}
+
+/* Đúng / Sai: mỗi ý một dòng, hai nút bên phải */
+.learn .ck-ds{display:flex;flex-direction:column;gap:9px;margin-top:10px}
+.learn .ck-y{cursor:default}
+.learn .ck-y .ck-y-tx{flex:1;min-width:0}
+.learn .ck-ds-nut{display:flex;gap:6px;flex:none}
+.learn .ck-ds-nut button{border:1px solid var(--border);background:var(--surface-2);color:var(--ink-2);
+  font:inherit;font-size:12px;font-weight:700;padding:5px 11px;border-radius:8px}
+.learn .ck-ds-nut button.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.learn .ck-ds-nut button:disabled{cursor:default}
+
+/* Điền đáp số */
+.learn .ck-dsn{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.learn .ck-dsn label{display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:700;color:var(--ink-2)}
+.learn .ck-dsn input{flex:1;max-width:260px;border:1px solid var(--border);background:var(--surface);color:var(--ink);
+  border-radius:10px;padding:9px 12px;font:inherit;font-size:15px}
+.learn .ck-dsn input:focus{outline:2px solid var(--ring);border-color:var(--primary)}
+.learn .ck-dsn-kq{font-size:13.5px;font-weight:700}
+.learn .ck-dsn-kq.ok{color:var(--teal-ink)}
+.learn .ck-dsn-kq.no{color:color-mix(in srgb,var(--danger) 62%,var(--ink))}
+.learn .ck-tl{margin-top:10px;font-size:12.5px;color:var(--ink-2);background:var(--surface-3);
+  padding:8px 12px;border-radius:var(--radius-xs)}
+
+.learn .ck-thieu{font-size:13px;color:var(--accent-ink);background:var(--accent-weak);border-radius:12px;
+  padding:10px 14px;margin:0 0 14px;line-height:1.5}
+
+/* Kết quả theo YCCĐ + gợi ý */
+.learn .ck-kq{margin-bottom:18px}
+.learn .ck-kq .pmach{max-width:none}
+.learn .ck-ghi{padding:0 16px 10px;font-size:12px;color:var(--ink-2)}
+.learn .ck-ycd-tx{flex:1;min-width:0;line-height:1.45}
+.learn .ck-goiy h3{margin-top:18px}
+.learn .ck-tl-ds{display:flex;flex-direction:column;gap:8px}
+.learn .ck-tl-ds button{display:flex;align-items:center;gap:12px;text-align:left;border:1px solid var(--border);
+  background:var(--surface);border-radius:12px;padding:11px 14px;font:inherit;color:var(--ink);transition:.14s}
+.learn .ck-tl-ds button:hover{border-color:var(--primary);background:var(--primary-weak)}
+.learn .ck-tl-ds .ic{font-size:18px;flex:none}
+.learn .ck-tl-ds .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.learn .ck-tl-ds .tx b{font-size:13.5px}
+.learn .ck-tl-ds .tx span{font-size:12px;color:var(--ink-2)}
+.learn .ck-tl-ds .mui{color:var(--ink-3)}
+.learn .ck-moi{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:14px;padding:14px 16px;
+  border:1px solid color-mix(in srgb,var(--primary) 35%,var(--border));border-radius:14px;background:var(--primary-weak)}
+.learn .ck-moi div{display:flex;flex-direction:column;gap:3px;flex:1;min-width:220px}
+.learn .ck-moi b{font-size:14px}
+.learn .ck-moi span{font-size:12.5px;color:var(--ink-2)}
+.learn .tp-ck{padding:10px 14px 4px}
+.learn .tp-ck .tp-ontap{margin:0;border-color:color-mix(in srgb,var(--primary) 32%,transparent);
+  background:color-mix(in srgb,var(--primary) 8%,transparent)}
+.learn .tp-ck .tp-ontap:hover,.learn .tp-ck .tp-ontap.dang{background:color-mix(in srgb,var(--primary) 15%,transparent);
+  border-color:var(--primary)}
+.learn .tp-ck .tp-ontap b{color:var(--primary-ink)}

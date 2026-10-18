@@ -30,10 +30,17 @@ data_processed/
 .vscode/
 .idea/
 
-# Frontend
-web/node_modules/
-web/dist/
-web/*.tsbuildinfo
+# Frontend — viết dạng chung (không gắn tên app): trước đây chỉ có `web/…` nên
+# web-admin/node_modules + web-admin/dist bị commit lên git. dist do Docker tự
+# build (infra/frontend*.Dockerfile chạy `npm run build`), không cần commit.
+node_modules/
+dist/
+*.tsbuildinfo
+test-results/
+playwright-report/
+
+# Worktree tạm của Claude Code
+.claude/worktrees/
 # Added by code-review-graph
 .code-review-graph/
 docs/

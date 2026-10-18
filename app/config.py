@@ -27,13 +27,22 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "sgk_toan"
 
-    # Itest (EPIC-10) — ngân hàng câu hỏi ngoài, truy cập READ-ONLY qua DB nền
-    # tảng (schema unit_test/question, subject='MATH', grade_id='G6'; xem repo
-    # dtp-chat-learning). Credential CHỈ-ĐỌC riêng, không nằm trong bất kỳ giao
-    # dịch ghi nào. Rỗng -> tính năng Itest tắt (suggest chỉ chạy trên mirror đã
-    # đồng bộ). URL ảnh câu hỏi = itest_cdn_base + question.image.
-    itest_database_url: str = ""
-    itest_cdn_base: str = "https://cdn.i-test.vn/prod/"
+    # DTP Testbank — kho câu hỏi ôn luyện (PUBLIC) cho đề cuối kỳ. Gọi máy chủ
+    # sang máy chủ bằng tài khoản dịch vụ vai DOI_TAC_ON_LUYEN (app/integrations/
+    # testbank). Ba gốc RIÊNG vì prod là một tên miền + tiền tố, máy dev là ba cổng:
+    #   prod: https://testbank.dtpsoft.vn/api/identity | /api/content | /api/exam
+    #   dev : http://127.0.0.1:8002 | :8001 | :8003
+    # Thiếu bất kỳ giá trị nào -> đề cuối kỳ báo "chưa kết nối", không 500.
+    # Mật khẩu chỉ để ở kho bí mật của máy chủ, KHÔNG commit.
+    testbank_identity_url: str = ""
+    testbank_content_url: str = ""
+    testbank_exam_url: str = ""
+    testbank_email: str = ""
+    testbank_password: str = ""
+    # Số lần rút đề cuối kỳ / học sinh / ngày (0 = không giới hạn; admin miễn).
+    # Mỗi lần rút là 2 lượt gọi testbank + tới 12 lượt gọi model sinh lý do ở lần
+    # đầu, và testbank xin giữ dưới ~10 lời gọi/giây.
+    de_cuoi_ky_daily_limit: int = 10
 
     database_url: str = "postgresql+asyncpg://lamthanh@localhost:5432/chat_learning"
     redis_url: str = "redis://localhost:6380/0"

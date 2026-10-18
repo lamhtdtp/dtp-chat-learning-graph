@@ -20,11 +20,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import security
 from app.api.deps import get_current_user
 from app.db.models import (
-    BlueprintCell, CurriculumTopic, Grade, QuizAttempt, StudentProgress, StudySession,
-    Subject, TopicContent, User,
+    BlueprintCell, CurriculumTopic, Grade, QuizAttempt, QuizAttemptItem, StudentProgress,
+    StudySession, Subject, TopicContent, User,
 )
 from app.db.session import get_session
 from app.lessons import bo_cuc as bo_cuc_svc
+from app.lessons import ycd_key as ycd_key_svc
+from app.lessons import ycd_thong_ke as ycd_tk_svc
 from app.lessons import media as media_svc
 from app.lessons import phien as phien_svc
 from app.lessons import nhac as nhac_svc
@@ -346,6 +348,46 @@ class QuizSubmit(BaseModel):
     answers: list[int]
 
 
+def _nhan(chi_so: int, so_pa: int) -> str:
+    """Chỉ số phương án -> nhãn chữ ("B"). Lưu nhãn chứ không lưu chỉ số: chỉ số
+    chỉ có nghĩa trong đúng đề đã sinh ra nó, mà đề thì bị sinh lại.
+
+    -1 là "không trả lời" — trả chuỗi rỗng, KHÔNG trả "A". Nhầm hai thứ này là
+    đếm một câu bỏ trống thành một câu chọn sai phương án A."""
+    if not 0 <= chi_so < so_pa:
+        return ""
+    return chr(ord("A") + chi_so)
+
+
+def _ghi_chi_tiet(session: AsyncSession, attempt_id: int,
+                  quiz: list[dict], ket_qua: list[dict]) -> None:
+    """Lưu chi tiết từng câu của một lần nộp.
+
+    Khoá để gom thống kê về sau là `ycd_key` (nguyên văn YCCĐ đã chuẩn hoá),
+    KHÔNG phải chỉ số câu và cũng không phải `blueprint_cells.id` — xem
+    docstring của QuizAttemptItem.
+
+    Câu sinh trước khi quiz_json có trường `ycd` thì `ycd_key` rỗng: vẫn lưu
+    dòng để tổng số câu khớp với QuizAttempt.tong, chỉ là không gom theo YCCĐ
+    được. Bỏ hẳn dòng thì hai con số lệch nhau mà không ai hiểu vì sao."""
+    for q, kq in zip(quiz, ket_qua):
+        so_pa = len(q.get("o") or [])
+        ycd_text = (q.get("ycd") or "").strip()
+        session.add(QuizAttemptItem(
+            attempt_id=attempt_id,
+            ycd_key=ycd_key_svc.chuan_hoa(ycd_text),
+            ycd_text=ycd_text,
+            # Câu của Kiểm tra nhanh do mình tự sinh -> chưa có mã bên testbank.
+            ar_id=None,
+            qid=None,
+            phan=kq["phan"],
+            muc_do=q.get("lv", ""),
+            chon=_nhan(kq["chon"], so_pa),
+            dap_an=_nhan(kq["dap_an"], so_pa),
+            dung=kq["dung"],
+        ))
+
+
 @router.post("/quiz/submit")
 async def submit_quiz(
     body: QuizSubmit,
@@ -380,8 +422,12 @@ async def submit_quiz(
     await _upsert_progress(session, user.id, body.topic_id, trang_thai)
     # Ghi lại TỪNG lần nộp (không khử trùng) — student_progress chỉ giữ trạng thái
     # cuối nên không có nó thì mất sạch quá trình học.
-    session.add(QuizAttempt(user_id=user.id, topic_id=body.topic_id,
-                            diem=diem, tong=tong, dat=dat))
+    attempt = QuizAttempt(user_id=user.id, topic_id=body.topic_id,
+                          diem=diem, tong=tong, dat=dat)
+    session.add(attempt)
+    # flush để có attempt.id — chi tiết từng câu phải trỏ vào đúng lần nộp này.
+    await session.flush()
+    _ghi_chi_tiet(session, attempt.id, quiz, ket_qua)
     # XP: mỗi câu đúng + thưởng nếu đạt. Cập nhật streak/điểm tuần.
     xp = diem * _XP_PER_CORRECT + (_XP_QUIZ_PASS if dat else 0)
     st = await stats_svc.award(session, user.id, xp)
@@ -510,13 +556,16 @@ async def me_ycd(
     cells = list(await session.scalars(
         select(BlueprintCell).where(BlueprintCell.topic_id.in_(ids or [0]))
         .order_by(BlueprintCell.id)))
-    # Số lần làm sai theo ĐƠN VỊ (không theo chỉ số câu — đề sinh lại thì chỉ số
-    # trỏ sai đề, xem ghi chú ở QuizAttempt).
-    sai_rows = (await session.execute(
+    # Đúng/sai theo CHÍNH yêu cầu cần đạt, không còn phải quy về đơn vị kiến thức:
+    # quiz_attempt_items khoá theo ycd_key nên gom thẳng được. Một đơn vị có nhiều
+    # YCCĐ, "trượt bài kiểm tra của Bài 11" không nói được em hổng chỗ nào.
+    tk = {r.ycd_key: r for r in await ycd_tk_svc.theo_ycd(session, user.id)}
+    # Số lần TRƯỢT CẢ BÀI — vẫn giữ, nhưng là con số khác nghĩa với `sai` bên dưới.
+    truot_rows = (await session.execute(
         select(QuizAttempt.topic_id, func.count())
         .where(QuizAttempt.user_id == user.id, ~QuizAttempt.dat)
         .group_by(QuizAttempt.topic_id))).all()
-    sai = {tid: n for tid, n in sai_rows}
+    truot = {tid: n for tid, n in truot_rows}
 
     mach: dict[str, list] = {}
     for c in cells:
@@ -524,10 +573,21 @@ async def me_ycd(
         if t is None:
             continue
         tt = prog.get(c.topic_id, "chua")
+        r = tk.get(ycd_key_svc.chuan_hoa(c.yeu_cau_can_dat))
         mach.setdefault((t.mach_noi_dung or "").strip(), []).append({
             "ycd": c.yeu_cau_can_dat, "muc_do": c.muc_do,
             "topic_id": c.topic_id, "don_vi": (t.don_vi_kien_thuc or "").strip(),
-            "trang_thai": tt, "sai": sai.get(c.topic_id, 0),
+            "trang_thai": tt,
+            # Theo đúng YCCĐ này. Chưa làm câu nào -> tong = 0, KHÁC với làm rồi
+            # mà sai hết (tong > 0, dung = 0) — client phải phân biệt được hai
+            # trạng thái đó, nên trả cả hai số chứ không trả mỗi tỉ lệ.
+            "dung": r.dung if r else 0,
+            "tong": r.tong if r else 0,
+            "sai": (r.tong - r.dung) if r else 0,
+            # Server quyết "có yếu không", client chỉ việc vẽ. Để client tự so
+            # ngưỡng là sớm muộn cũng lệch với ngưỡng dùng lúc chọn ar_ids.
+            "yeu": bool(r and ycd_tk_svc.la_yeu(r)),
+            "truot_bai": truot.get(c.topic_id, 0),
         })
     return {"mach": [{"mach": k, "ycd": v} for k, v in mach.items()]}
 
@@ -728,22 +788,33 @@ async def submit_on_tap(
 
     ten = {t.id: (t.don_vi_kien_thuc or "").strip() for t in topics}
     ket_qua, diem = [], 0
-    theo_bai: dict[int, list[bool]] = {}
+    # Giữ cả câu hỏi lẫn kết quả theo bài: QuizAttempt tách theo bài, nên chi tiết
+    # từng câu cũng phải về đúng lần nộp của bài đó.
+    theo_bai: dict[int, list[tuple[dict, dict]]] = {}
     for i, (tid, _idx, q) in enumerate(cap):
         chon = body.answers[i] if i < len(body.answers) else -1
         dung = chon == q["a"]
         diem += 1 if dung else 0
-        theo_bai.setdefault(tid, []).append(dung)
-        ket_qua.append({"dung": dung, "chon": chon, "dap_an": q["a"],
-                        "giai": q.get("giai", ""), "phan": q.get("phan") or "kien_thuc",
-                        "ycd": q.get("ycd", ""), "topic_id": tid, "bai": ten.get(tid, "")})
+        kq = {"dung": dung, "chon": chon, "dap_an": q["a"],
+              "giai": q.get("giai", ""), "phan": q.get("phan") or "kien_thuc",
+              "ycd": q.get("ycd", ""), "topic_id": tid, "bai": ten.get(tid, "")}
+        theo_bai.setdefault(tid, []).append((q, kq))
+        ket_qua.append(kq)
 
     tong = len(cap)
     dat = diem / tong >= _NGUONG_DAT
-    for tid, ds in theo_bai.items():
-        session.add(QuizAttempt(user_id=user.id, topic_id=tid,
-                                diem=sum(ds), tong=len(ds), nguon="on_tap",
-                                dat=sum(ds) / len(ds) >= _NGUONG_DAT))
+    attempts: dict[int, QuizAttempt] = {}
+    for tid, cap_bai in theo_bai.items():
+        ds = [kq["dung"] for _q, kq in cap_bai]
+        at = QuizAttempt(user_id=user.id, topic_id=tid,
+                         diem=sum(ds), tong=len(ds), nguon="on_tap",
+                         dat=sum(ds) / len(ds) >= _NGUONG_DAT)
+        session.add(at)
+        attempts[tid] = at
+    await session.flush()   # lấy id cho mọi attempt trong MỘT lượt, không flush trong vòng lặp
+    for tid, cap_bai in theo_bai.items():
+        _ghi_chi_tiet(session, attempts[tid].id,
+                      [q for q, _ in cap_bai], [kq for _, kq in cap_bai])
     xp = diem * _XP_PER_CORRECT + (_XP_QUIZ_PASS if dat else 0)
     st = await stats_svc.award(session, user.id, xp)
     out = {"diem": diem, "tong": tong, "dat_yeu_cau": dat,

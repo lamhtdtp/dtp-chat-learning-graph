@@ -100,10 +100,6 @@ TASK_TIER: dict[str, Tier] = {
     # Kịch bản video bám câu trả lời ĐÃ grounding sẵn (chỉ diễn đạt lại, không
     # cần suy luận mới) -> tầng rẻ đủ dùng, rẻ cho tính năng đính kèm.
     "video_script": "cheap",
-    # Gợi ý ánh xạ tag Itest -> taxonomy (EPIC-10, US-22): phân loại 1 tên đề vào
-    # mạch/đơn vị kiến thức + mức độ có sẵn — việc phân loại nhẹ, tầng rẻ đủ; kết
-    # quả LÀ ĐỀ XUẤT, người duyệt xác nhận mới dùng nên sai sót được chặn ở khâu duyệt.
-    "itest_map": "cheap",
     "solve": "strong",
     "exam_gen": "strong",
     # Sinh trắc nghiệm "Kiểm tra nhanh" cho 1 đơn vị kiến thức theo ma trận
@@ -116,6 +112,10 @@ TASK_TIER: dict[str, Tier] = {
     # thành câu lệnh sinh ảnh, không suy luận chuyên môn -> tầng rẻ đủ. Tách khỏi
     # lesson_ingest vì gộp chung thì model hay bỏ rơi phần này (xem _prompt_media).
     "media_suggest": "cheap",
+    # Lý do từng phương án của câu rút từ DTP Testbank (app/exam/ly_do.py). Đáp
+    # án đúng + lời giải gốc đã có, model chỉ DIỄN GIẢI cho từng phương án ->
+    # tầng rẻ đủ. Sinh một lần theo (qid, version), mọi học sinh dùng chung.
+    "rationale_gen": "cheap",
 }
 
 # Đã verify từng model một qua API thật — xem docstring trên. Thêm model mới

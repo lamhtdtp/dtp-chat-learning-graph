@@ -4,6 +4,7 @@ import {
 } from "../api";
 import { useTheme } from "../hooks/useTheme";
 import type { CurriculumGroup, Lesson, MyStats, Role } from "../types";
+import { CuoiKyView } from "./CuoiKyView";
 import { HoSoView } from "./HoSoView";
 import { OnTapView } from "./OnTapView";
 import { LessonView } from "./LessonView";
@@ -86,7 +87,9 @@ export function LearnApp({ name, email, role, onLogout }: {
   const [cur, setCur] = useState<number | null>(null);
   // "bai" | "ho_so" — Hồ sơ là một TRANG trong cột giữa, không phải popover, vì
   // nó có biểu đồ + danh sách dài.
-  const [trang, setTrang] = useState<"bai" | "ho_so" | "on_tap">("bai");
+  const [trang, setTrang] = useState<"bai" | "ho_so" | "on_tap" | "cuoi_ky">("bai");
+  // Đề cuối kỳ của học kỳ nào (CK1/CK2) — rút từ DTP Testbank.
+  const [cuoiKy, setCuoiKy] = useState<{ exam: string; ten: string } | null>(null);
   // Phạm vi ôn tập đang mở (mạch nào / học kỳ nào).
   const [onTap, setOnTap] = useState<{ pv: "mach" | "hoc_ky"; gt: string; ten: string } | null>(null);
   const [lesson, setLesson] = useState<Lesson | null>(null);
@@ -189,6 +192,18 @@ export function LearnApp({ name, email, role, onLogout }: {
           <span className="em" aria-hidden>🧭</span>
           <div><b>Lộ trình học</b><span>Toán 6 · Học kỳ {hkDangXem}</span></div>
         </div>
+        {/* Đề cuối kỳ theo HỌC KỲ đang xem — không thuộc mạch nào nên đứng ngoài
+            cây mạch, ngay dưới lộ trình. */}
+        <div className="tp-ck">
+          <button className={"tp-ontap" + (trang === "cuoi_ky" ? " dang" : "")} type="button"
+            onClick={() => {
+              setCuoiKy({ exam: `CK${hkDangXem}`, ten: `Đề cuối học kỳ ${hkDangXem} · Toán 6` });
+              setSlide(false); setTrang("cuoi_ky");
+            }}>
+            <span className="ic" aria-hidden>📝</span>
+            <div><b>Làm đề cuối kỳ {hkDangXem}</b><span>12 câu từ kho đề · chấm theo yêu cầu cần đạt</span></div>
+          </button>
+        </div>
         <div className="tp-scroll col">
           {groups.map((g, gi) => {
             const hk = HK1_MACH.has(g.mach) ? 1 : 2;
@@ -269,7 +284,10 @@ export function LearnApp({ name, email, role, onLogout }: {
         {trang === "bai" && <Hero stats={stats} mach={lesson?.mach} />}
 
         {err && <div className="lesson-empty">⚠️ {err}</div>}
-        {!err && (trang === "on_tap" && onTap
+        {!err && (trang === "cuoi_ky" && cuoiKy
+          ? <CuoiKyView key={cuoiKy.exam} exam={cuoiKy.exam} ten={cuoiKy.ten}
+              onMoBai={moBaiTuHoSo} onDong={() => setTrang("bai")} />
+          : trang === "on_tap" && onTap
           ? <OnTapView phamVi={onTap.pv} giaTri={onTap.gt} ten={onTap.ten}
               onMoBai={openTopic} onDong={() => setTrang("bai")} />
           : trang === "ho_so"

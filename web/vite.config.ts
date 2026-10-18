@@ -24,6 +24,7 @@ export default defineConfig({
       // index.html của Vite chứ không phải JSON, và lỗi hiện ra là "không tải
       // được" mà không có mã HTTP nào để lần — đã mất một lần ở web-admin.
       "/on-tap": "http://localhost:8000",
+      "/exam": "http://localhost:8000",         // đề cuối kỳ rút từ DTP Testbank
     },
   },
 });

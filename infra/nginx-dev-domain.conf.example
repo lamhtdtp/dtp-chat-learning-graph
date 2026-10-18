@@ -29,7 +29,7 @@ server {
     # Đã mất một lần với `/on-tap` (ôn tập chương + học kỳ) trên server.
     # `tests/infra/test_duong_dan_api.py` so danh sách này với router thật, thêm
     # router mà quên sửa đây là test đỏ.
-    location ~ ^/(admin|auth|cms|curriculum|health|lessons|me|on-tap|progress|quiz|tutor|video)(/|$) {
+    location ~ ^/(admin|auth|cms|curriculum|exam|health|lessons|me|on-tap|progress|quiz|tutor|video)(/|$) {
         proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
         proxy_set_header Host              $host;

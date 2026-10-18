@@ -29,6 +29,10 @@ dependencies = [
     "email-validator>=2.2",  # cho pydantic EmailStr (auth) — thiếu thì import lỗi
     "pillow>=10.4",  # dựng slide PNG cho video AI (app/video/render.py)
     "websockets>=13.0",  # đẩy trạng thái video qua WebSocket (app/api/video.py)
+    # Gọi REST sang DTP Testbank (app/integrations/testbank). Khai báo TƯỜNG MINH
+    # dù anthropic/openai đã kéo httpx theo: phụ thuộc ngầm thì hỏng im lặng vào
+    # ngày hai gói kia đổi phiên bản, và lỗi hiện ra ở chỗ không liên quan.
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
@@ -36,11 +40,6 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "pytest-mock>=3.14",
-]
-# Itest (EPIC-10): driver MySQL để DbItestSource kết nối DB i-Test read-only.
-# Tách optional vì hầu hết môi trường không cần (mirror đủ cho suggest).
-itest = [
-    "pymysql>=1.1",
 ]
 
 [tool.pytest.ini_options]

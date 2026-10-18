@@ -124,23 +124,127 @@ class QuizAttempt(Base):
     làm mấy lần, tiến bộ ra sao, đơn vị nào cả lớp cùng đuối. Bảng này ghi từng
     lần, KHÔNG khử trùng — làm lại là thêm dòng mới.
 
-    CỐ Ý không lưu đáp án học sinh chọn: quiz sinh lại theo ma trận (topic_content
-    .quiz_json bị ghi đè) nên chỉ số câu lưu hôm nay sẽ trỏ sai đề vào ngày mai —
-    dữ liệu trông có vẻ chi tiết nhưng suy ra kết luận sai."""
+    Bảng này giữ TỔNG KẾT một lần nộp. Chi tiết từng câu nằm ở
+    `QuizAttemptItem` — xem docstring ở đó để biết vì sao mãi mới thêm được."""
 
     __tablename__ = "quiz_attempts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
-    topic_id: Mapped[int] = mapped_column(ForeignKey("curriculum_topics.id"), index=True)
+    #: NULL CHỈ với `nguon="cuoi_ky"`: đề cuối kỳ phủ cả học kỳ, không thuộc bài
+    #: nào. Mọi truy vấn `NOT IN (select topic_id …)` phải lọc NULL ra — một dòng
+    #: NULL trong NOT IN làm cả điều kiện thành UNKNOWN và trả về rỗng.
+    topic_id: Mapped[int | None] = mapped_column(ForeignKey("curriculum_topics.id"), index=True)
     diem: Mapped[int]                                    # số câu đúng
     tong: Mapped[int]                                    # tổng số câu của đề lúc làm
     dat: Mapped[bool]                                    # có đạt ngưỡng 70% không
     # nhanh = Kiểm tra nhanh của chính đơn vị · on_tap = một mảnh của đề ôn tập
-    # cả mạch. KHÔNG có cột này thì CMS hiện một lần nộp đề ôn tập 8 câu thành
-    # nhiều dòng "1/4" trông y như học sinh đã làm bài kiểm tra của từng bài.
+    # cả mạch · cuoi_ky = đề cuối kỳ rút từ DTP Testbank. KHÔNG có cột này thì
+    # CMS hiện một lần nộp đề ôn tập 8 câu thành nhiều dòng "1/4" trông y như học
+    # sinh đã làm bài kiểm tra của từng bài.
     nguon: Mapped[str] = mapped_column(default="nhanh", index=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), index=True)
+
+
+class QuizAttemptItem(Base):
+    """Chi tiết TỪNG CÂU của một lần nộp — nền cho "gợi ý theo yêu cầu cần đạt".
+
+    Trước đây `QuizAttempt` CỐ Ý không lưu học sinh chọn gì, và lý do ghi lại khi
+    ấy vẫn đúng: quiz sinh lại theo ma trận (`topic_content.quiz_json` bị ghi đè)
+    nên **chỉ số câu** lưu hôm nay sẽ trỏ sai đề vào ngày mai. Dữ liệu trông chi
+    tiết nhưng suy ra kết luận sai.
+
+    Bảng này lưu được vì đã có khoá BỀN để thay chỗ chỉ số câu:
+
+    * `ycd_key` — nguyên văn yêu cầu cần đạt đã chuẩn hoá (`app/lessons/ycd_key.py`).
+      Đây là khoá chính của mọi thống kê. KHÔNG dùng khoá ngoại tới
+      `blueprint_cells.id`: nạp lại ma trận là xoá sạch cell cũ rồi chèn cell mới
+      (`app/seed_matrix.py`, `app/seed_curriculum.py`), nên khoá ngoại sẽ chết
+      đúng cái kiểu mà bảng này sinh ra để tránh.
+    * `ar_id` — mã YCCĐ bên DTP Testbank (`AR26-TO06-CK1-001`). NULL với câu do
+      mình tự sinh; câu rút từ testbank thì có. Hai hệ thống gặp nhau ở `ycd_key`,
+      còn `ar_id` để đối chiếu ngược và gửi kết quả về kho.
+
+    Không khử trùng: làm lại bài là thêm dòng mới, giống `QuizAttempt`.
+    """
+
+    __tablename__ = "quiz_attempt_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # Xoá một lần nộp thì chi tiết đi theo — chi tiết không có nghĩa khi đứng rời.
+    attempt_id: Mapped[int] = mapped_column(
+        ForeignKey("quiz_attempts.id", ondelete="CASCADE"), index=True
+    )
+    #: Khoá bền để gom thống kê. Rỗng khi model không trả `ycd` — vẫn lưu dòng để
+    #: tổng số câu khớp với `QuizAttempt.tong`, chỉ là không gom theo YCCĐ được.
+    ycd_key: Mapped[str] = mapped_column(Text, default="", index=True)
+    #: Nguyên văn chưa chuẩn hoá, để hiện lên màn hình cho học sinh/giáo viên đọc.
+    ycd_text: Mapped[str] = mapped_column(Text, default="")
+    ar_id: Mapped[str | None] = mapped_column(default=None, index=True)
+    #: Mã câu bên testbank (`Q26-000006`). NULL với câu tự sinh.
+    qid: Mapped[str | None] = mapped_column(default=None)
+    #: Id phần nội dung trong bài học (`kien_thuc`, `minh_hoa`…) để sau khi nộp
+    #: còn chỉ được học sinh về đúng đoạn cần đọc lại.
+    phan: Mapped[str] = mapped_column(default="")
+    muc_do: Mapped[str] = mapped_column(default="")      # de | trung_binh | kho (hoặc B|H|V)
+    #: Học sinh chọn gì và đáp án đúng là gì — chuỗi nhãn ("B", "A,C"), KHÔNG
+    #: phải chỉ số, vì chỉ số chỉ có nghĩa trong đúng đề đã sinh ra nó.
+    chon: Mapped[str] = mapped_column(default="")
+    dap_an: Mapped[str] = mapped_column(default="")
+    dung: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class DeCuoiKy(Base):
+    """Một đề cuối kỳ đã rút từ DTP Testbank cho MỘT học sinh, chờ nộp.
+
+    Phải lưu phía máy chủ vì app stateless và đáp án không được xuống trình
+    duyệt: lúc nộp, máy chủ chấm bằng `cau_json` ở đây — đúng bản nội dung
+    (`qid`, `version`) học sinh đã thấy. Gọi lại testbank lúc nộp thì câu có thể
+    đã được sửa (`version` khác) và đáp án mới chấm bài làm trên đề cũ.
+
+    `cau_json` chứa CẢ ĐÁP ÁN — chỉ đọc ở máy chủ, không bao giờ trả nguyên ra.
+    """
+
+    __tablename__ = "de_cuoi_ky"
+
+    #: Chuỗi ngẫu nhiên, không phải số tăng dần: id lộ ra client, số tăng dần thì
+    #: đoán được đề của bạn khác (dù đã chặn theo user_id, đừng mời người ta thử).
+    id: Mapped[str] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    #: subject/grade/exam/total/seed/ar_ids đã gửi testbank — đủ để rút lại đúng đề.
+    tham_so_json: Mapped[str] = mapped_column(Text)
+    #: Thông báo của testbank khi thiếu câu ("Thiếu 2 câu mức V") — hiện cho học sinh.
+    thong_bao: Mapped[str] = mapped_column(Text, default="")
+    cau_json: Mapped[str] = mapped_column(Text)
+    #: Kết quả chấm (đã có lý do từng phương án) — mở lại đề đã nộp thì trả cái này.
+    ket_qua_json: Mapped[str | None] = mapped_column(Text, default=None)
+    nop_luc: Mapped[datetime | None] = mapped_column(default=None)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class LyDoPhuongAn(Base):
+    """Vì sao một phương án đúng / sai — theo (qid, version, option_key).
+
+    Testbank hiện chỉ có MỘT `explanation` cho cả câu. Tạm thời mình sinh bằng AI
+    (`nguon="ai"`, app/exam/ly_do.py); khi testbank có cột `rationale` theo
+    `option_key` thì ghi vào đây với `nguon="testbank"` và đọc ưu tiên bản đó.
+    Hai nguồn chung một chỗ lưu nên đổi nguồn không phải sửa frontend.
+
+    Khoá có `version`: câu được sửa là lý do cũ có thể sai với nội dung mới.
+    Dùng chung cho mọi học sinh — sinh một lần, ai rút trúng câu đó cũng dùng.
+    """
+
+    __tablename__ = "ly_do_phuong_an"
+    __table_args__ = (UniqueConstraint("qid", "version", "option_key", "nguon"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    qid: Mapped[str] = mapped_column(index=True)
+    version: Mapped[str]
+    option_key: Mapped[str]
+    noi_dung: Mapped[str] = mapped_column(Text)
+    nguon: Mapped[str] = mapped_column(default="ai")     # ai | testbank
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
 class StudySession(Base):

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from app.api import admin, auth, cms, lessons, tutor, video
+from app.api import admin, auth, cms, cuoi_ky, lessons, tutor, video
 
 GOC = Path(__file__).resolve().parents[2]
 
@@ -19,7 +19,7 @@ GOC = Path(__file__).resolve().parents[2]
 def _prefix_backend() -> set[str]:
     """Tiền tố cấp 1 của MỌI route backend, vd {"auth", "on-tap", ...}."""
     ra = set()
-    for r in (auth, video, cms, lessons, tutor, admin):
+    for r in (auth, video, cms, lessons, tutor, admin, cuoi_ky):
         for route in r.router.routes:
             p = getattr(route, "path", "")
             if p.startswith("/"):

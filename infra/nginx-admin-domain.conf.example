@@ -23,7 +23,7 @@ server {
     # API -> container api. DANH SÁCH PHẢI GIỐNG HỆT bên nginx-dev-domain:
     # CMS gọi /cms, /admin, /on-tap, /auth, /lessons… qua CÙNG một origin.
     # tests/infra/test_duong_dan_api.py so danh sách này với router thật.
-    location ~ ^/(admin|auth|cms|curriculum|health|lessons|me|on-tap|progress|quiz|tutor|video)(/|$) {
+    location ~ ^/(admin|auth|cms|curriculum|exam|health|lessons|me|on-tap|progress|quiz|tutor|video)(/|$) {
         proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
         proxy_set_header Host              $host;

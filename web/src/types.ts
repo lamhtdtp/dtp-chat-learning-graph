@@ -176,11 +176,19 @@ export interface ThoiGianHoc {
     dang_hoc: boolean;
   }[];
 }
-/** Đạt tới đâu theo yêu cầu cần đạt (GET /me/ycd). */
+/** Đạt tới đâu theo yêu cầu cần đạt (GET /me/ycd).
+ *
+ * `dung`/`tong`/`sai` đếm theo SỐ CÂU của chính yêu cầu cần đạt này (nguồn:
+ * quiz_attempt_items). `truot_bai` mới là số LẦN trượt cả bài kiểm tra — hai
+ * con số khác nghĩa, đừng hiển thị lẫn nhau.
+ *
+ * `tong === 0` nghĩa là chưa làm câu nào, KHÁC với làm rồi mà sai hết.
+ * `yeu` do server quyết theo ngưỡng dùng chung — client không tự so lại. */
 export interface YcdMach {
   mach: string;
   ycd: { ycd: string; muc_do: string; topic_id: number; don_vi: string;
-         trang_thai: string; sai: number }[];
+         trang_thai: string; dung: number; tong: number; sai: number;
+         yeu: boolean; truot_bai: number }[];
 }
 
 /** Trang Ôn tập chương / cuối kỳ (GET /on-tap — REQ §3.5). */
@@ -200,3 +208,86 @@ export interface OnTap {
 export interface CauOnTap { topic_id: number; idx: number; bai: string;
   q: string; o: string[]; lv: "de" | "trung_binh" | "kho" }
 export interface DeOnTap { pham_vi: string; gia_tri: string; so_cau: number; cau: CauOnTap[] }
+
+/* ── Đề cuối kỳ rút từ DTP Testbank (POST /exam/cuoi-ky/*) ──────────────────
+ * HTML trong các trường `*_html` đã được server làm sạch (chỉ giữ vài thẻ định
+ * dạng + <img> ảnh công thức của testbank) — render thẳng, KHÔNG qua renderMath:
+ * công thức của testbank là ảnh hoặc Unicode, không phải LaTeX. */
+export type DangCau = "TN1" | "TNN" | "DS" | "DSN" | "TL";
+
+export interface CauCuoiKy {
+  stt: number;
+  qid: string;
+  dang: DangCau;
+  muc_do: "B" | "H" | "V" | string;
+  ar_id: string;
+  ycd: string;
+  topic_id: number | null;
+  don_vi: string;
+  de_html: string;
+  phuong_an: { key: string; html: string }[];
+  du_kien_html: string;
+  cau_dan: string;
+  /** false = không chấm tự động (tự luận, đáp số là hình) — không tính vào điểm. */
+  tu_cham: boolean;
+}
+
+export interface LyDoPhuongAn {
+  noi_dung: string;
+  /** "ai" = sinh tự động, "testbank" = bản chính thức có người duyệt. */
+  nguon: "ai" | "testbank" | string;
+  dung: boolean;
+}
+
+export interface KetQuaCau {
+  stt: number;
+  qid: string;
+  dang: DangCau;
+  ar_id: string;
+  ycd: string;
+  topic_id: number | null;
+  don_vi: string;
+  chon: string;
+  dap_an: string;
+  dap_an_html: string;
+  cham_duoc: boolean;
+  dung: boolean;
+  so_y_dung: number | null;
+  so_y: number | null;
+  giai_html: string;
+  ly_do: Record<string, LyDoPhuongAn>;
+}
+
+export interface YcdKetQua {
+  ar_id: string;
+  ycd: string;
+  dung: number;
+  tong: number;
+  topic_id: number | null;
+  don_vi: string;
+  trang: "dat" | "dang" | "chua";
+}
+
+export interface KetQuaCuoiKy {
+  de_id: string;
+  diem: number;
+  tong: number;
+  dat_yeu_cau: boolean;
+  khong_cham: number;
+  cau: KetQuaCau[];
+  theo_ycd: YcdKetQua[];
+  goi_y: {
+    ar_ids: string[];
+    tai_lieu: { topic_id: number; don_vi: string; phan: string; ycd: string; ar_id: string; cau: number[] }[];
+    de_moi: { subject: string; grade: string; exam: string | null };
+  };
+}
+
+export interface DeCuoiKy {
+  de_id: string | null;
+  cau: CauCuoiKy[];
+  /** false = testbank rút thiếu câu — `thong_bao` nói rõ thiếu gì. */
+  du_cau: boolean;
+  thong_bao: string;
+  ket_qua?: KetQuaCuoiKy | null;
+}

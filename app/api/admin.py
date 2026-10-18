@@ -373,7 +373,10 @@ async def overview(
     ]
 
     # Đối trọng của "trượt nhiều nhất": nội dung đã xuất bản mà chưa ai đụng tới.
-    da_lam = select(QuizAttempt.topic_id).distinct().scalar_subquery()
+    # Lọc NULL (lần nộp đề cuối kỳ, không thuộc bài nào): một NULL trong NOT IN
+    # làm cả điều kiện thành UNKNOWN và danh sách ra rỗng.
+    da_lam = (select(QuizAttempt.topic_id).where(QuizAttempt.topic_id.is_not(None))
+              .distinct().scalar_subquery())
     chua_hoc_rows = (await session.execute(
         select(CurriculumTopic.id, CurriculumTopic.don_vi_kien_thuc, CurriculumTopic.mach_noi_dung)
         .join(TopicContent, TopicContent.topic_id == CurriculumTopic.id)

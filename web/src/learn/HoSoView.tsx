@@ -163,14 +163,19 @@ export function HoSoView({ onMoBai, ten }: {
                 </span>
                 <span className="ycd-tx">{y.ycd}</span>
                 <span className="ycd-md">{MD[y.muc_do] ?? y.muc_do}</span>
-                {/* "Học lại" chỉ hiện khi sai ≥ 2: sai một lần là chuyện bình
-                    thường, gắn nhãn ngay sẽ thành lời phê. */}
-                {y.sai >= 2 && (
-                  <>
-                    <span className="ycd-sai">sai {y.sai} lần</span>
-                    <button className="ycd-hl" type="button"
-                      onClick={() => onMoBai?.(y.topic_id, "kien_thuc")}>Học lại ↗</button>
-                  </>
+                {/* Đúng mấy trên mấy CÂU của chính yêu cầu cần đạt này. Trước
+                    đây chỗ này ghi "sai N lần" nhưng N lại là số lần trượt cả
+                    bài — nói về bài mà đứng ở dòng của một yêu cầu cần đạt. */}
+                {y.tong > 0 && (
+                  <span className={"ycd-sai" + (y.yeu ? " yeu" : "")}>
+                    {y.dung}/{y.tong} câu
+                  </span>
+                )}
+                {/* "Học lại" theo ngưỡng của server (ycd_thong_ke.la_yeu), không
+                    tự so lại ở đây — hai nơi so là sớm muộn lệch nhau. */}
+                {y.yeu && (
+                  <button className="ycd-hl" type="button"
+                    onClick={() => onMoBai?.(y.topic_id, "kien_thuc")}>Học lại ↗</button>
                 )}
               </div>
             ))}

@@ -3,8 +3,11 @@
 .venv
 data/
 data_processed/
-web/node_modules
-web/dist
+# Mọi app frontend (web, web-admin): node_modules build trên máy (macOS) mà lọt
+# vào image thì `COPY web-admin/ ./` ĐÈ lên bản vừa npm install trong Linux —
+# binary native (esbuild, rolldown) sai nền tảng.
+**/node_modules
+**/dist
 **/__pycache__
 **/*.pyc
 .pytest_cache
