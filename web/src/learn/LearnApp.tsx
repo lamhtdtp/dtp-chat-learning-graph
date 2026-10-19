@@ -89,7 +89,7 @@ export function LearnApp({ name, email, role, onLogout }: {
   // nó có biểu đồ + danh sách dài.
   const [trang, setTrang] = useState<"bai" | "ho_so" | "on_tap" | "cuoi_ky">("bai");
   // Đề cuối kỳ của học kỳ nào (CK1/CK2) — rút từ DTP Testbank.
-  const [cuoiKy, setCuoiKy] = useState<{ exam: string; ten: string } | null>(null);
+  const [cuoiKy, setCuoiKy] = useState<{ exam: string; ten: string; deId?: string } | null>(null);
   // Phạm vi ôn tập đang mở (mạch nào / học kỳ nào).
   const [onTap, setOnTap] = useState<{ pv: "mach" | "hoc_ky"; gt: string; ten: string } | null>(null);
   const [lesson, setLesson] = useState<Lesson | null>(null);
@@ -290,13 +290,18 @@ export function LearnApp({ name, email, role, onLogout }: {
 
         {err && <div className="lesson-empty">⚠️ {err}</div>}
         {!err && (trang === "cuoi_ky" && cuoiKy
-          ? <CuoiKyView key={cuoiKy.exam} exam={cuoiKy.exam} ten={cuoiKy.ten}
-              onMoBai={moBaiTuHoSo} onDong={() => setTrang("bai")} />
+          ? <CuoiKyView key={cuoiKy.exam + (cuoiKy.deId ?? "")} exam={cuoiKy.exam} ten={cuoiKy.ten}
+              moDe={cuoiKy.deId} onMoBai={moBaiTuHoSo} onDong={() => setTrang("bai")} />
           : trang === "on_tap" && onTap
           ? <OnTapView phamVi={onTap.pv} giaTri={onTap.gt} ten={onTap.ten}
               onMoBai={openTopic} onDong={() => setTrang("bai")} />
           : trang === "ho_so"
-          ? <HoSoView onMoBai={moBaiTuHoSo} ten={name} />
+          ? <HoSoView onMoBai={moBaiTuHoSo} ten={name}
+              onMoDeCuoiKy={(exam, deId) => {
+                const hk = exam.replace(/\D/g, "") || "1";
+                setCuoiKy({ exam, ten: `Đề cuối học kỳ ${hk} · Toán 6`, deId });
+                setSlide(false); setTrang("cuoi_ky");
+              }} />
           : slide && lesson
             ? <SlideView lesson={lesson} />
             : lesson

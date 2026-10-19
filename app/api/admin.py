@@ -148,7 +148,9 @@ async def student_result(
 
     rows = (await session.execute(
         select(QuizAttempt, CurriculumTopic.don_vi_kien_thuc, CurriculumTopic.mach_noi_dung)
-        .join(CurriculumTopic, CurriculumTopic.id == QuizAttempt.topic_id)
+        # OUTER join: lần nộp đề cuối kỳ (nguon="cuoi_ky") không thuộc bài nào,
+        # topic_id NULL. JOIN thường loại nó đi -> giáo viên không thấy em đã thi.
+        .outerjoin(CurriculumTopic, CurriculumTopic.id == QuizAttempt.topic_id)
         .where(QuizAttempt.user_id == user_id)
         # id DESC phá hoà: Postgres now() là mốc BẮT ĐẦU transaction nên hai lần
         # nộp sát nhau có created_at y hệt -> thiếu nó thì "gần nhất" sắp tuỳ ý.
@@ -156,7 +158,10 @@ async def student_result(
     )).all()
 
     lan = [{
-        "topic_id": a.topic_id, "ten": (dv or "").strip(), "mach": (mach or "").strip(),
+        "topic_id": a.topic_id,
+        "ten": "Đề cuối kỳ" if a.nguon == "cuoi_ky" else (dv or "").strip(),
+        "mach": ("Rút từ kho đề DTP Testbank · chấm theo yêu cầu cần đạt"
+                 if a.nguon == "cuoi_ky" else (mach or "").strip()),
         "diem": a.diem, "tong": a.tong, "dat": a.dat, "nguon": a.nguon or "nhanh",
         "phan_tram": round(100 * a.diem / a.tong) if a.tong else 0,
         "luc": a.created_at.isoformat(),
@@ -216,6 +221,10 @@ async def student_result(
             if t is not None:
                 _o(tid, t.don_vi_kien_thuc, t.mach_noi_dung)
     for x in lan:
+        # Đề cuối kỳ phủ cả học kỳ, không thuộc đơn vị nào — chỉ hiện ở "Từng lần
+        # nộp", không sinh dòng đơn vị rỗng trong bảng theo bài.
+        if x["topic_id"] is None:
+            continue
         g = _o(x["topic_id"], x["ten"], x["mach"])
         if x["nguon"] == "on_tap":
             g["so_lan_on_tap"] += 1
@@ -232,7 +241,8 @@ async def student_result(
         "so_dang": sum(1 for t in trang_thai.values() if t == "dang"),
         "thoi_gian": tg,
         "tong_lan": len(nhanh),
-        "tong_lan_on_tap": len(lan) - len(nhanh),
+        "tong_lan_on_tap": sum(1 for x in lan if x["nguon"] == "on_tap"),
+        "tong_lan_cuoi_ky": sum(1 for x in lan if x["nguon"] == "cuoi_ky"),
         "so_lan_dat": sum(1 for x in nhanh if x["dat"]),
         "diem_tb": round(sum(x["phan_tram"] for x in nhanh) / len(nhanh)) if nhanh else 0,
         # Sắp theo trạng thái (đạt trước) rồi tới số lần làm — giáo viên tìm em

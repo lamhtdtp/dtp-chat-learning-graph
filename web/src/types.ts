@@ -290,4 +290,22 @@ export interface DeCuoiKy {
   du_cau: boolean;
   thong_bao: string;
   ket_qua?: KetQuaCuoiKy | null;
+  /** Có ở GET /exam/cuoi-ky/{de_id}: đề "làm bài mới" chỉ trong YCCĐ còn yếu. */
+  on_lai?: boolean;
+}
+
+/** Một đề trong lịch sử (GET /exam/cuoi-ky) — chỉ tóm tắt, không nội dung câu. */
+export interface DeCuoiKyTomTat {
+  de_id: string;
+  exam: string | null;
+  /** true = đề "làm bài mới" chỉ trong các YCCĐ còn yếu. */
+  on_lai: boolean;
+  so_cau: number;
+  luc: string;
+  da_nop: boolean;
+  nop_luc: string | null;
+  /** null khi chưa nộp. */
+  diem: number | null;
+  tong: number | null;
+  dat: boolean | null;
 }

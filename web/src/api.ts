@@ -2,6 +2,7 @@ import { API_BASE } from "./config";
 import type {
   CurriculumGroup,
   DeCuoiKy,
+  DeCuoiKyTomTat,
   DeOnTap,
   KetQuaCuoiKy,
   OnTap,
@@ -201,4 +202,12 @@ export function rutDeCuoiKy(opts: {
 /** Nộp bài. `traLoi`: qid -> "B" | "A,C" | "Đ,S,Đ,S" | đáp số đã điền. */
 export function nopDeCuoiKy(deId: string, traLoi: Record<string, string>): Promise<KetQuaCuoiKy> {
   return req("/exam/cuoi-ky/submit", { auth: true, body: { de_id: deId, tra_loi: traLoi } });
+}
+/** Lịch sử đề cuối kỳ của chính mình, mới nhất trước. `exam` lọc theo kỳ (CK1/CK2). */
+export function dsDeCuoiKy(exam?: string): Promise<{ de: DeCuoiKyTomTat[] }> {
+  return req(`/exam/cuoi-ky${exam ? `?exam=${encodeURIComponent(exam)}` : ""}`, { auth: true });
+}
+/** Mở lại một đề: chưa nộp thì như lúc rút (không đáp án), đã nộp thì kèm `ket_qua`. */
+export function moDeCuoiKy(deId: string): Promise<DeCuoiKy> {
+  return req(`/exam/cuoi-ky/${encodeURIComponent(deId)}`, { auth: true });
 }

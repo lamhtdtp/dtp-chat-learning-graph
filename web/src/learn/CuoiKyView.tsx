@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, nopDeCuoiKy, rutDeCuoiKy } from "../api";
-import type { CauCuoiKy, DeCuoiKy, KetQuaCau, KetQuaCuoiKy } from "../types";
+import { ApiError, dsDeCuoiKy, moDeCuoiKy, nopDeCuoiKy, rutDeCuoiKy } from "../api";
+import type { CauCuoiKy, DeCuoiKy, DeCuoiKyTomTat, KetQuaCau, KetQuaCuoiKy } from "../types";
 
 const MUC: Record<string, [string, string]> = {
   B: ["de", "Biết"], H: ["trung_binh", "Hiểu"], V: ["kho", "Vận dụng"],
@@ -12,6 +12,26 @@ const DANG: Record<string, string> = {
  *  thì một chỗ một câu, làm đúng một câu chưa nói lên gì; nhiều hơn thì thành
  *  làm lại cả đề. */
 const soCauDeMoi = (n: number) => Math.min(12, Math.max(4, n * 2));
+
+/** Nháp đáp án của đề CHƯA nộp, theo de_id. Lỡ đóng tab hay tải lại giữa chừng
+ *  thì mở lại đề vẫn còn những gì đã chọn. Chỉ là tiện ích của riêng trình duyệt
+ *  này — localStorage có thể không dùng được (chế độ ẩn danh…) nên mọi lần đọc /
+ *  ghi đều bọc try/catch, hỏng thì thôi không lưu. */
+const NHAP = (deId: string) => `ck-nhap:${deId}`;
+function docNhap(deId: string): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(NHAP(deId)) ?? "{}") ?? {}; } catch { return {}; }
+}
+function ghiNhap(deId: string, v: Record<string, string>) {
+  try { localStorage.setItem(NHAP(deId), JSON.stringify(v)); } catch { /* bỏ qua */ }
+}
+function xoaNhap(deId: string) {
+  try { localStorage.removeItem(NHAP(deId)); } catch { /* bỏ qua */ }
+}
+const ngayGio = (iso: string) => {
+  const d = new Date(iso);
+  return isNaN(+d) ? iso : d.toLocaleString("vi-VN", {
+    day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+};
 
 /** Một câu, cả lúc làm lẫn sau khi nộp. `chon` luôn là CHUỖI nhãn như server
  *  nhận ("B", "A,C", "Đ,S,Đ,S", "3,5") — không giữ chỉ số phương án. */
@@ -173,9 +193,11 @@ function Cau({ c, chon, onChon, kq, onMoBai }: {
  *  Đáp án KHÔNG có ở client trước khi nộp — server chấm, rồi mới trả đáp án,
  *  lời giải và lý do từng phương án. Kết quả chấm theo YÊU CẦU CẦN ĐẠT (khoá bền
  *  `ar_id`), không theo số câu: đề sinh lại thì số câu đổi, YCCĐ thì không. */
-export function CuoiKyView({ exam, ten, onMoBai, onDong }: {
+export function CuoiKyView({ exam, ten, moDe, onMoBai, onDong }: {
   exam: string;
   ten: string;
+  /** Mở thẳng đề này (bấm từ Hồ sơ học tập) thay vì màn bắt đầu. */
+  moDe?: string;
   onMoBai: (topicId: number, phan?: string) => void;
   onDong: () => void;
 }) {
@@ -196,6 +218,34 @@ export function CuoiKyView({ exam, ten, onMoBai, onDong }: {
     if (cuon) dau.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [cuon]);
 
+  // Lịch sử đề của kỳ này — tải lại mỗi lần về màn bắt đầu, để đề vừa nộp hiện ngay.
+  const [ds, setDs] = useState<DeCuoiKyTomTat[] | null>(null);
+  useEffect(() => {
+    if (de) return;
+    dsDeCuoiKy(exam).then((r) => setDs(r.de)).catch(() => setDs([]));
+  }, [de, exam]);
+
+  /** Mở lại một đề: đã nộp -> hiện nguyên kết quả cũ; chưa nộp -> làm tiếp từ nháp. */
+  const mo = async (deId: string, onLaiDe = false) => {
+    setDang("rut"); setLoi(null);
+    try {
+      const d = await moDeCuoiKy(deId);
+      const k = d.ket_qua ?? null;
+      setDe(d); setKq(k); setOnLai(onLaiDe || !!d.on_lai);
+      // Đã nộp: dựng lại lựa chọn từ kết quả để các ô hiện đúng em đã chọn gì.
+      setChon(k ? Object.fromEntries(k.cau.map((c) => [c.qid, c.chon])) : docNhap(deId));
+      veDau();
+    } catch (e) {
+      setLoi(e instanceof ApiError ? e.message : "Không mở được đề, thử lại nhé");
+    } finally { setDang(""); }
+  };
+  useEffect(() => { if (moDe) void mo(moDe); }, [moDe]); // eslint-disable-line
+
+  // Lưu nháp khi đang làm (chưa nộp).
+  useEffect(() => {
+    if (de?.de_id && !kq && Object.keys(chon).length) ghiNhap(de.de_id, chon);
+  }, [de, kq, chon]);
+
   const rut = async (arIds?: string[]) => {
     setDang("rut"); setLoi(null);
     try {
@@ -212,6 +262,7 @@ export function CuoiKyView({ exam, ten, onMoBai, onDong }: {
     setDang("nop"); setLoi(null);
     try {
       setKq(await nopDeCuoiKy(de.de_id, chon));
+      xoaNhap(de.de_id);
       veDau();
     } catch (e) {
       setLoi(e instanceof ApiError ? e.message : "Không nộp được bài, thử lại nhé");
@@ -227,7 +278,11 @@ export function CuoiKyView({ exam, ten, onMoBai, onDong }: {
     <div className="lesson ck" ref={dau}>
       <div className="ot-top">
         <span className="badge-hoc">📝 ĐỀ {onLai ? "ÔN LẠI CHỖ CÒN YẾU" : "CUỐI KỲ"}</span>
-        <button className="ot-dong" type="button" onClick={onDong}>← Về bài học</button>
+        {de && (
+          <button className="ot-dong" type="button" onClick={() => { setDe(null); setKq(null); }}>
+            ☰ Các lần làm</button>
+        )}
+        <button className="ot-dong ck-ve" type="button" onClick={onDong}>← Về bài học</button>
       </div>
       <h1>{ten}</h1>
 
@@ -240,6 +295,7 @@ export function CuoiKyView({ exam, ten, onMoBai, onDong }: {
           <button className="btn btn-primary" type="button" disabled={dang === "rut"} onClick={() => void rut()}>
             {dang === "rut" ? "Đang rút đề…" : "Bắt đầu làm đề →"}
           </button>
+          {ds && ds.length > 0 && <LichSu ds={ds} onMo={(x) => void mo(x.de_id, x.on_lai)} />}
         </div>
       )}
 
@@ -349,6 +405,35 @@ function KetQua({ kq, onMoBai, onDeMoi, dangRut }: {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** "Các lần làm trước" — đề đã nộp mở lại xem kết quả, đề bỏ dở thì làm tiếp. */
+export function LichSu({ ds, onMo, tieuDe = "Các lần làm trước" }: {
+  ds: DeCuoiKyTomTat[];
+  onMo: (x: DeCuoiKyTomTat) => void;
+  tieuDe?: string;
+}) {
+  return (
+    <div className="ck-ls">
+      <div className="ck-ls-h">🕒 {tieuDe}</div>
+      {ds.map((x) => {
+        const pct = x.da_nop && x.tong ? Math.round(((x.diem ?? 0) * 100) / x.tong) : null;
+        return (
+          <button type="button" className="ck-ls-r" key={x.de_id} onClick={() => onMo(x)}>
+            {x.da_nop
+              ? <span className={"badge " + (x.dat ? "b-dat" : "b-dang")}>{x.diem}/{x.tong}</span>
+              : <span className="badge b-chua">Chưa nộp</span>}
+            <span className="tx">
+              <b>{x.exam ? `Cuối kỳ ${x.exam.replace(/\D/g, "")}` : "Đề cuối kỳ"}
+                {x.on_lai && " · ôn lại chỗ yếu"}</b>
+              <span className="num">{ngayGio(x.nop_luc ?? x.luc)} · {x.so_cau} câu</span>
+            </span>
+            <span className="kq">{pct !== null ? `${pct}%` : "Làm tiếp →"}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -205,7 +205,11 @@ async def generate(
     tham_so = {**body.model_dump(), "seed": seed}
     session.add(DeCuoiKy(id=de_id, user_id=user.id, tham_so_json=json.dumps(tham_so),
                          thong_bao=" ".join(thong_bao),
-                         cau_json=json.dumps(caus, ensure_ascii=False)))
+                         cau_json=json.dumps(caus, ensure_ascii=False),
+                         # clock_timestamp chứ không phải now(): now() là mốc BẮT ĐẦU
+                         # transaction, hai đề rút sát nhau trùng giờ và danh sách
+                         # "mới nhất trước" sắp tuỳ ý.
+                         created_at=func.clock_timestamp()))
     out = {"de_id": de_id, "cau": _de_cong_khai(caus), "du_cau": not thong_bao,
            "thong_bao": " ".join(thong_bao), "seed": seed}
     await session.commit()
@@ -314,9 +318,50 @@ async def submit(
            "goi_y": {"ar_ids": ar_yeu, "tai_lieu": tai_lieu,
                      "de_moi": {k: tham_so.get(k) for k in ("subject", "grade", "exam")}}}
     de.ket_qua_json = json.dumps(out, ensure_ascii=False)
-    de.nop_luc = datetime.now(timezone.utc).replace(tzinfo=None)
+    # Giờ của POSTGRES, cùng nguồn với created_at và mọi cột thời gian khác của
+    # app. Trước đây lấy datetime.now(utc) của Python: DB chạy giờ +07 nên lịch sử
+    # hiện "nộp lúc 11:20" cho bài nộp 18:20 — lệch đúng 7 tiếng.
+    de.nop_luc = func.clock_timestamp()
     await session.commit()
     return out
+
+
+async def danh_sach_de(session: AsyncSession, user_id: int, *, exam: str | None = None,
+                       gioi_han: int = 20) -> list[dict]:
+    """Các đề cuối kỳ của một học sinh, mới nhất trước — cả đề đã nộp lẫn đề rút
+    rồi bỏ dở. Dùng chung cho màn đề cuối kỳ và Hồ sơ học tập.
+
+    Chỉ tóm tắt (điểm, đạt, thời điểm) — KHÔNG có nội dung câu hay đáp án."""
+    q = select(DeCuoiKy).where(DeCuoiKy.user_id == user_id)
+    rows = (await session.scalars(q.order_by(DeCuoiKy.created_at.desc()).limit(200))).all()
+    out = []
+    for d in rows:
+        ts = json.loads(d.tham_so_json)
+        if exam and ts.get("exam") != exam:
+            continue
+        kq = json.loads(d.ket_qua_json) if d.ket_qua_json else None
+        out.append({
+            "de_id": d.id, "exam": ts.get("exam"), "on_lai": bool(ts.get("ar_ids")),
+            "so_cau": len(json.loads(d.cau_json)),
+            "luc": d.created_at.isoformat(),
+            "da_nop": kq is not None,
+            "nop_luc": d.nop_luc.isoformat() if d.nop_luc else None,
+            "diem": kq["diem"] if kq else None, "tong": kq["tong"] if kq else None,
+            "dat": kq["dat_yeu_cau"] if kq else None,
+        })
+        if len(out) >= gioi_han:
+            break
+    return out
+
+
+@router.get("")
+async def liet_ke(
+    exam: str | None = None,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Lịch sử đề cuối kỳ của chính học sinh đang đăng nhập."""
+    return {"de": await danh_sach_de(session, user.id, exam=exam)}
 
 
 @router.get("/{de_id}")
@@ -328,5 +373,6 @@ async def mo_lai(
     de = await _de_cua(session, de_id, user)
     out = {"de_id": de.id, "cau": _de_cong_khai(json.loads(de.cau_json)),
            "du_cau": not de.thong_bao, "thong_bao": de.thong_bao,
+           "on_lai": bool(json.loads(de.tham_so_json).get("ar_ids")),
            "ket_qua": json.loads(de.ket_qua_json) if de.ket_qua_json else None}
     return out

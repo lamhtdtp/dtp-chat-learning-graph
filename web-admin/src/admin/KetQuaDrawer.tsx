@@ -99,6 +99,10 @@ export function KetQuaDrawer({ userId, onClose }: { userId: number; onClose: () 
                 <div className="kq-ghi">Ngoài ra có {d.tong_lan_on_tap} câu từ đề
                   {" "}<b>ôn tập cả mạch</b> — không tính vào điểm trung bình của từng bài.</div>
               )}
+              {d.tong_lan_cuoi_ky > 0 && (
+                <div className="kq-ghi">Đã làm <b>{d.tong_lan_cuoi_ky} đề cuối kỳ</b> (rút từ kho
+                  đề DTP Testbank) — xem ở "Từng lần nộp", không tính vào điểm từng bài.</div>
+              )}
 
               <div className="esec">
                 <div className="esec-h"><span className="n">📊</span> Theo đơn vị kiến thức</div>
@@ -139,7 +143,8 @@ export function KetQuaDrawer({ userId, onClose }: { userId: number; onClose: () 
                     <span className={"pill " + (x.dat ? "p-xong" : "p-duyet")}>{x.diem}/{x.tong}</span>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div className="u-name">{x.ten}
-                        {x.nguon === "on_tap" && <span className="kq-ot">ôn tập</span>}</div>
+                        {x.nguon === "on_tap" && <span className="kq-ot">ôn tập</span>}
+                        {x.nguon === "cuoi_ky" && <span className="kq-ot">cuối kỳ</span>}</div>
                       <div className="u-mach">{fmt(x.luc)}</div>
                     </div>
                     <b className="tnum" style={{ fontSize: 13 }}>{x.phan_tram}%</b>

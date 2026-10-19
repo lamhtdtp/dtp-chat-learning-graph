@@ -322,3 +322,61 @@ async def test_mo_lai_de_chua_nop_khong_lo_dap_an(client, tb):
     r = (await client.get(f"/exam/cuoi-ky/{d['de_id']}", headers=hs)).json()
     assert r["ket_qua"] is None and "answer_key" not in json.dumps(r)
     assert [c["qid"] for c in r["cau"]] == [c["qid"] for c in d["cau"]]
+
+
+# ── Lịch sử đề đã làm (GET /exam/cuoi-ky) ───────────────────────────────────
+async def test_liet_ke_de_cua_minh_moi_nhat_truoc(client, tb):
+    hs = await _hs(client)
+    d1 = await _rut(client, hs)
+    await _nop(client, hs, d1["de_id"], {"Q1": "C", "Q2": "1"})
+    d2 = await _rut(client, hs)                         # rút mà chưa nộp
+
+    ds = (await client.get("/exam/cuoi-ky", headers=hs)).json()["de"]
+    assert [x["de_id"] for x in ds] == [d2["de_id"], d1["de_id"]]
+    moi, cu = ds
+    assert moi["da_nop"] is False and moi["diem"] is None
+    assert cu["da_nop"] is True and (cu["diem"], cu["tong"]) == (1, 3)
+    assert cu["exam"] == "CK1" and cu["so_cau"] == 4 and cu["dat"] is False
+
+
+async def test_liet_ke_khong_lo_de_cua_ban_khac(client, tb):
+    await _rut(client, await _hs(client))
+    ds = (await client.get("/exam/cuoi-ky", headers=await _hs(client))).json()["de"]
+    assert ds == []
+
+
+async def test_liet_ke_loc_theo_ky(client, tb):
+    hs = await _hs(client)
+    await _rut(client, hs)                               # CK1
+    await _rut(client, hs, exam="CK2")
+    ds = (await client.get("/exam/cuoi-ky?exam=CK2", headers=hs)).json()["de"]
+    assert [x["exam"] for x in ds] == ["CK2"]
+
+
+async def test_liet_ke_khong_lo_dap_an(client, tb):
+    hs = await _hs(client)
+    d = await _rut(client, hs)
+    await _nop(client, hs, d["de_id"], {"Q1": "C"})
+    raw = json.dumps((await client.get("/exam/cuoi-ky", headers=hs)).json(), ensure_ascii=False)
+    assert "answer_key" not in raw and "Lời giải" not in raw
+
+
+async def test_mo_lai_de_da_nop_tra_ket_qua_cu(client, tb):
+    hs = await _hs(client)
+    d = await _rut(client, hs)
+    kq = await _nop(client, hs, d["de_id"], {"Q1": "C"})
+    r = (await client.get(f"/exam/cuoi-ky/{d['de_id']}", headers=hs)).json()
+    assert r["ket_qua"] == kq
+
+
+async def test_gio_nop_cung_nguon_voi_gio_rut(client, tb):
+    """nop_luc và luc phải cùng một đồng hồ (Postgres). Lệch nguồn là lịch sử
+    hiện giờ nộp TRƯỚC giờ rút đề cả mấy tiếng (DB +07, Python UTC)."""
+    from datetime import datetime
+
+    hs = await _hs(client)
+    d = await _rut(client, hs)
+    await _nop(client, hs, d["de_id"], {"Q1": "C"})
+    x = (await client.get("/exam/cuoi-ky", headers=hs)).json()["de"][0]
+    rut, nop = datetime.fromisoformat(x["luc"]), datetime.fromisoformat(x["nop_luc"])
+    assert 0 <= (nop - rut).total_seconds() < 60

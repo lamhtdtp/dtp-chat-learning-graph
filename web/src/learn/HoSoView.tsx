@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { ApiError, getThoiGian, getYcd, tokenStore } from "../api";
-import type { ThoiGianHoc, YcdMach } from "../types";
+import { ApiError, dsDeCuoiKy, getThoiGian, getYcd, tokenStore } from "../api";
+import type { DeCuoiKyTomTat, ThoiGianHoc, YcdMach } from "../types";
+import { LichSu } from "./CuoiKyView";
 
 const MD: Record<string, string> = {
   nhan_biet: "Nhận biết", thong_hieu: "Thông hiểu", van_dung: "Vận dụng",
@@ -32,13 +33,16 @@ function ngayPhien(iso: string): [string, string] {
 }
 
 /** Hồ sơ học tập của học sinh — 4 khối theo REQ §3.6. */
-export function HoSoView({ onMoBai, ten }: {
+export function HoSoView({ onMoBai, onMoDeCuoiKy, ten }: {
   onMoBai?: (topicId: number, phan?: string) => void;
+  /** Mở lại một đề cuối kỳ đã làm (xem kết quả / làm tiếp đề bỏ dở). */
+  onMoDeCuoiKy?: (exam: string, deId: string) => void;
   /** Tên học sinh — mockup đặt tiêu đề là "An · Toán lớp 6". */
   ten?: string;
 }) {
   const [tg, setTg] = useState<ThoiGianHoc | null>(null);
   const [ycd, setYcd] = useState<YcdMach[] | null>(null);
+  const [deCk, setDeCk] = useState<DeCuoiKyTomTat[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -48,6 +52,8 @@ export function HoSoView({ onMoBai, ten }: {
     };
     getThoiGian(14).then(setTg).catch(loi);
     getYcd().then((r) => setYcd(r.mach)).catch(loi);
+    // Phụ: lịch sử đề cuối kỳ hỏng thì hồ sơ vẫn phải hiện, chỉ thiếu khối này.
+    dsDeCuoiKy().then((r) => setDeCk(r.de.slice(0, 5))).catch(() => setDeCk([]));
   }, []);
 
   if (err) return <article className="lesson"><div className="lesson-empty">⚠️ {err}</div></article>;
@@ -109,6 +115,17 @@ export function HoSoView({ onMoBai, ten }: {
           </div>
         ))}
       </div>
+
+      {/* ── Đề cuối kỳ — khối RIÊNG, không trộn vào lịch sử phiên: danh sách dưới
+          tính theo phiên học từng bài (phút học, phần đã đọc), đề cuối kỳ không
+          thuộc bài nào nên không có những con số đó. ── */}
+      {deCk.length > 0 && (
+        <>
+          <h3><span className="hi">📝</span> Đề cuối kỳ</h3>
+          <LichSu ds={deCk} tieuDe="Các lần gần nhất"
+            onMo={(x) => onMoDeCuoiKy?.(x.exam ?? "CK1", x.de_id)} />
+        </>
+      )}
 
       {/* ── Khối 3: lịch sử phiên ── */}
       <h3><span className="hi">🕒</span> Lịch sử học tập</h3>

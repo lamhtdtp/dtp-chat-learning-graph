@@ -97,10 +97,11 @@ export interface CmsTopic {
 
 /** Kết quả Kiểm tra nhanh của 1 học sinh (GET /admin/users/{id}/result). */
 export interface KetQuaLan {
-  topic_id: number; ten: string; mach: string;
+  topic_id: number | null; ten: string; mach: string;
   diem: number; tong: number; dat: boolean; phan_tram: number; luc: string;
-  /** nhanh = Kiểm tra nhanh của đơn vị · on_tap = một mảnh đề ôn tập cả mạch. */
-  nguon: "nhanh" | "on_tap";
+  /** nhanh = Kiểm tra nhanh của đơn vị · on_tap = một mảnh đề ôn tập cả mạch ·
+   *  cuoi_ky = đề cuối kỳ rút từ DTP Testbank (topic_id null, không thuộc bài nào). */
+  nguon: "nhanh" | "on_tap" | "cuoi_ky";
 }
 export interface KetQuaDonVi {
   topic_id: number; ten: string; mach: string;
@@ -123,6 +124,8 @@ export interface KetQuaHocSinh {
   thoi_gian: ThoiGianKQ;
   so_dat: number; so_dang: number;
   tong_lan: number; tong_lan_on_tap: number; so_lan_dat: number; diem_tb: number;
+  /** Số lần nộp đề cuối kỳ — tách riêng, không tính vào điểm TB kiểm tra nhanh. */
+  tong_lan_cuoi_ky: number;
   theo_don_vi: KetQuaDonVi[];
   lan: KetQuaLan[];
 }

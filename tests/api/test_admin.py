@@ -326,3 +326,26 @@ async def test_overview_chua_hoc_khong_bi_lan_nop_de_cuoi_ky_xoa_trang(client, s
 
     b = (await client.get("/admin/overview", headers=gv)).json()
     assert b["chua_hoc_tong"] >= 1
+
+
+async def test_result_hien_lan_nop_de_cuoi_ky_tach_khoi_thong_ke_theo_bai(client, session):
+    """Lần nộp đề cuối kỳ (topic_id NULL) phải hiện trong "Từng lần nộp" của CMS —
+    trước đây phép JOIN bắt buộc với bài học loại nó đi, giáo viên không thấy gì.
+    Nhưng KHÔNG được lọt vào thống kê theo bài / điểm trung bình kiểm tra nhanh."""
+    from app.db.models import QuizAttempt
+
+    h, _ = await _make_admin(client, session)
+    email, _ = await _reg(client, "hoc_sinh")
+    hs = await session.scalar(select(User).where(User.email == email))
+    hs_id = hs.id
+    session.add(QuizAttempt(user_id=hs_id, topic_id=None, diem=9, tong=12, dat=True,
+                            nguon="cuoi_ky"))
+    await session.commit()
+
+    d = (await client.get(f"/admin/users/{hs_id}/result", headers=h)).json()
+    ck = [x for x in d["lan"] if x["nguon"] == "cuoi_ky"]
+    assert len(ck) == 1 and ck[0]["ten"] == "Đề cuối kỳ" and ck[0]["phan_tram"] == 75
+    assert d["tong_lan_cuoi_ky"] == 1
+    # Không đếm vào kiểm tra nhanh / ôn tập, không sinh dòng "đơn vị" rỗng.
+    assert d["tong_lan"] == 0 and d["tong_lan_on_tap"] == 0
+    assert all(g["topic_id"] is not None for g in d["theo_don_vi"])
