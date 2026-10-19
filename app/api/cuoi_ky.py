@@ -18,9 +18,10 @@ import logging
 import secrets
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import cast, delete, func, select
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -318,6 +319,7 @@ async def submit(
            "goi_y": {"ar_ids": ar_yeu, "tai_lieu": tai_lieu,
                      "de_moi": {k: tham_so.get(k) for k in ("subject", "grade", "exam")}}}
     de.ket_qua_json = json.dumps(out, ensure_ascii=False)
+    de.attempt_id = attempt.id
     # Giờ của POSTGRES, cùng nguồn với created_at và mọi cột thời gian khác của
     # app. Trước đây lấy datetime.now(utc) của Python: DB chạy giờ +07 nên lịch sử
     # hiện "nộp lúc 11:20" cho bài nộp 18:20 — lệch đúng 7 tiếng.
@@ -326,19 +328,26 @@ async def submit(
     return out
 
 
+def _loc_ky(exam: str | None):
+    """Điều kiện lọc kỳ, chạy TRONG SQL. Lọc sau khi cắt trang thì trang ra thiếu
+    đề dù kỳ đó còn nhiều. `tham_so_json` là Text nên ép sang JSONB để đọc khoá."""
+    return [cast(DeCuoiKy.tham_so_json, JSONB)["exam"].astext == exam] if exam else []
+
+
 async def danh_sach_de(session: AsyncSession, user_id: int, *, exam: str | None = None,
-                       gioi_han: int = 20) -> list[dict]:
+                       gioi_han: int = 10, bo_qua: int = 0) -> tuple[list[dict], bool]:
     """Các đề cuối kỳ của một học sinh, mới nhất trước — cả đề đã nộp lẫn đề rút
-    rồi bỏ dở. Dùng chung cho màn đề cuối kỳ và Hồ sơ học tập.
+    rồi bỏ dở — kèm cờ còn trang sau. Dùng chung cho màn đề cuối kỳ và Hồ sơ.
 
     Chỉ tóm tắt (điểm, đạt, thời điểm) — KHÔNG có nội dung câu hay đáp án."""
-    q = select(DeCuoiKy).where(DeCuoiKy.user_id == user_id)
-    rows = (await session.scalars(q.order_by(DeCuoiKy.created_at.desc()).limit(200))).all()
+    rows = (await session.scalars(
+        select(DeCuoiKy).where(DeCuoiKy.user_id == user_id, *_loc_ky(exam))
+        # id phá hoà khi hai đề trùng giờ — không thì trang sau lặp/sót đề.
+        .order_by(DeCuoiKy.created_at.desc(), DeCuoiKy.id.desc())
+        .offset(bo_qua).limit(gioi_han + 1))).all()   # lấy dư 1 để biết còn trang sau
     out = []
-    for d in rows:
+    for d in rows[:gioi_han]:
         ts = json.loads(d.tham_so_json)
-        if exam and ts.get("exam") != exam:
-            continue
         kq = json.loads(d.ket_qua_json) if d.ket_qua_json else None
         out.append({
             "de_id": d.id, "exam": ts.get("exam"), "on_lai": bool(ts.get("ar_ids")),
@@ -349,19 +358,66 @@ async def danh_sach_de(session: AsyncSession, user_id: int, *, exam: str | None 
             "diem": kq["diem"] if kq else None, "tong": kq["tong"] if kq else None,
             "dat": kq["dat_yeu_cau"] if kq else None,
         })
-        if len(out) >= gioi_han:
-            break
-    return out
+    return out, len(rows) > gioi_han
 
 
 @router.get("")
 async def liet_ke(
     exam: str | None = None,
+    gioi_han: int = Query(10, ge=1, le=50),
+    bo_qua: int = Query(0, ge=0),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Lịch sử đề cuối kỳ của chính học sinh đang đăng nhập."""
-    return {"de": await danh_sach_de(session, user.id, exam=exam)}
+    """Lịch sử đề cuối kỳ của chính học sinh đang đăng nhập, phân trang."""
+    de, con_nua = await danh_sach_de(session, user.id, exam=exam, gioi_han=gioi_han, bo_qua=bo_qua)
+    return {"de": de, "con_nua": con_nua}
+
+
+async def _xoa_han(session: AsyncSession, user_id: int, des: list[DeCuoiKy]) -> int:
+    """Xoá HẲN: đề + lần nộp trong quiz_attempts (chi tiết từng câu đi theo bằng
+    ON DELETE CASCADE). Thống kê YCCĐ / gợi ý làm bài mới không còn tính bài này,
+    giáo viên trên CMS cũng không còn thấy — không khôi phục được.
+
+    XP / chuỗi ngày học đã cộng thì giữ: đó là công sức đã bỏ ra, không phải kết quả."""
+    ids_at = [d.attempt_id for d in des if d.attempt_id]
+    n = len(des)
+    for d in des:
+        await session.delete(d)
+    await session.flush()
+    if ids_at:
+        # user_id trong điều kiện: không bao giờ xoá nhầm lần nộp của người khác,
+        # kể cả khi attempt_id bị ghi sai.
+        await session.execute(delete(QuizAttempt).where(
+            QuizAttempt.id.in_(ids_at), QuizAttempt.user_id == user_id,
+            QuizAttempt.nguon == "cuoi_ky"))
+    return n
+
+
+@router.delete("", status_code=status.HTTP_200_OK)
+async def xoa_tat_ca(
+    exam: str | None = None,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Xoá hẳn MỌI đề cuối kỳ của chính mình (lọc theo kỳ nếu có `exam`)."""
+    des = list((await session.scalars(
+        select(DeCuoiKy).where(DeCuoiKy.user_id == user.id, *_loc_ky(exam)))).all())
+    n = await _xoa_han(session, user.id, des)
+    await session.commit()
+    return {"da_xoa": n}
+
+
+@router.delete("/{de_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def xoa_mot(
+    de_id: str,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    de = await _de_cua(session, de_id, user)
+    await _xoa_han(session, user.id, [de])
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{de_id}")

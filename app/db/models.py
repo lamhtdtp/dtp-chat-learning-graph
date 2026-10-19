@@ -219,6 +219,11 @@ class DeCuoiKy(Base):
     cau_json: Mapped[str] = mapped_column(Text)
     #: Kết quả chấm (đã có lý do từng phương án) — mở lại đề đã nộp thì trả cái này.
     ket_qua_json: Mapped[str | None] = mapped_column(Text, default=None)
+    #: Lần nộp tương ứng trong quiz_attempts (chi tiết từng câu treo vào đó). Cần
+    #: để học sinh XOÁ HẲN một đề: xoá đề phải xoá luôn lần nộp + chi tiết, không
+    #: thì thống kê YCCĐ vẫn đếm bài em đã xoá. NULL khi chưa nộp.
+    attempt_id: Mapped[int | None] = mapped_column(
+        ForeignKey("quiz_attempts.id", ondelete="SET NULL"), default=None, index=True)
     nop_luc: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 

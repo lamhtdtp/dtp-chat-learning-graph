@@ -203,9 +203,24 @@ export function rutDeCuoiKy(opts: {
 export function nopDeCuoiKy(deId: string, traLoi: Record<string, string>): Promise<KetQuaCuoiKy> {
   return req("/exam/cuoi-ky/submit", { auth: true, body: { de_id: deId, tra_loi: traLoi } });
 }
-/** Lịch sử đề cuối kỳ của chính mình, mới nhất trước. `exam` lọc theo kỳ (CK1/CK2). */
-export function dsDeCuoiKy(exam?: string): Promise<{ de: DeCuoiKyTomTat[] }> {
-  return req(`/exam/cuoi-ky${exam ? `?exam=${encodeURIComponent(exam)}` : ""}`, { auth: true });
+/** Lịch sử đề cuối kỳ của chính mình, mới nhất trước, phân trang.
+ *  `exam` lọc theo kỳ (CK1/CK2); `con_nua` = còn trang sau. */
+export function dsDeCuoiKy(exam?: string, trang: { gioiHan?: number; boQua?: number } = {}):
+  Promise<{ de: DeCuoiKyTomTat[]; con_nua: boolean }> {
+  const q = new URLSearchParams();
+  if (exam) q.set("exam", exam);
+  q.set("gioi_han", String(trang.gioiHan ?? 10));
+  if (trang.boQua) q.set("bo_qua", String(trang.boQua));
+  return req(`/exam/cuoi-ky?${q}`, { auth: true });
+}
+/** Xoá HẲN một đề (cả lần nộp + chi tiết từng câu). Không khôi phục được. */
+export function xoaDeCuoiKy(deId: string): Promise<void> {
+  return req(`/exam/cuoi-ky/${encodeURIComponent(deId)}`, { method: "DELETE", auth: true });
+}
+/** Xoá HẲN mọi đề của mình (chỉ kỳ `exam` nếu có). */
+export function xoaHetDeCuoiKy(exam?: string): Promise<{ da_xoa: number }> {
+  return req(`/exam/cuoi-ky${exam ? `?exam=${encodeURIComponent(exam)}` : ""}`,
+    { method: "DELETE", auth: true });
 }
 /** Mở lại một đề: chưa nộp thì như lúc rút (không đáp án), đã nộp thì kèm `ket_qua`. */
 export function moDeCuoiKy(deId: string): Promise<DeCuoiKy> {

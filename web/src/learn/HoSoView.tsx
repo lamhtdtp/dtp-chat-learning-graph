@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { ApiError, dsDeCuoiKy, getThoiGian, getYcd, tokenStore } from "../api";
-import type { DeCuoiKyTomTat, ThoiGianHoc, YcdMach } from "../types";
+import { ApiError, getThoiGian, getYcd, tokenStore } from "../api";
+import type { ThoiGianHoc, YcdMach } from "../types";
 import { LichSu } from "./CuoiKyView";
+import { useLichSuDe } from "./useLichSuDe";
 
 const MD: Record<string, string> = {
   nhan_biet: "Nhận biết", thong_hieu: "Thông hiểu", van_dung: "Vận dụng",
@@ -42,7 +43,8 @@ export function HoSoView({ onMoBai, onMoDeCuoiKy, ten }: {
 }) {
   const [tg, setTg] = useState<ThoiGianHoc | null>(null);
   const [ycd, setYcd] = useState<YcdMach[] | null>(null);
-  const [deCk, setDeCk] = useState<DeCuoiKyTomTat[]>([]);
+  // Lịch sử đề cuối kỳ mọi kỳ, 5 đề một trang. Lỗi thì khối này tự ẩn, hồ sơ vẫn hiện.
+  const deCk = useLichSuDe(undefined, 5);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,8 +54,6 @@ export function HoSoView({ onMoBai, onMoDeCuoiKy, ten }: {
     };
     getThoiGian(14).then(setTg).catch(loi);
     getYcd().then((r) => setYcd(r.mach)).catch(loi);
-    // Phụ: lịch sử đề cuối kỳ hỏng thì hồ sơ vẫn phải hiện, chỉ thiếu khối này.
-    dsDeCuoiKy().then((r) => setDeCk(r.de.slice(0, 5))).catch(() => setDeCk([]));
   }, []);
 
   if (err) return <article className="lesson"><div className="lesson-empty">⚠️ {err}</div></article>;
@@ -119,10 +119,10 @@ export function HoSoView({ onMoBai, onMoDeCuoiKy, ten }: {
       {/* ── Đề cuối kỳ — khối RIÊNG, không trộn vào lịch sử phiên: danh sách dưới
           tính theo phiên học từng bài (phút học, phần đã đọc), đề cuối kỳ không
           thuộc bài nào nên không có những con số đó. ── */}
-      {deCk.length > 0 && (
+      {!!deCk.ds?.length && (
         <>
           <h3><span className="hi">📝</span> Đề cuối kỳ</h3>
-          <LichSu ds={deCk} tieuDe="Các lần gần nhất"
+          <LichSu ls={deCk} tieuDe="Các lần gần nhất" nhanXoaHet="Xoá toàn bộ lịch sử đề cuối kỳ"
             onMo={(x) => onMoDeCuoiKy?.(x.exam ?? "CK1", x.de_id)} />
         </>
       )}

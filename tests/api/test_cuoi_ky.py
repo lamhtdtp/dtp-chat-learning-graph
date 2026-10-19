@@ -380,3 +380,110 @@ async def test_gio_nop_cung_nguon_voi_gio_rut(client, tb):
     x = (await client.get("/exam/cuoi-ky", headers=hs)).json()["de"][0]
     rut, nop = datetime.fromisoformat(x["luc"]), datetime.fromisoformat(x["nop_luc"])
     assert 0 <= (nop - rut).total_seconds() < 60
+
+
+# ── Phân trang lịch sử ──────────────────────────────────────────────────────
+async def _them_de(session, user_id: int, n: int, exam: str = "CK1") -> list[str]:
+    """Chèn thẳng n đề (không qua generate) — nhanh, và giờ tạo tăng dần rõ ràng."""
+    from datetime import datetime, timedelta
+
+    from app.db.models import DeCuoiKy
+
+    ids = []
+    goc = datetime(2026, 10, 1, 8, 0)
+    for i in range(n):
+        de_id = f"t-{uuid.uuid4().hex[:10]}"
+        session.add(DeCuoiKy(id=de_id, user_id=user_id, cau_json="[]", thong_bao="",
+                             tham_so_json=json.dumps({"exam": exam}),
+                             created_at=goc + timedelta(minutes=i)))
+        ids.append(de_id)
+    await session.commit()
+    return ids[::-1]           # mới nhất trước
+
+
+async def _hs_id(client, session):
+    email = f"ck-{uuid.uuid4().hex[:8]}@vd.vn"
+    r = await client.post("/auth/register", json={
+        "email": email, "password": "matkhau123", "name": "An", "role": "hoc_sinh"})
+    u = await session.scalar(select(User).where(User.email == email))
+    return {"Authorization": f"Bearer {r.json()['token']}"}, u.id
+
+
+async def test_phan_trang_lich_su(client, session):
+    hs, uid = await _hs_id(client, session)
+    ids = await _them_de(session, uid, 12)
+    t1 = (await client.get("/exam/cuoi-ky?gioi_han=5", headers=hs)).json()
+    assert [x["de_id"] for x in t1["de"]] == ids[:5] and t1["con_nua"] is True
+    t3 = (await client.get("/exam/cuoi-ky?gioi_han=5&bo_qua=10", headers=hs)).json()
+    assert [x["de_id"] for x in t3["de"]] == ids[10:] and t3["con_nua"] is False
+
+
+async def test_phan_trang_loc_ky_dung_so_luong(client, session):
+    """Lọc kỳ phải nằm TRONG truy vấn: lọc sau khi cắt trang thì trang ra thiếu
+    đề dù kỳ đó còn nhiều."""
+    hs, uid = await _hs_id(client, session)
+    await _them_de(session, uid, 6, exam="CK2")
+    ck1 = await _them_de(session, uid, 3, exam="CK1")
+    r = (await client.get("/exam/cuoi-ky?exam=CK1&gioi_han=3", headers=hs)).json()
+    assert [x["de_id"] for x in r["de"]] == ck1 and r["con_nua"] is False
+
+
+# ── Xoá lịch sử ─────────────────────────────────────────────────────────────
+async def _dem_lan_nop(session, uid: int) -> tuple[int, int]:
+    from sqlalchemy import func as f
+
+    at = await session.scalar(select(f.count()).select_from(QuizAttempt)
+                              .where(QuizAttempt.user_id == uid, QuizAttempt.nguon == "cuoi_ky"))
+    it = await session.scalar(select(f.count()).select_from(QuizAttemptItem)
+                              .join(QuizAttempt, QuizAttempt.id == QuizAttemptItem.attempt_id)
+                              .where(QuizAttempt.user_id == uid))
+    return at, it
+
+
+async def test_xoa_mot_de_xoa_han_ca_lan_nop_va_chi_tiet(client, session, tb):
+    hs, uid = await _hs_id(client, session)
+    d1, d2 = await _rut(client, hs), await _rut(client, hs)
+    await _nop(client, hs, d1["de_id"], {"Q1": "C"})
+    await _nop(client, hs, d2["de_id"], {"Q1": "A"})
+    assert await _dem_lan_nop(session, uid) == (2, 6)
+
+    r = await client.delete(f"/exam/cuoi-ky/{d1['de_id']}", headers=hs)
+    assert r.status_code == 204
+    assert (await client.get(f"/exam/cuoi-ky/{d1['de_id']}", headers=hs)).status_code == 404
+    # Xoá HẲN: lần nộp + chi tiết từng câu đi theo — thống kê YCCĐ không còn tính.
+    assert await _dem_lan_nop(session, uid) == (1, 3)
+    ds = (await client.get("/exam/cuoi-ky", headers=hs)).json()["de"]
+    assert [x["de_id"] for x in ds] == [d2["de_id"]]
+
+
+async def test_xoa_de_chua_nop(client, session, tb):
+    hs, _ = await _hs_id(client, session)
+    d = await _rut(client, hs)
+    assert (await client.delete(f"/exam/cuoi-ky/{d['de_id']}", headers=hs)).status_code == 204
+    assert (await client.get("/exam/cuoi-ky", headers=hs)).json()["de"] == []
+
+
+async def test_khong_xoa_duoc_de_cua_ban_khac(client, session, tb):
+    hs_a, uid_a = await _hs_id(client, session)
+    d = await _rut(client, hs_a)
+    await _nop(client, hs_a, d["de_id"], {"Q1": "C"})
+    hs_b, _ = await _hs_id(client, session)
+    assert (await client.delete(f"/exam/cuoi-ky/{d['de_id']}", headers=hs_b)).status_code == 404
+    assert (await client.delete("/exam/cuoi-ky", headers=hs_b)).json()["da_xoa"] == 0
+    assert await _dem_lan_nop(session, uid_a) == (1, 3)
+
+
+async def test_xoa_tat_ca_theo_ky_va_tat_ca(client, session, tb):
+    hs, uid = await _hs_id(client, session)
+    a = await _rut(client, hs)
+    b = await _rut(client, hs, exam="CK2")
+    await _nop(client, hs, a["de_id"], {"Q1": "C"})
+    await _nop(client, hs, b["de_id"], {"Q1": "C"})
+
+    r = (await client.delete("/exam/cuoi-ky?exam=CK1", headers=hs)).json()
+    assert r["da_xoa"] == 1
+    assert [x["exam"] for x in (await client.get("/exam/cuoi-ky", headers=hs)).json()["de"]] == ["CK2"]
+    r = (await client.delete("/exam/cuoi-ky", headers=hs)).json()
+    assert r["da_xoa"] == 1
+    assert (await client.get("/exam/cuoi-ky", headers=hs)).json()["de"] == []
+    assert await _dem_lan_nop(session, uid) == (0, 0)

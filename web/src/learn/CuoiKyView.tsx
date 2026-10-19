@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, dsDeCuoiKy, moDeCuoiKy, nopDeCuoiKy, rutDeCuoiKy } from "../api";
+import { ApiError, moDeCuoiKy, nopDeCuoiKy, rutDeCuoiKy } from "../api";
 import type { CauCuoiKy, DeCuoiKy, DeCuoiKyTomTat, KetQuaCau, KetQuaCuoiKy } from "../types";
+import { useLichSuDe } from "./useLichSuDe";
 
 const MUC: Record<string, [string, string]> = {
   B: ["de", "Biết"], H: ["trung_binh", "Hiểu"], V: ["kho", "Vận dụng"],
@@ -219,11 +220,7 @@ export function CuoiKyView({ exam, ten, moDe, onMoBai, onDong }: {
   }, [cuon]);
 
   // Lịch sử đề của kỳ này — tải lại mỗi lần về màn bắt đầu, để đề vừa nộp hiện ngay.
-  const [ds, setDs] = useState<DeCuoiKyTomTat[] | null>(null);
-  useEffect(() => {
-    if (de) return;
-    dsDeCuoiKy(exam).then((r) => setDs(r.de)).catch(() => setDs([]));
-  }, [de, exam]);
+  const ls = useLichSuDe(exam, 10, !de);
 
   /** Mở lại một đề: đã nộp -> hiện nguyên kết quả cũ; chưa nộp -> làm tiếp từ nháp. */
   const mo = async (deId: string, onLaiDe = false) => {
@@ -295,7 +292,8 @@ export function CuoiKyView({ exam, ten, moDe, onMoBai, onDong }: {
           <button className="btn btn-primary" type="button" disabled={dang === "rut"} onClick={() => void rut()}>
             {dang === "rut" ? "Đang rút đề…" : "Bắt đầu làm đề →"}
           </button>
-          {ds && ds.length > 0 && <LichSu ds={ds} onMo={(x) => void mo(x.de_id, x.on_lai)} />}
+          <LichSu ls={ls} onMo={(x) => void mo(x.de_id, x.on_lai)}
+            nhanXoaHet={`Xoá tất cả đề cuối kỳ ${exam.replace(/\D/g, "")}`} />
         </div>
       )}
 
@@ -409,31 +407,49 @@ function KetQua({ kq, onMoBai, onDeMoi, dangRut }: {
   );
 }
 
-/** "Các lần làm trước" — đề đã nộp mở lại xem kết quả, đề bỏ dở thì làm tiếp. */
-export function LichSu({ ds, onMo, tieuDe = "Các lần làm trước" }: {
-  ds: DeCuoiKyTomTat[];
+/** "Các lần làm trước" — đề đã nộp mở lại xem kết quả, đề bỏ dở thì làm tiếp.
+ *  Mỗi dòng có nút xoá hẳn; cuối danh sách có "Xem thêm" (phân trang) và "Xoá tất cả". */
+export function LichSu({ ls, onMo, tieuDe = "Các lần làm trước", nhanXoaHet }: {
+  ls: ReturnType<typeof useLichSuDe>;
   onMo: (x: DeCuoiKyTomTat) => void;
   tieuDe?: string;
+  nhanXoaHet: string;
 }) {
+  if (!ls.ds?.length) return ls.loi ? <div className="ot-loi">⚠️ {ls.loi}</div> : null;
   return (
     <div className="ck-ls">
       <div className="ck-ls-h">🕒 {tieuDe}</div>
-      {ds.map((x) => {
+      {ls.ds.map((x) => {
         const pct = x.da_nop && x.tong ? Math.round(((x.diem ?? 0) * 100) / x.tong) : null;
         return (
-          <button type="button" className="ck-ls-r" key={x.de_id} onClick={() => onMo(x)}>
-            {x.da_nop
-              ? <span className={"badge " + (x.dat ? "b-dat" : "b-dang")}>{x.diem}/{x.tong}</span>
-              : <span className="badge b-chua">Chưa nộp</span>}
-            <span className="tx">
-              <b>{x.exam ? `Cuối kỳ ${x.exam.replace(/\D/g, "")}` : "Đề cuối kỳ"}
-                {x.on_lai && " · ôn lại chỗ yếu"}</b>
-              <span className="num">{ngayGio(x.nop_luc ?? x.luc)} · {x.so_cau} câu</span>
-            </span>
-            <span className="kq">{pct !== null ? `${pct}%` : "Làm tiếp →"}</span>
-          </button>
+          <div className="ck-ls-r" key={x.de_id}>
+            {/* Hai nút tách rời: nút xoá không được lồng trong nút mở đề (HTML
+                không cho button lồng button, và bấm xoá sẽ mở luôn đề). */}
+            <button type="button" className="ck-ls-mo" onClick={() => onMo(x)}>
+              {x.da_nop
+                ? <span className={"badge " + (x.dat ? "b-dat" : "b-dang")}>{x.diem}/{x.tong}</span>
+                : <span className="badge b-chua">Chưa nộp</span>}
+              <span className="tx">
+                <b>{x.exam ? `Cuối kỳ ${x.exam.replace(/\D/g, "")}` : "Đề cuối kỳ"}
+                  {x.on_lai && " · ôn lại chỗ yếu"}</b>
+                <span className="num">{ngayGio(x.nop_luc ?? x.luc)} · {x.so_cau} câu</span>
+              </span>
+              <span className="kq">{pct !== null ? `${pct}%` : "Làm tiếp →"}</span>
+            </button>
+            <button type="button" className="ck-ls-xoa" title="Xoá hẳn đề này"
+              aria-label="Xoá hẳn đề này" onClick={() => void ls.xoa(x)}>🗑</button>
+          </div>
         );
       })}
+      {ls.loi && <div className="ot-loi">⚠️ {ls.loi}</div>}
+      <div className="ck-ls-f">
+        {ls.conNua && (
+          <button type="button" className="ck-ls-them" disabled={ls.dangTai}
+            onClick={() => void ls.xemThem()}>{ls.dangTai ? "Đang tải…" : "Xem thêm ↓"}</button>
+        )}
+        <button type="button" className="ck-ls-xoahet" onClick={() => void ls.xoaHet()}>
+          🗑 {nhanXoaHet}</button>
+      </div>
     </div>
   );
 }
