@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1030" width="1440" height="1030" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif">
+<style>
+  :root { color-scheme: light dark; }
+  .bg    { fill:#F7F8FC }
+  .card  { fill:#FFFFFF; stroke:#E2E6F2 }
+  .store { fill:#FDF6E9; stroke:#E0860055 }
+  .exit  { fill:#FCEDEF; stroke:#C4404B55 }
+  .okbox { fill:#E7F7F1; stroke:#10A97C66 }
+  .t1    { fill:#12172A; font-size:16px; font-weight:700 }
+  .t2    { fill:#4E566E; font-size:12.5px }
+  .mono  { fill:#4E566E; font-size:12px;
+            font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace }
+  .num   { fill:#FFFFFF; font-size:13px; font-weight:800 }
+  .numbg { fill:#5B54F0 }
+  .sthead{ fill:#B5680A; font-size:12.5px; font-weight:800 }
+  .exhead{ fill:#C4404B; font-size:12.5px; font-weight:800 }
+  .okhead{ fill:#0E8F76; font-size:12.5px; font-weight:800 }
+  .cap   { fill:#858FA8; font-size:11.5px }
+  .t2s   { fill:#4E566E; font-size:11.5px }
+  .h1    { fill:#12172A; font-size:27px; font-weight:800 }
+  .h2    { fill:#4E566E; font-size:14px }
+  .lane  { fill:#858FA8; font-size:11px; font-weight:800; letter-spacing:.09em }
+  .spine { stroke:#5B54F0; stroke-width:2.5; fill:none }
+  .dash  { stroke:#E08600; stroke-width:1.6; fill:none; stroke-dasharray:5 4 }
+  .dashe { stroke:#C4404B; stroke-width:1.6; fill:none; stroke-dasharray:5 4 }
+  @media (prefers-color-scheme: dark) {
+    .bg    { fill:#0A0E1B }
+    .card  { fill:#141A2B; stroke:#2A3350 }
+    .store { fill:#2A2110; stroke:#C8851C66 }
+    .exit  { fill:#2E1518; stroke:#E4626C55 }
+    .okbox { fill:#0E2A22; stroke:#18A07866 }
+    .t1    { fill:#EDF0FA } .t2 { fill:#A8B1C9 } .mono { fill:#A8B1C9 }
+    .numbg { fill:#6F68E0 } .spine { stroke:#6F68E0 }
+    .sthead{ fill:#E0A83C } .exhead{ fill:#E4626C } .okhead{ fill:#34D399 }
+    .cap   { fill:#6F7994 } .h1 { fill:#EDF0FA } .h2 { fill:#A8B1C9 }
+    .t2s   { fill:#A8B1C9 }
+    .lane  { fill:#6F7994 }
+    .dash  { stroke:#C8851C } .dashe { stroke:#E4626C }
+  }
+</style>
+<defs>
+  <marker id="mp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5B54F0"/></marker>
+  <marker id="ms" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#E08600"/></marker>
+  <marker id="me" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#C4404B"/></marker>
+</defs>
+<rect class="bg" width="1440" height="1030"/>
+<text class="h1" x="60" y="58">Học sinh làm sai → gợi ý xem lại bài</text>
+<text class="h2" x="60" y="86">Đề cuối kỳ rút từ DTP Testbank · khoá nối câu hỏi với bài học là NGUYÊN VĂN yêu cầu cần đạt (YCCĐ)</text>
+<text class="lane" x="60" y="132">① LÚC RÚT ĐỀ — POST /exam/cuoi-ky/generate</text>
+<line x1="60" y1="142" x2="1380" y2="142" stroke="#858FA8" stroke-opacity=".25"/>
+<rect class="card" x="60" y="158" width="300" height="132" rx="14" stroke-width="1.3"/>
+<circle class="numbg" cx="88" cy="186" r="13"/><text class="num" x="88" y="190.5" text-anchor="middle">1</text>
+<text class="t1" x="110" y="191">Testbank trả nội dung câu</text>
+<text class="t2" x="78" y="216">questions:resolve, mỗi câu kèm</text>
+<text class="t2" x="78" y="235">nguyên văn YCCĐ, ví dụ:</text>
+<text class="t2" x="78" y="254">"Nhận biết được thứ tự thực hiện</text>
+<text class="t2" x="78" y="273">các phép tính"</text>
+<rect class="card" x="400" y="158" width="300" height="132" rx="14" stroke-width="1.3"/>
+<circle class="numbg" cx="428" cy="186" r="13"/><text class="num" x="428" y="190.5" text-anchor="middle">2</text>
+<text class="t1" x="450" y="191">Chuẩn hoá hai phía</text>
+<text class="mono" x="418" y="216">ycd_key.chuan_hoa():</text>
+<text class="t2" x="418" y="235">NFC → gộp khoảng trắng → chữ thường.</text>
+<text class="t2" x="418" y="254">GIỮ dấu và dấu câu — chép đúng</text>
+<text class="t2" x="418" y="273">quy tắc ar_key.py của testbank</text>
+<rect class="card" x="740" y="158" width="300" height="132" rx="14" stroke-width="1.3"/>
+<circle class="numbg" cx="768" cy="186" r="13"/><text class="num" x="768" y="190.5" text-anchor="middle">3</text>
+<text class="t1" x="790" y="191">Tra ma trận của mình</text>
+<text class="t2" x="758" y="216">blueprint_cells của Toán · Lớp 6,</text>
+<text class="t2" x="758" y="235">so khớp TUYỆT ĐỐI theo ycd_key.</text>
+<text class="t2" x="758" y="254">Nhiều bài trùng YCCĐ → lấy bài</text>
+<text class="t2" x="758" y="273">đứng trước trong mục lục</text>
+<rect class="okbox" x="1080" y="158" width="300" height="132" rx="14" stroke-width="1.3"/>
+<circle class="numbg" cx="1108" cy="186" r="13"/><text class="num" x="1108" y="190.5" text-anchor="middle">4</text>
+<text class="t1" x="1130" y="191">Gắn bài cho câu</text>
+<text class="t2" x="1098" y="216">topic_id + tên bài lưu kèm đề</text>
+<text class="t2" x="1098" y="235">trong bảng de_cuoi_ky (cau_json).</text>
+<text class="t2" x="1098" y="254">Đo trên Toán 6: 41/41 YCCĐ khớp</text>
+<path class="spine" d="M360,224.0 L394,224.0" marker-end="url(#mp)"/>
+<path class="spine" d="M700,224.0 L734,224.0" marker-end="url(#mp)"/>
+<path class="spine" d="M1040,224.0 L1074,224.0" marker-end="url(#mp)"/>
+<rect class="exit" x="740" y="314" width="300" height="84" rx="14" stroke-width="1.3"/>
+<text class="t1" x="758" y="347">Không khớp</text>
+<text class="t2" x="758" y="372">topic_id = null, ghi log lỗi, KHÔNG đoán</text>
+<text class="t2" x="758" y="391">→ câu đó không có nút "Xem lại bài"</text>
+<path class="dashe" d="M890.0,290 L890.0,308" marker-end="url(#me)"/>
+<text class="lane" x="60" y="440">② LÚC NỘP BÀI — POST /exam/cuoi-ky/submit</text>
+<line x1="60" y1="450" x2="1380" y2="450" stroke="#858FA8" stroke-opacity=".25"/>
+<path class="spine" d="M1230.0,290 L1230.0,418 L36,418 L36,532.0 L54,532.0" marker-end="url(#mp)"/>
+<rect class="card" x="60" y="466" width="300" height="132" rx="14" stroke-width="1.3"/>
+<circle class="numbg" cx="88" cy="494" r="13"/><text class="num" x="88" y="498.5" text-anchor="middle">5</text>
+<text class="t1" x="110" y="499">Chấm ở máy chủ</text>
+<text class="t2" x="78" y="524">cham.py — luật §7 của testbank</text>
+<text class="t2" x="78" y="543">(TN1 · TNN · DS · DSN; tự luận</text>
+<text class="t2" x="78" y="562">không tính điểm). Đáp án chưa</text>
+<text class="t2" x="78" y="581">từng xuống trình duyệt trước đó</text>
+<rect class="card" x="400" y="466" width="300" height="132" rx="14" stroke-width="1.3"/>
+<circle class="numbg" cx="428" cy="494" r="13"/><text class="num" x="428" y="498.5" text-anchor="middle">6</text>
+<text class="t1" x="450" y="499">Kết quả từng câu</text>
+<text class="t2" x="418" y="524">đúng/sai · lời giải · lý do từng</text>
+<text class="t2" x="418" y="543">phương án + topic_id, tên bài (④).</text>
+<text class="t2" x="418" y="562">Ghi quiz_attempt_items theo ar_id</text>
+<rect class="card" x="740" y="466" width="300" height="132" rx="14" stroke-width="1.3"/>
+<circle class="numbg" cx="768" cy="494" r="13"/><text class="num" x="768" y="498.5" text-anchor="middle">7</text>
+<text class="t1" x="790" y="499">Gom theo YCCĐ</text>
+<text class="t2" x="758" y="524">theo_ycd: mỗi YCCĐ một dòng</text>
+<text class="t2" x="758" y="543">đúng/tổng, đúng thứ tự ma trận</text>
+<text class="t2" x="758" y="562">(không xếp theo điểm)</text>
+<rect class="okbox" x="1080" y="466" width="300" height="132" rx="14" stroke-width="1.3"/>
+<circle class="numbg" cx="1108" cy="494" r="13"/><text class="num" x="1108" y="498.5" text-anchor="middle">8</text>
+<text class="t1" x="1130" y="499">Gợi ý</text>
+<text class="t2" x="1098" y="524">tai_lieu: bài của các YCCĐ còn sai,</text>
+<text class="t2" x="1098" y="543">mỗi bài một lần + "sai câu …"</text>
+<text class="t2" x="1098" y="562">ar_ids: YCCĐ yếu (5 lần nộp gần</text>
+<text class="t2" x="1098" y="581">nhất, rồi tới bài vừa làm)</text>
+<path class="spine" d="M360,532.0 L394,532.0" marker-end="url(#mp)"/>
+<path class="spine" d="M700,532.0 L734,532.0" marker-end="url(#mp)"/>
+<path class="spine" d="M1040,532.0 L1074,532.0" marker-end="url(#mp)"/>
+<text class="lane" x="60" y="706">③ TRÊN GIAO DIỆN — CuoiKyView.tsx</text>
+<line x1="60" y1="716" x2="1380" y2="716" stroke="#858FA8" stroke-opacity=".25"/>
+<path class="spine" d="M1230.0,598 L1230.0,684 L36,684 L36,792.0 L54,792.0" marker-end="url(#mp)"/>
+<rect class="card" x="60" y="732" width="300" height="120" rx="14" stroke-width="1.3"/>
+<circle class="numbg" cx="88" cy="760" r="13"/><text class="num" x="88" y="764.5" text-anchor="middle">9</text>
+<text class="t1" x="110" y="765">Nút trên câu sai</text>
+<text class="t2" x="78" y="790">"📚 Xem lại bài: &lt;tên bài&gt;" chỉ hiện</text>
+<text class="t2" x="78" y="809">khi câu chấm được · làm SAI ·</text>
+<text class="t2" x="78" y="828">có topic_id</text>
+<rect class="okbox" x="400" y="732" width="300" height="120" rx="14" stroke-width="1.3"/>
+<circle class="numbg" cx="428" cy="760" r="13"/><text class="num" x="428" y="764.5" text-anchor="middle">10</text>
+<text class="t1" x="450" y="765">Mở bài học</text>
+<text class="mono" x="418" y="790">onMoBai(topic_id, "kien_thuc")</text>
+<text class="t2" x="418" y="809">→ mở bài, sau 800 ms cuộn tới</text>
+<text class="t2" x="418" y="828">phần Kiến thức trọng tâm</text>
+<rect class="card" x="740" y="732" width="300" height="120" rx="14" stroke-width="1.3"/>
+<circle class="numbg" cx="768" cy="760" r="13"/><text class="num" x="768" y="764.5" text-anchor="middle">11</text>
+<text class="t1" x="790" y="765">Danh sách "Đọc lại"</text>
+<text class="t2" x="758" y="790">Đầu trang kết quả: các bài lấy từ</text>
+<text class="t2" x="758" y="809">tai_lieu (⑧) — bấm vào cũng</text>
+<text class="t2" x="758" y="828">mở bài như nút ⑨</text>
+<rect class="store" x="1080" y="732" width="300" height="120" rx="14" stroke-width="1.3"/>
+<circle class="numbg" cx="1108" cy="760" r="13"/><text class="num" x="1108" y="764.5" text-anchor="middle">12</text>
+<text class="t1" x="1130" y="765">"Làm bài mới"</text>
+<text class="t2" x="1098" y="790">Gọi lại ① với ar_ids = YCCĐ yếu</text>
+<text class="t2" x="1098" y="809">→ đề mới CHỈ trong chỗ còn yếu</text>
+<path class="spine" d="M360,792.0 L394,792.0" marker-end="url(#mp)"/>
+<path class="spine" d="M740,792.0 L706,792.0" marker-end="url(#mp)"/>
+<rect class="exit" x="400" y="888" width="300" height="84" rx="14" stroke-width="1.3"/>
+<text class="t1" x="418" y="921">Bài chưa xuất bản</text>
+<text class="t2" x="418" y="946">trang "đang biên soạn" — không có</text>
+<text class="t2" x="418" y="965">phần nào để cuộn tới (giới hạn)</text>
+<path class="dashe" d="M550.0,852 L550.0,882" marker-end="url(#me)"/>
+<path class="dash" d="M1380,792.0 L1408,792.0 L1408,104 L22,104 L22,224.0 L54,224.0" marker-end="url(#ms)"/>
+<text class="cap" x="1400" y="782.0" text-anchor="end">ar_ids</text>
+</svg>
