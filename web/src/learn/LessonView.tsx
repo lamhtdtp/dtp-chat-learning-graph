@@ -153,7 +153,13 @@ export function chiaLuyenTap(html: string): { de: string; ds: string | null }[] 
 // Gợi ý cho thẻ cuối bài — thẻ này hỏi CẢ CUỐN (pham_vi="ca_cuon") nên câu mời
 // phải là câu hỏi xuyên sách. Ba chip cũ ("giải thích lại phần khái niệm…") là
 // câu hỏi TRONG BÀI: để nguyên thì mời học sinh làm đúng thứ thẻ này không làm,
-// vì backend không nạp nội dung bài ở phạm vi cả cuốn.
+// vì backend không nạp NỘI DUNG bài ở phạm vi cả cuốn.
+//
+// Hai chip dưới vẫn nói "bài này" / "phần này" và đó là CỐ Ý, không phải sót:
+// backend có gửi TÊN bài đang mở ở phạm vi cả cuốn (`bai_dang_mo` trong
+// app/api/tutor.py) nên trợ lý giải được các cách nói trỏ ngược ấy. Trước
+// 20/10/2026 thì chưa — và trợ lý hỏi ngược "em chưa nói rõ bài nào" ngay dưới
+// cái tên bài đang hiện to trên màn hình.
 const SUGGESTS = [
   "Phần này liên quan tới bài nào khác?",
   "Trước khi học bài này cần biết gì?",

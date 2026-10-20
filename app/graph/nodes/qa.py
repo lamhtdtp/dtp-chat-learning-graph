@@ -49,6 +49,11 @@ _LUAT_CUON = (
     "ngữ liệu cho phần đó.\n"
     "Nếu câu hỏi trải nhiều phần của sách, trả lời theo thứ tự các phần xuất "
     "hiện trong mục lục để em ấy dễ lần theo.\n"
+    "Khối BÀI EM ẤY ĐANG MỞ cho biết em ấy đang đứng ở bài nào. Mọi cách nói trỏ "
+    "ngược — 'bài này', 'phần này', 'bài đang học' — là nói về BÀI ĐÓ. ĐỪNG hỏi "
+    "lại em ấy đang hỏi bài nào: câu hỏi được đặt sẵn ngay dưới bài học, hỏi lại "
+    "là tỏ ra không thấy thứ em ấy đang mở. Biết tên bài KHÔNG có nghĩa là kéo "
+    "câu trả lời về bài đó — vẫn trả lời xuyên sách như luật trên.\n"
     "KHI nhắc tới một đơn vị kiến thức có trong MỤC LỤC, bọc tên nó trong dấu "
     "[[...]] và ghi ĐÚNG NGUYÊN VĂN tên trong mục lục (ví dụ: '...phần này học "
     "sau bài [[Số nguyên tố. Hợp số]].'). Giao diện dùng dấu đó để tạo lối mở "
@@ -115,6 +120,10 @@ async def qa_node(state: ChatState) -> dict:
     khoi_ngu_canh = ""
     if bai_hoc:
         khoi_ngu_canh += f"\n\nNGỮ CẢNH BÀI ĐANG HỌC:\n{bai_hoc}"
+    # Tên bài em ấy đang mở, KHÔNG kèm nội dung. Đứng trước mục lục vì nó là chỗ
+    # mô hình phải nhìn trước để giải "bài này" / "phần này".
+    if ca_cuon and (dang_mo := (state.get("bai_dang_mo") or "").strip()):
+        khoi_ngu_canh += f"\n\nBÀI EM ẤY ĐANG MỞ TRÊN MÀN HÌNH: {dang_mo}"
     if ca_cuon and (muc_luc := (state.get("muc_luc") or "").strip()):
         khoi_ngu_canh += f"\n\nMỤC LỤC CUỐN SÁCH:\n{muc_luc}"
     if retrieved:

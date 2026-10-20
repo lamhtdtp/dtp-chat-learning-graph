@@ -464,11 +464,21 @@ async def ask(
         body.anchor if (body.anchor and _NEO_RE.match(body.anchor)) else None)
     bai_hoc, nguon_bai, ten_dv, noi_dung = "", None, body.context, None
     muc_luc, danh_muc = "", []
+    bai_dang_mo = ""
     if ca_cuon:
         # KHÔNG nạp nội dung bài: để lại là mô hình có một bài cụ thể trong tay
         # rồi câu trả lời bám về đó, đúng thứ chế độ này muốn tránh.
         danh_muc = await _danh_muc(session, body.topic_id)
         muc_luc = _muc_luc_text(danh_muc)
+        # NHƯNG vẫn nói TÊN bài em ấy đang mở. Tên không phải nội dung: nó không
+        # kéo câu trả lời về bài đó, mà chỉ giải được những câu trỏ ngược như
+        # "bài này", "phần này" — vốn là đúng chữ trong các chip gợi ý đặt sẵn
+        # ngay dưới bài học ("Trước khi học bài này cần biết gì?"). Thiếu nó, trợ
+        # lý hỏi lại "em chưa nói rõ bài nào", trong khi câu hỏi được đặt sẵn
+        # ngay dưới tên bài — nhìn vào thì đó là trợ lý không đọc được màn hình.
+        bai_dang_mo = next(
+            (t.don_vi_kien_thuc for t in danh_muc if t.id == body.topic_id), ""
+        )
     elif body.topic_id is not None:
         bai_hoc, nguon_bai, ten_dv, noi_dung = await _ngu_canh_bai(
             session, user, body.topic_id, anchor, ten_dv)
@@ -504,6 +514,7 @@ async def ask(
             "mon": mon_q, "khoi": khoi_q, "role": role, "retrieved": chunks,
             "bai_hoc": bai_hoc, "topic_id": body.topic_id, "anchor": anchor,
             "pham_vi": body.pham_vi, "muc_luc": muc_luc,
+            "bai_dang_mo": bai_dang_mo,
         })
     except LLMUnavailable:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Trợ lý đang quá tải, thử lại sau ít phút nhé.")

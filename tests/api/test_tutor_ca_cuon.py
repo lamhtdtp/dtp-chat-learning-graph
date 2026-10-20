@@ -43,7 +43,11 @@ async def _seed_cuon(session) -> tuple[int, str]:
     Lấy đơn vị giữa để test thấy được mục lục có cả đơn vị TRƯỚC và SAU nó — đúng
     tình huống học sinh hỏi về chương chưa học tới.
     """
-    subj = Subject(name="Toán")
+    # Tên môn phải DUY NHẤT: `subjects.name` là unique, và bộ test chạy trên CSDL
+    # dev dùng chung (xem tests/conftest.py) nên "Toán" đã có sẵn ở đó — mọi test
+    # của file này vì thế đỏ với UniqueViolation, một lỗi chẳng liên quan gì tới
+    # thứ đang được kiểm. Không test nào trong file khẳng định tên môn.
+    subj = Subject(name=f"Toán-{uuid.uuid4().hex[:6]}")
     grade = Grade(name=f"Lớp {uuid.uuid4().int % 900 + 100}")
     session.add_all([subj, grade])
     await session.flush()
@@ -60,7 +64,13 @@ async def _seed_cuon(session) -> tuple[int, str]:
         topic_id=ids[1], khai_niem="<p>Số nguyên tố chỉ có hai ước.</p>",
         minh_hoa_json="[]", vi_du_json=json.dumps([{"de": "Số 7?", "giai": "Ư(7)={1;7}"}]),
         quiz_json="[]", trang_thai="published"))
-    giua, khoi_slug = ids[1], "_".join(grade.name.lower().split())
+    # Slug khối lấy từ CHÍNH hàm app dùng, không tự ghép tay: bản ghép tay ở đây
+    # giữ nguyên dấu ("lớp_424") trong khi app bỏ dấu ("lop_424"), nên test so hai
+    # chuỗi khác nhau và đỏ vì lý do chẳng liên quan tới thứ nó kiểm.
+    from app.lessons.ingest import _mon_khoi as _slug_mon_khoi
+
+    giua = ids[1]
+    _mon, khoi_slug = await _slug_mon_khoi(session, await session.get(CurriculumTopic, giua))
     await session.commit()
     return giua, khoi_slug
 
@@ -156,3 +166,37 @@ async def test_pham_vi_la_bi_chan_bang_422(client, session, mocker):
     r = await client.post("/tutor/ask", headers=h, json={
         "question": "x", "pham_vi": "toan_bo_the_gioi"})
     assert r.status_code == 422
+
+
+async def test_ca_cuon_van_bao_bai_dang_mo(client, session, mocker):
+    """Bỏ NỘI DUNG bài không có nghĩa là giấu luôn em ấy đang đứng ở đâu.
+
+    Ba chip gợi ý đặt sẵn ngay dưới bài học dùng cách nói trỏ ngược — "Trước khi
+    học **bài này** cần biết gì?", "**Phần này** liên quan tới bài nào khác?".
+    Thiếu tên bài đang mở, trợ lý hỏi ngược "em chưa nói rõ bài nào", trong khi
+    tên bài đang nằm ngay phía trên câu hỏi trên màn hình.
+    """
+    qa, _ = _bat(mocker)
+    h = await _auth(client)
+    tid, _ = await _seed_cuon(session)
+
+    r = await client.post("/tutor/ask", headers=h, json={
+        "question": "Trước khi học bài này cần biết gì?", "topic_id": tid,
+        "pham_vi": "ca_cuon"})
+
+    assert r.status_code == 200
+    st = qa.call_args.args[0]
+    assert st["bai_dang_mo"] == "Số nguyên tố. Hợp số"
+    assert not st["bai_hoc"], "Chỉ thêm TÊN bài, tuyệt đối không kéo theo nội dung"
+
+
+async def test_trong_bai_khong_gui_bai_dang_mo(client, session, mocker):
+    """Phạm vi trong bài đã có hẳn nội dung bài — không cần dòng tên nữa."""
+    qa, _ = _bat(mocker)
+    h = await _auth(client)
+    tid, _ = await _seed_cuon(session)
+
+    await client.post("/tutor/ask", headers=h, json={
+        "question": "Giải thích lại?", "topic_id": tid, "anchor": "khai_niem"})
+
+    assert not qa.call_args.args[0]["bai_dang_mo"]
