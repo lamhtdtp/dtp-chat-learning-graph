@@ -162,3 +162,19 @@ async def test_complete_task_solve_khong_cache_du_co_ctx(mocker):
 
     assert out == "giải bài"
     cget.assert_not_awaited()  # solve KHÔNG cacheable -> không đụng cache
+
+
+async def test_gateway_dua_dau_van_ngu_canh_vao_key(mocker):
+    """qa_node truyền `ngu_canh` trong cache_ctx — gateway phải chuyển nó vào
+    key. (Gateway từng bỏ rơi topic_id/anchor theo đúng kiểu này.)"""
+    from app.llm import cache, gateway
+
+    seen = []
+    mocker.patch.object(cache, "get", mocker.AsyncMock(side_effect=lambda k: seen.append(k) or None))
+    mocker.patch.object(cache, "set", mocker.AsyncMock())
+    mocker.patch.object(gateway, "_complete_openai", mocker.AsyncMock(return_value="ok"))
+    mocker.patch.object(gateway, "_complete_anthropic", mocker.AsyncMock(return_value="ok"))
+    base = {"question": "q", "mon": "toan", "khoi": "lop_6", "role": "hoc_sinh"}
+    await gateway.complete("qa", [{"role": "user", "content": "x"}], cache_ctx={**base, "ngu_canh": "a"})
+    await gateway.complete("qa", [{"role": "user", "content": "x"}], cache_ctx={**base, "ngu_canh": "b"})
+    assert seen[0] != seen[1]

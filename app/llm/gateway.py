@@ -236,7 +236,8 @@ async def complete(
                                     role=cache_ctx["role"],
                                     topic_id=cache_ctx.get("topic_id"),
                                     anchor=cache_ctx.get("anchor"),
-                                    pham_vi=cache_ctx.get("pham_vi"))
+                                    pham_vi=cache_ctx.get("pham_vi"),
+                                    ngu_canh=cache_ctx.get("ngu_canh"))
         hit = await cache.get(key)
         if hit is not None:
             return hit

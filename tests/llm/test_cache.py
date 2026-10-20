@@ -102,3 +102,17 @@ async def test_bao_dong_khong_ngap_log_va_reset_khi_noi_lai(mocker, caplog):
         caplog.clear()
         await cache.get("k")
         assert len(caplog.records) == 1
+
+
+def test_key_doi_khi_ngu_canh_prompt_doi():
+    """Sửa prompt / nội dung bài mà câu hỏi giữ nguyên thì cache phải HẾT hiệu
+    lực. Trước đây key không có gì về prompt: bản vá "cho trợ lý biết bài đang
+    mở" đã lên server mà chip "Trước khi học bài này cần biết gì?" vẫn trả câu
+    trả lời SAI cũ suốt 24 giờ — câu chip giống hệt nhau nên trúng cache cũ."""
+    def k(ngu_canh):
+        return cache.build_cache_key("qa", "Trước khi học bài này cần biết gì?", mon="toan",
+                                     khoi="lop_6", chuong=None, role="hoc_sinh", topic_id=7,
+                                     pham_vi="ca_cuon", ngu_canh=ngu_canh)
+
+    assert k("a1b2") != k("c3d4")
+    assert k("a1b2") == k("a1b2")       # cùng ngữ cảnh -> vẫn dùng chung cache

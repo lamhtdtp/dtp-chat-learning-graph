@@ -2,6 +2,8 @@
 gateway + retrieved dựng sẵn trong state (xem tests/graph/test_nodes.py).
 """
 
+import hashlib
+
 from app.graph.format import MATH_FORMAT as _MATH_FORMAT
 from app.graph.grounding import KHONG_TIM_THAY, has_grounding
 from app.graph.state import ChatState
@@ -152,6 +154,11 @@ async def qa_node(state: ChatState) -> dict:
         "topic_id": state.get("topic_id"),
         "anchor": state.get("anchor"),
         "pham_vi": pham_vi,
+        # Dấu vân của mọi thứ trong prompt NGOÀI câu hỏi. Đổi prompt, sửa nội dung
+        # bài, đổi bài đang mở -> câu trả lời cũ trong cache hết hiệu lực ngay,
+        # khỏi chờ 24 giờ. Cùng bài, cùng câu -> vẫn trùng, cache vẫn có ích.
+        "ngu_canh": hashlib.sha256(
+            f"{_system(mon, role, pham_vi)}{khoi_ngu_canh}".encode("utf-8")).hexdigest()[:16],
     }
     answer = await gateway.complete(task="qa", messages=messages, cache_ctx=cache_ctx)
     return {"answer": answer}

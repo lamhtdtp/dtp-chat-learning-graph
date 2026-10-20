@@ -109,3 +109,22 @@ async def test_trong_bai_khong_them_khoi_bai_dang_mo(mocker):
     })
 
     assert "BÀI EM ẤY ĐANG MỞ" not in gw.call_args.kwargs["messages"][0]["content"]
+
+
+async def test_cache_ctx_mang_dau_van_cua_ngu_canh(mocker):
+    """Cùng câu hỏi, khác ngữ cảnh đưa cho mô hình (ở đây: khác bài đang mở) thì
+    dấu vân ngữ cảnh trong cache_ctx phải khác — để gateway không trả nhầm
+    câu trả lời đã cache cho ngữ cảnh cũ. Cùng ngữ cảnh thì phải GIỐNG nhau,
+    không thì cache vô dụng."""
+    gw = mocker.patch("app.graph.nodes.qa.gateway.complete", mocker.AsyncMock(return_value="…"))
+
+    async def ctx(dang_mo):
+        await qa_node({
+            "messages": [{"role": "user", "content": "Trước khi học bài này cần biết gì?"}],
+            "retrieved": [_chunk()], "bai_hoc": "", "topic_id": 7,
+            "pham_vi": "ca_cuon", "muc_luc": "Số tự nhiên\n- Tập hợp", "bai_dang_mo": dang_mo,
+        })
+        return gw.call_args.kwargs["cache_ctx"]["ngu_canh"]
+
+    a, a2, b = await ctx("Tập hợp"), await ctx("Tập hợp"), await ctx("Số nguyên tố")
+    assert a and a == a2 and a != b

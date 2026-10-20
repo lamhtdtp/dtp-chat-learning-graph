@@ -43,6 +43,7 @@ def build_cache_key(
     topic_id: int | None = None,
     anchor: str | None = None,
     pham_vi: str | None = None,
+    ngu_canh: str | None = None,
 ) -> str:
     """Key phải gồm ĐỦ mọi chiều làm câu trả lời khác nhau.
 
@@ -52,8 +53,12 @@ def build_cache_key(
     khác nhau vốn băm ra cùng một key, nhất là khi truy hồi rỗng (`chuong` =
     None) nên phần còn lại của key giống hệt nhau.
     """
+    # `ngu_canh` = dấu vân của TOÀN BỘ phần prompt ngoài câu hỏi (hướng dẫn hệ
+    # thống, nội dung bài, bài đang mở, mục lục, đoạn SGK). Không có nó thì sửa
+    # prompt hay sửa bài xong, câu hỏi giữ nguyên vẫn nhận câu trả lời CŨ tới hết
+    # TTL — đã gặp thật với chip "Trước khi học bài này cần biết gì?".
     raw = "|".join([task, mon, khoi, str(chuong), role, str(topic_id), str(anchor),
-                    str(pham_vi), _normalize(question)])
+                    str(pham_vi), str(ngu_canh), _normalize(question)])
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     return f"llmcache:{digest}"
 
