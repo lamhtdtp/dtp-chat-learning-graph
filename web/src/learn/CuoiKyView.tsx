@@ -36,12 +36,15 @@ const ngayGio = (iso: string) => {
 
 /** Một câu, cả lúc làm lẫn sau khi nộp. `chon` luôn là CHUỖI nhãn như server
  *  nhận ("B", "A,C", "Đ,S,Đ,S", "3,5") — không giữ chỉ số phương án. */
-function Cau({ c, chon, onChon, kq, onMoBai }: {
+export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai }: {
   c: CauCuoiKy;
   chon: string;
   onChon: (v: string) => void;
   kq?: KetQuaCau;
   onMoBai: (topicId: number, phan?: string) => void;
+  /** Ẩn nút "Xem lại bài" — dùng khi câu nằm NGAY trong bài đó (Luyện thêm), nơi đã có
+   *  "Đọc lại phần này" riêng. */
+  anXemLai?: boolean;
 }) {
   const [cls, ten] = MUC[c.muc_do] ?? ["", c.muc_do];
   const daNop = !!kq;
@@ -178,7 +181,7 @@ function Cau({ c, chon, onChon, kq, onMoBai }: {
             {kq!.dung ? "✓ Đúng rồi!" : "✗ Chưa đúng"}
             {kq!.so_y != null && !kq!.dung && ` · đúng ${kq!.so_y_dung}/${kq!.so_y} ý`}
           </span>
-          {!kq!.dung && kq!.topic_id != null && (
+          {!kq!.dung && kq!.topic_id != null && !anXemLai && (
             <button className="hoi-cau" type="button" onClick={() => onMoBai(kq!.topic_id!, "kien_thuc")}>
               📚 Xem lại bài: {kq!.don_vi}
             </button>

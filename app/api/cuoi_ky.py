@@ -18,7 +18,7 @@ import logging
 import secrets
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import cast, delete, func, select
 from sqlalchemy.dialects.postgresql import JSONB
@@ -62,13 +62,22 @@ _MSG_BAN = "Kho đề đang bận, em thử lại sau ít phút nhé."
 _MSG_SU_CO = "Kho đề đang gặp sự cố, chưa rút được đề. Thầy cô đã được báo."
 
 
-def lay_testbank() -> TestbankClient:
-    """Dependency — test thay bằng testbank giả qua `app.dependency_overrides`."""
+MSG_CHUA_NOI_LUYEN_THEM = ("Luyện thêm chưa được kết nối với kho câu hỏi. "
+                           "Em làm Bài kiểm tra nhanh ở trên trước nhé!")
+
+
+def lay_testbank(request: Request) -> TestbankClient:
+    """Dependency — test thay bằng testbank giả qua `app.dependency_overrides`.
+
+    Dùng chung với "Luyện thêm" (`app/api/luyen_them.py`, tiền tố /lessons): chưa
+    cấu hình thì mỗi tính năng nói câu của mình — đề cuối kỳ mà bảo "làm Bài kiểm
+    tra nhanh ở trên" ở mục luyện thêm là lạc chỗ."""
     try:
         return tao_client()
     except TestbankChuaCauHinh as e:
         log.warning("%s", e)
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, _MSG_CHUA_NOI) from e
+        msg = MSG_CHUA_NOI_LUYEN_THEM if request.url.path.startswith("/lessons/") else _MSG_CHUA_NOI
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, msg) from e
 
 
 def _loi_http(e: TestbankLoi) -> HTTPException:
@@ -227,7 +236,8 @@ class SubmitBody(BaseModel):
 async def _de_cua(session: AsyncSession, de_id: str, user: User) -> DeCuoiKy:
     de = await session.get(DeCuoiKy, de_id)
     # Đề của người khác cũng trả 404 như đề không tồn tại — không xác nhận id nào có thật.
-    if de is None or de.user_id != user.id:
+    # `loai`: lượt luyện thêm nằm cùng bảng nhưng không phải đề cuối kỳ.
+    if de is None or de.user_id != user.id or de.loai != "cuoi_ky":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy đề này.")
     return de
 
@@ -341,7 +351,8 @@ async def danh_sach_de(session: AsyncSession, user_id: int, *, exam: str | None 
 
     Chỉ tóm tắt (điểm, đạt, thời điểm) — KHÔNG có nội dung câu hay đáp án."""
     rows = (await session.scalars(
-        select(DeCuoiKy).where(DeCuoiKy.user_id == user_id, *_loc_ky(exam))
+        select(DeCuoiKy).where(DeCuoiKy.user_id == user_id, DeCuoiKy.loai == "cuoi_ky",
+                               *_loc_ky(exam))
         # id phá hoà khi hai đề trùng giờ — không thì trang sau lặp/sót đề.
         .order_by(DeCuoiKy.created_at.desc(), DeCuoiKy.id.desc())
         .offset(bo_qua).limit(gioi_han + 1))).all()   # lấy dư 1 để biết còn trang sau
@@ -402,7 +413,8 @@ async def xoa_tat_ca(
 ) -> dict:
     """Xoá hẳn MỌI đề cuối kỳ của chính mình (lọc theo kỳ nếu có `exam`)."""
     des = list((await session.scalars(
-        select(DeCuoiKy).where(DeCuoiKy.user_id == user.id, *_loc_ky(exam)))).all())
+        select(DeCuoiKy).where(DeCuoiKy.user_id == user.id, DeCuoiKy.loai == "cuoi_ky",
+                               *_loc_ky(exam)))).all())
     n = await _xoa_han(session, user.id, des)
     await session.commit()
     return {"da_xoa": n}

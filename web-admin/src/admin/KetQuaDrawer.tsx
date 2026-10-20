@@ -104,6 +104,12 @@ export function KetQuaDrawer({ userId, onClose }: { userId: number; onClose: () 
                   đề DTP Testbank) — xem ở "Từng lần nộp", không tính vào điểm từng bài.</div>
               )}
 
+              {d.tong_lan_luyen_them > 0 && (
+                <div className="kq-ghi">Đã <b>luyện thêm {d.tong_lan_luyen_them} lượt</b> từ kho đề
+                  {" "}— đếm riêng, không tính vào số lần / điểm trung bình Kiểm tra nhanh
+                  (trạng thái đạt của bài thì dùng chung).</div>
+              )}
+
               <div className="esec">
                 <div className="esec-h"><span className="n">📊</span> Theo đơn vị kiến thức</div>
                 <table>
@@ -117,7 +123,8 @@ export function KetQuaDrawer({ userId, onClose }: { userId: number; onClose: () 
                         <td className="tnum">{gio(g.phut)}
                           {g.so_phien > 0 && <span className="kq-mo"> · {g.so_phien} phiên</span>}</td>
                         <td className="tnum">{g.so_lan}
-                          {g.so_lan_on_tap > 0 && <span className="kq-ot">+{g.so_lan_on_tap} ôn tập</span>}</td>
+                          {g.so_lan_on_tap > 0 && <span className="kq-ot">+{g.so_lan_on_tap} ôn tập</span>}
+                          {g.so_lan_luyen_them > 0 && <span className="kq-ot">+{g.so_lan_luyen_them} luyện thêm</span>}</td>
                         {/* Chưa làm bài kiểm tra của đơn vị -> "—", KHÔNG phải 0%:
                             0% đọc thành "làm và sai hết". */}
                         <td className="tnum">{g.tot_nhat === null ? "—" : `${g.tot_nhat}%`}</td>
@@ -140,14 +147,20 @@ export function KetQuaDrawer({ userId, onClose }: { userId: number; onClose: () 
                 </div>
                 {d.lan.map((x, i) => (
                   <div className="kq-lan" key={i}>
-                    <span className={"pill " + (x.dat ? "p-xong" : "p-duyet")}>{x.diem}/{x.tong}</span>
+                    {/* Luyện thêm dưới 3 câu chấm được: không xét đạt — không phải trượt, nên không tô cảnh báo. */}
+                    <span className={"pill " + (x.dat ? "p-xong"
+                      : x.nguon === "luyen_them" && x.tong < 3 ? "p-nhap" : "p-duyet")}>{x.diem}/{x.tong}</span>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div className="u-name">{x.ten}
                         {x.nguon === "on_tap" && <span className="kq-ot">ôn tập</span>}
-                        {x.nguon === "cuoi_ky" && <span className="kq-ot">cuối kỳ</span>}</div>
+                        {x.nguon === "cuoi_ky" && <span className="kq-ot">cuối kỳ</span>}
+                        {x.nguon === "luyen_them" && <span className="kq-ot">luyện thêm</span>}</div>
                       <div className="u-mach">{fmt(x.luc)}</div>
                     </div>
-                    <b className="tnum" style={{ fontSize: 13 }}>{x.phan_tram}%</b>
+                    {x.nguon === "luyen_them" && x.tong < 3
+                      ? <span className="kq-mo" style={{ fontSize: 12 }}>
+                          {x.diem}/{x.tong} · không xét đạt bài</span>
+                      : <b className="tnum" style={{ fontSize: 13 }}>{x.phan_tram}%</b>}
                   </div>
                 ))}
               </div>

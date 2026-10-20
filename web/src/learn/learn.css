@@ -942,3 +942,16 @@
 .learn .ck-ls-xoahet:hover{text-decoration:underline}
 .learn .ot-top .ck-ve{margin-left:8px}
 .learn .ot-top .ot-dong:first-of-type{margin-left:auto}
+
+/* ── Luyện thêm từ kho đề (US-25) ── */
+.learn .lt-box{margin-top:6px}
+.learn .lt-mo{display:flex;flex-direction:column;align-items:flex-start;gap:12px;margin:6px 0 10px}
+.learn .lt-sub{max-width:640px;margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.55}
+.learn .lt-box .ex-wrap{display:flex;flex-direction:column;gap:14px;margin-bottom:16px}
+.learn .lt-cau{display:flex;flex-direction:column}
+.learn .lt-cau .sai-nhac{margin-top:-4px}
+.learn .lt-kq{margin:4px 0 14px;padding:12px 15px;border-radius:var(--radius-sm);background:var(--surface-3);
+  color:var(--ink);font-size:13.5px;display:flex;flex-direction:column;gap:4px}
+.learn .lt-kq .lt-diem{font-weight:800;font-size:15px}
+.learn .lt-kq.ok{background:var(--primary-weak);color:var(--teal-ink)}
+.learn .lt-kq.no{background:var(--accent-weak);color:var(--accent-ink)}

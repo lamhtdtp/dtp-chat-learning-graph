@@ -35,6 +35,7 @@ def test_be_rong_lay_tu_asset_sizes_khi_dau_khong_ghi():
     h = sang_html(f"[[anh:{ID}]]", {ID: "/api/content/media/a.png"},
                   {ID: {"w": 30.0, "h": 12.0}}, goc=GOC)
     assert 'width:40px' in h
+    assert 'width="40" height="16"' in h   # 12pt * 4/3 — giữ tỉ lệ 30:12
 
 
 def test_anh_khong_co_trong_assets_khong_de_lai_dau_tho():
@@ -115,3 +116,10 @@ def test_anh_trong_o_bang_van_thanh_img():
 
 def test_van_ban_cho_prompt_bo_the_bang():
     assert "<t" not in sang_van_ban(BANG)
+
+
+def test_chieu_cao_giu_ti_le_khi_dau_anh_ghi_de_be_rong():
+    """`|w=60` đổi chiều rộng 30 -> 60pt thì chiều cao gốc 12pt phải thành 24pt (80x32 px)."""
+    h = sang_html(f"[[anh:{ID}|w=60]]", {ID: "/api/content/media/a.png"},
+                  {ID: {"w": 30.0, "h": 12.0}}, goc=GOC)
+    assert 'width="80" height="32"' in h and "width:80px" in h

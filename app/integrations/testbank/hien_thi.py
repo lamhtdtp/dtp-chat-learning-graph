@@ -81,9 +81,20 @@ def sang_html(text: str | None, assets: dict[str, str], sizes: dict[str, dict],
             # Ảnh của đáp án/lời giải chỉ có khi include_answers. Để lại dấu thô
             # là học sinh thấy "[[anh:3f2a…]]" giữa đề.
             return '<span class="tb-thieu-anh">[thiếu hình]</span>'
-        rong = float(w) if w else float((sizes.get(id_) or {}).get("w") or 0)
+        kich = sizes.get(id_) or {}
+        goc_w, goc_h = float(kich.get("w") or 0), float(kich.get("h") or 0)
+        rong = float(w) if w else goc_w
         style = f' style="width:{round(rong * _PT_SANG_PX)}px"' if rong > 0 else ""
-        return f'<img class="tb-anh" src="{html.escape(url_anh(url, goc), quote=True)}" alt=""{style}>'
+        # Ảnh chưa tải xong có chiều cao 0 -> phương án trống rồi cả trang giật khi ảnh về.
+        # Server biết kích thước gốc nên ghi luôn width/height (giữ tỉ lệ, kể cả khi
+        # `|w=` đổi chiều rộng): với CSS `max-width:100%;height:auto`, trình duyệt dùng
+        # cặp này làm tỉ lệ khung nên co nhỏ vẫn không méo.
+        wh = ""
+        if rong > 0 and goc_w > 0 and goc_h > 0:
+            wh = (f' width="{round(rong * _PT_SANG_PX)}"'
+                  f' height="{round(goc_h * rong / goc_w * _PT_SANG_PX)}"')
+        return (f'<img class="tb-anh" src="{html.escape(url_anh(url, goc), quote=True)}" '
+                f'alt=""{wh}{style}>')
 
     return _DAU_ANH.sub(_anh, s)
 

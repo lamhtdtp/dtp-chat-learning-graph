@@ -3,8 +3,10 @@ import type {
   CurriculumGroup,
   DeCuoiKy,
   DeCuoiKyTomTat,
+  DeLuyenThem,
   DeOnTap,
   KetQuaCuoiKy,
+  KetQuaLuyenThem,
   OnTap,
   Lesson,
   MyStats,
@@ -225,4 +227,13 @@ export function xoaHetDeCuoiKy(exam?: string): Promise<{ da_xoa: number }> {
 /** Mở lại một đề: chưa nộp thì như lúc rút (không đáp án), đã nộp thì kèm `ket_qua`. */
 export function moDeCuoiKy(deId: string): Promise<DeCuoiKy> {
   return req(`/exam/cuoi-ky/${encodeURIComponent(deId)}`, { auth: true });
+}
+
+/** Rút một lượt "Luyện thêm từ kho đề" của bài (tối đa 4 câu, không có đáp án). */
+export function rutLuyenThem(topicId: number): Promise<DeLuyenThem> {
+  return req(`/lessons/${topicId}/luyen-them`, { auth: true, body: {} });
+}
+/** Nộp lượt luyện thêm. `traLoi`: qid -> "B" | "A,C" | "Đ,S,Đ,S" | đáp số đã điền. */
+export function nopLuyenThem(deId: string, traLoi: Record<string, string>): Promise<KetQuaLuyenThem> {
+  return req("/lessons/luyen-them/submit", { auth: true, body: { de_id: deId, tra_loi: traLoi } });
 }

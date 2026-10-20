@@ -140,11 +140,18 @@ export function HoSoView({ onMoBai, onMoDeCuoiKy, ten }: {
             <button className="hsls-ten" type="button" onClick={() => onMoBai?.(p.topic_id)}>{p.ten}</button>
             <div className="hsls-tags">
             <span className="hsls-nh">⏱ {p.phut} phút</span>
-            {p.quiz && (
+            {p.quiz && (p.quiz.nguon === "luyen_them" ? (
+              // Lượt luyện thêm dưới 3 câu chấm được "không xét đạt bài" — không phải
+              // trượt, nên không tô như trượt (US-25 KB17, KB27).
+              <span className={"hsls-nh " + (p.quiz.dat ? "ok" : p.quiz.tong < 3 ? "" : "no")}>
+                {p.quiz.dat ? "✅" : "△"} Luyện thêm {p.quiz.diem}/{p.quiz.tong}
+                {p.quiz.dat ? " · đạt" : p.quiz.tong < 3 ? " · không xét đạt bài" : ""}
+              </span>
+            ) : (
               <span className={"hsls-nh " + (p.quiz.dat ? "ok" : "no")}>
                 {p.quiz.dat ? "✅" : "△"} Kiểm tra {p.quiz.diem}/{p.quiz.tong}
               </span>
-            )}
+            ))}
             {/* Mẫu số là số phần ĐANG HIỆN của bài đó, không phải 7 cố định */}
             {p.doc_y > 0 && <span className="hsls-nh">Đọc {p.doc_x}/{p.doc_y} phần</span>}
             {p.so_hoi > 0 && <span className="hsls-nh">💬 Hỏi trợ lý {p.so_hoi} câu</span>}

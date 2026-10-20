@@ -100,8 +100,10 @@ export interface KetQuaLan {
   topic_id: number | null; ten: string; mach: string;
   diem: number; tong: number; dat: boolean; phan_tram: number; luc: string;
   /** nhanh = Kiểm tra nhanh của đơn vị · on_tap = một mảnh đề ôn tập cả mạch ·
-   *  cuoi_ky = đề cuối kỳ rút từ DTP Testbank (topic_id null, không thuộc bài nào). */
-  nguon: "nhanh" | "on_tap" | "cuoi_ky";
+   *  cuoi_ky = đề cuối kỳ rút từ DTP Testbank (topic_id null, không thuộc bài nào) ·
+   *  luyen_them = Luyện thêm từ kho đề (US-25): `tong` = số câu chấm được; dưới 3 câu thì
+   *  "không xét đạt bài" (dat = false nhưng không phải trượt). */
+  nguon: "nhanh" | "on_tap" | "cuoi_ky" | "luyen_them";
 }
 export interface KetQuaDonVi {
   topic_id: number; ten: string; mach: string;
@@ -110,6 +112,8 @@ export interface KetQuaDonVi {
   /** Nguồn thật của "đã học tới đâu" — CÙNG giá trị phía học sinh thấy. */
   trang_thai: "dat" | "dang" | "chua";
   so_lan: number; so_lan_on_tap: number;
+  /** Số lượt Luyện thêm của bài — đếm riêng, không lẫn vào so_lan / tốt nhất / gần nhất. */
+  so_lan_luyen_them: number;
   /** null = chưa làm Kiểm tra nhanh của đơn vị này lần nào. */
   tot_nhat: number | null; gan_nhat: number | null;
 }
@@ -126,6 +130,8 @@ export interface KetQuaHocSinh {
   tong_lan: number; tong_lan_on_tap: number; so_lan_dat: number; diem_tb: number;
   /** Số lần nộp đề cuối kỳ — tách riêng, không tính vào điểm TB kiểm tra nhanh. */
   tong_lan_cuoi_ky: number;
+  /** Tổng lượt Luyện thêm từ kho đề — đếm riêng, không tính vào điểm TB kiểm tra nhanh. */
+  tong_lan_luyen_them: number;
   theo_don_vi: KetQuaDonVi[];
   lan: KetQuaLan[];
 }

@@ -575,9 +575,11 @@ async def _ngu_canh_bai(
 
     if anchor and anchor.startswith("quiz:") and user.role not in _TAC_GIA:
         # Chưa nộp bài mà hỏi "câu 3 đáp án gì" thì trợ lý sẽ trả lời thật — hỏi
-        # đủ 8 lượt là có trọn bộ đáp án. Chỉ mở sau khi đã có lần nộp.
+        # đủ 8 lượt là có trọn bộ đáp án. Chỉ mở sau khi đã nộp CHÍNH Bài kiểm tra
+        # nhanh (nguon="nhanh"): lượt luyện thêm / ôn tập dùng bộ câu khác, nộp bỏ trống
+        # một lượt như vậy mà được mở khoá thì hàng rào này vô nghĩa.
         da_lam = await session.scalar(
-            select(QuizAttempt.id).filter_by(user_id=user.id, topic_id=topic_id).limit(1))
+            select(QuizAttempt.id).filter_by(user_id=user.id, topic_id=topic_id, nguon="nhanh").limit(1))
         if da_lam is None:
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,

@@ -61,6 +61,7 @@ services:
       TESTBANK_EMAIL: ${TESTBANK_EMAIL:-}
       TESTBANK_PASSWORD: ${TESTBANK_PASSWORD:-}
       DE_CUOI_KY_DAILY_LIMIT: ${DE_CUOI_KY_DAILY_LIMIT:-10}
+      LUYEN_THEM_DAILY_LIMIT: ${LUYEN_THEM_DAILY_LIMIT:-20}
       # ⚠️ KHỐI environment NÀY LÀ DANH SÁCH TRẮNG. Không có `env_file:`, và image
       # KHÔNG chứa .env — nên `env_file=".env"` của pydantic (app/config.py) không
       # tìm thấy gì trong container. Đặt một biến trong .env mà KHÔNG khai ở đây

@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import security
 from app.api.deps import get_current_user
 from app.db.models import (CurriculumTopic, QuizAttempt, StudentProgress, StudySession,
-                           TopicContent, User)
+                           TopicContent, User, luot_khong_xet_dat)
 from app.db.session import get_session
 from app.lessons import phien as phien_svc
 
@@ -201,7 +201,7 @@ async def student_result(
         return theo_dv.setdefault(topic_id, {
             "topic_id": topic_id, "ten": (ten or "").strip(), "mach": (mach or "").strip(),
             "trang_thai": trang_thai.get(topic_id, "chua"),
-            "so_lan": 0, "so_lan_on_tap": 0, "tot_nhat": None, "gan_nhat": None,
+            "so_lan": 0, "so_lan_on_tap": 0, "so_lan_luyen_them": 0, "tot_nhat": None, "gan_nhat": None,
             "phut": phut_dv.get(topic_id, 0),
             "so_phien": so_phien_dv.get(topic_id, 0),
             "lan_cuoi": (lan_cuoi_dv[topic_id].isoformat()
@@ -229,6 +229,11 @@ async def student_result(
         if x["nguon"] == "on_tap":
             g["so_lan_on_tap"] += 1
             continue
+        if x["nguon"] == "luyen_them":
+            # Bộ câu khác hẳn Bài kiểm tra nhanh (kho đề vs AI sinh) -> đếm riêng, không
+            # lẫn vào số lần / tốt nhất / gần nhất của quiz nhanh (US-25 Q9).
+            g["so_lan_luyen_them"] += 1
+            continue
         if g["gan_nhat"] is None:      # `lan` sắp mới -> cũ, gặp đầu là gần nhất
             g["gan_nhat"] = x["phan_tram"]
         g["so_lan"] += 1
@@ -243,6 +248,7 @@ async def student_result(
         "tong_lan": len(nhanh),
         "tong_lan_on_tap": sum(1 for x in lan if x["nguon"] == "on_tap"),
         "tong_lan_cuoi_ky": sum(1 for x in lan if x["nguon"] == "cuoi_ky"),
+        "tong_lan_luyen_them": sum(1 for x in lan if x["nguon"] == "luyen_them"),
         "so_lan_dat": sum(1 for x in nhanh if x["dat"]),
         "diem_tb": round(sum(x["phan_tram"] for x in nhanh) / len(nhanh)) if nhanh else 0,
         # Sắp theo trạng thái (đạt trước) rồi tới số lần làm — giáo viên tìm em
@@ -314,6 +320,9 @@ async def overview(
         select(func.count(QuizAttempt.id),
                func.count(func.distinct(QuizAttempt.user_id)),
                func.count(QuizAttempt.id).filter(QuizAttempt.dat))
+        # Lượt luyện thêm không xét đạt (dat=False nhưng không phải trượt) bị loại khỏi
+        # MỌI số liệu tổng quan — cùng điều kiện với `truot_bai` của /me/ycd.
+        .where(~luot_khong_xet_dat())
     )).one()
 
     # Nhịp theo ngày. Ngày KHÔNG có lượt nào sẽ thiếu trong kết quả SQL -> phải
@@ -321,7 +330,7 @@ async def overview(
     # ngày đó vẫn có hoạt động.
     rows = (await session.execute(
         select(func.date(QuizAttempt.created_at).label("ngay"), func.count(QuizAttempt.id))
-        .where(func.date(QuizAttempt.created_at) >= tu)
+        .where(func.date(QuizAttempt.created_at) >= tu, ~luot_khong_xet_dat())
         .group_by("ngay")
     )).all()
     theo_ngay = {str(d): n for d, n in rows}
@@ -337,6 +346,7 @@ async def overview(
                func.count(QuizAttempt.id).label("n"),
                func.count(QuizAttempt.id).filter(~QuizAttempt.dat).label("truot"))
         .join(QuizAttempt, QuizAttempt.topic_id == CurriculumTopic.id)
+        .where(~luot_khong_xet_dat())
         .group_by(CurriculumTopic.id, CurriculumTopic.don_vi_kien_thuc, CurriculumTopic.mach_noi_dung)
         .having(func.count(QuizAttempt.id) >= toi_thieu)
     )).all()
@@ -351,7 +361,8 @@ async def overview(
     # thiệp khác hẳn nhau. Gom về 5 khoảng 20%.
     pct = func.round(100.0 * QuizAttempt.diem / func.nullif(QuizAttempt.tong, 0))
     buckets = {int(k): v for k, v in (await session.execute(
-        select(func.least(func.floor(pct / 20), 4).label("b"), func.count()).group_by("b")
+        select(func.least(func.floor(pct / 20), 4).label("b"), func.count())
+        .where(~luot_khong_xet_dat()).group_by("b")
     )).all() if k is not None}
     nhan = ["0–19%", "20–39%", "40–59%", "60–79%", "80–100%"]
     phan_bo = [{"khoang": nhan[i], "so_lan": buckets.get(i, 0), "dat": i >= 3} for i in range(5)]
@@ -362,6 +373,7 @@ async def overview(
                func.count(QuizAttempt.id).label("n"),
                func.count(QuizAttempt.id).filter(QuizAttempt.dat).label("d"))
         .join(QuizAttempt, QuizAttempt.topic_id == CurriculumTopic.id)
+        .where(~luot_khong_xet_dat())
         .group_by(CurriculumTopic.mach_noi_dung)
     )).all()
     theo_mach = sorted(

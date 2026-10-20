@@ -224,6 +224,13 @@ class DeCuoiKy(Base):
     #: thì thống kê YCCĐ vẫn đếm bài em đã xoá. NULL khi chưa nộp.
     attempt_id: Mapped[int | None] = mapped_column(
         ForeignKey("quiz_attempts.id", ondelete="SET NULL"), default=None, index=True)
+    #: cuoi_ky (đề cuối kỳ) | luyen_them (US-25, tối đa 4 câu của MỘT bài). Dùng chung
+    #: bảng vì cùng nhu cầu lưu bản câu + đáp án phía máy chủ; MỌI truy vấn lịch sử /
+    #: xoá của đề cuối kỳ phải lọc `loai == "cuoi_ky"` kẻo liệt kê, xoá nhầm lượt luyện thêm.
+    loai: Mapped[str] = mapped_column(default="cuoi_ky", server_default="cuoi_ky", index=True)
+    #: Bài của lượt luyện thêm; NULL với đề cuối kỳ.
+    topic_id: Mapped[int | None] = mapped_column(
+        ForeignKey("curriculum_topics.id", ondelete="SET NULL"), default=None, index=True)
     nop_luc: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
@@ -410,3 +417,11 @@ class VideoJob(Base):
     duration_sec: Mapped[float | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+
+def luot_khong_xet_dat():
+    """Điều kiện SQL: lượt Luyện thêm dưới 3 câu chấm được (US-25 KB17). Lượt này có
+    `dat=False` nhưng KHÔNG phải trượt — mọi thống kê "trượt / số lần / điểm" phải loại ra
+    bằng `~luot_khong_xet_dat()`, dùng chung một chỗ để các nơi không lệch luật nhau."""
+    from sqlalchemy import and_
+    return and_(QuizAttempt.nguon == "luyen_them", QuizAttempt.tong < 3)

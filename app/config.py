@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     # Mỗi lần rút là 2 lượt gọi testbank + tới 12 lượt gọi model sinh lý do ở lần
     # đầu, và testbank xin giữ dưới ~10 lời gọi/giây.
     de_cuoi_ky_daily_limit: int = 10
+    # Số lượt rút "Luyện thêm từ kho đề" / học sinh / ngày (US-25 Q6; 0 = không giới
+    # hạn; admin miễn). Riêng với đề cuối kỳ. Mỗi lượt rút là 2 lượt gọi testbank
+    # và tới 4 lượt gọi model sinh lý do (câu đã có lý do thì 0).
+    luyen_them_daily_limit: int = 20
 
     database_url: str = "postgresql+asyncpg://lamthanh@localhost:5432/chat_learning"
     redis_url: str = "redis://localhost:6380/0"

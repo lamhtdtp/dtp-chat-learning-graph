@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Lesson, MinhHoa, Neo, PhanBoCuc, QuizResult } from "../types";
 import { renderMath } from "../mathHtml";
+import { LuyenThemView } from "./LuyenThemView";
 import { QuizView } from "./QuizView";
 import { TroLyCard } from "./TroLyCard";
 import { useBaoTri } from "./useBaoTri";
@@ -181,7 +182,8 @@ const cauMoViDu = (i: number) => `Ví dụ ${i + 1}: giải thích từng bướ
 
 export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded, onMoBai }: {
   lesson: Lesson; teacher: boolean; onMarkDone?: () => void;
-  onQuizGraded?: (r: QuizResult) => void;
+  /** Gọi sau khi nộp Bài kiểm tra nhanh (có kết quả) hoặc Luyện thêm (không kèm kết quả). */
+  onQuizGraded?: (r?: QuizResult) => void;
   /** Mở sang bài khác — dùng cho lối mở bài trong câu trả lời "cả cuốn". Chỉ
    *  LearnApp đổi được bài đang mở nên phải truyền từ trên xuống. */
   onMoBai?: (topicId: number) => void;
@@ -415,6 +417,11 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded, onMoBai 
         <span className="eyebrow">Chưa biên soạn</span>
         <h1>{lesson.dv}</h1>
         <p className="lead">Nội dung đơn vị này đang được chuyên gia biên soạn. Quay lại sau nhé!</p>
+        {/* Luyện thêm không phụ thuộc nội dung bài do chuyên gia soạn (câu lấy từ kho đề theo
+            YCCĐ của ma trận) nên vẫn dùng được ở bài chưa biên soạn. Chưa có phần "Kiến thức"
+            để cuộn tới -> không truyền `onDocLai`, nút "Đọc lại phần này" tự ẩn. */}
+        <div className="divider" />
+        <LuyenThemView topicId={lesson.topic_id} onGraded={() => onQuizGraded?.()} />
       </article>
     );
   }
@@ -498,6 +505,13 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded, onMoBai 
             : <div className="cta-hint">Chưa có bài kiểm tra nhanh cho đơn vị này.</div>}
         </div>
       )}
+
+      {/* Luyện thêm từ kho đề (US-25) — LUÔN có mặt dưới Bài kiểm tra nhanh, kể cả bài
+          chưa có quiz. Chưa rút gì cho tới khi học sinh bấm. Giáo viên / quản trị cũng
+          làm thử được; kết quả vẫn ghi theo tài khoản đó. */}
+      <div className="divider" />
+      <LuyenThemView topicId={lesson.topic_id} phanHien={phanHien} onDocLai={docLai}
+        onGraded={() => onQuizGraded?.()} />
 
       {/* Bù cho việc bỏ cột chat: nơi xem lại mọi câu đã hỏi trong bài. Thẻ đóng
           rồi vẫn còn ở đây và mở lại được nguyên hội thoại. */}

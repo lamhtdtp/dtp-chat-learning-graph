@@ -21,7 +21,7 @@ from app.api import security
 from app.api.deps import get_current_user
 from app.db.models import (
     BlueprintCell, CurriculumTopic, Grade, QuizAttempt, QuizAttemptItem, StudentProgress,
-    StudySession, Subject, TopicContent, User,
+    StudySession, Subject, TopicContent, User, luot_khong_xet_dat,
 )
 from app.db.session import get_session
 from app.lessons import bo_cuc as bo_cuc_svc
@@ -471,6 +471,18 @@ async def ping_phien(
     return {"topic_id": body.topic_id, "so_giay_phien": so_giay}
 
 
+def _quiz_tom_tat(a: QuizAttempt | None) -> dict | None:
+    """Kết quả hiện trên lịch sử phiên. `nguon` chỉ có khi KHÔNG phải Kiểm tra nhanh
+    (vd "luyen_them") để nhãn "Luyện thêm" hiện được; thiếu khoá = Kiểm tra nhanh,
+    nên client cũ và các lượt cũ không phải đổi gì."""
+    if a is None:
+        return None
+    out = {"diem": a.diem, "tong": a.tong, "dat": a.dat}
+    if a.nguon and a.nguon != "nhanh":
+        out["nguon"] = a.nguon
+    return out
+
+
 @router.get("/me/thoi-gian")
 async def me_thoi_gian(
     ngay: int = 14,
@@ -524,7 +536,7 @@ async def me_thoi_gian(
             "luc": p.mo_luc.isoformat(), "phut": round((p.so_giay or 0) / 60),
             "so_hoi": p.so_hoi or 0,
             "doc_x": len(da_doc), "doc_y": tong_phan,
-            "quiz": {"diem": a.diem, "tong": a.tong, "dat": a.dat} if a else None,
+            "quiz": _quiz_tom_tat(a),
             "dang_hoc": phien_svc.dang_hoc(p),
         })
     d["lich_su"] = lich_su
@@ -563,7 +575,9 @@ async def me_ycd(
     # Số lần TRƯỢT CẢ BÀI — vẫn giữ, nhưng là con số khác nghĩa với `sai` bên dưới.
     truot_rows = (await session.execute(
         select(QuizAttempt.topic_id, func.count())
-        .where(QuizAttempt.user_id == user.id, ~QuizAttempt.dat)
+        .where(QuizAttempt.user_id == user.id, ~QuizAttempt.dat,
+               # Lượt luyện thêm không xét đạt không phải trượt — đếm là báo em trượt oan.
+               ~luot_khong_xet_dat())
         .group_by(QuizAttempt.topic_id))).all()
     truot = {tid: n for tid, n in truot_rows}
 

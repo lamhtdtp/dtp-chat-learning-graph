@@ -200,6 +200,14 @@ class TestbankClient:
             log.warning("Không gọi được testbank %s: %s", url, exc)
             raise TestbankLoi("Không kết nối được DTP Testbank") from exc
 
+    async def _get(self, url: str, params: dict | None, token: str) -> httpx.Response:
+        try:
+            return await self._http.get(url, params=params, headers={"authorization": f"Bearer {token}"},
+                                        timeout=TIMEOUT)
+        except httpx.HTTPError as exc:
+            log.warning("Không gọi được testbank %s: %s", url, exc)
+            raise TestbankLoi("Không kết nối được DTP Testbank") from exc
+
     @staticmethod
     def _doc(r: httpx.Response, url: str) -> Any:
         if r.is_success:
@@ -255,15 +263,26 @@ class TestbankClient:
         return await self._dang_nhap()
 
     # ── Gọi có xác thực ──
-    async def goi(self, dich: Dich, duong: str, body: Any) -> Any:
-        url = f"{self.ch.goc(dich)}{duong}"
-        r = await self._post(url, body, await self._token())
+    async def _goi_xac_thuc(self, url: str, gui) -> Any:
+        """`gui(token)` gửi một request. Chung cho POST và GET: cùng token, cùng
+        cách thử lại khi 401, cùng cách đổi lỗi sang `TestbankLoi`."""
+        r = await gui(await self._token())
         if r.status_code == 401:
             # Token bị từ chối dù chưa hết hạn theo đồng hồ của mình (testbank
             # đổi khoá, lệch giờ…). Bỏ token, đăng nhập lại, thử ĐÚNG MỘT lần.
             await self._kho.xoa()
-            r = await self._post(url, body, await self._dang_nhap())
+            r = await gui(await self._dang_nhap())
         return self._doc(r, url)
+
+    async def goi(self, dich: Dich, duong: str, body: Any) -> Any:
+        """POST."""
+        url = f"{self.ch.goc(dich)}{duong}"
+        return await self._goi_xac_thuc(url, lambda t: self._post(url, body, t))
+
+    async def lay(self, dich: Dich, duong: str, params: dict | None = None) -> Any:
+        """GET (vd `/pool` của content-service)."""
+        url = f"{self.ch.goc(dich)}{duong}"
+        return await self._goi_xac_thuc(url, lambda t: self._get(url, params, t))
 
 
 _http: httpx.AsyncClient | None = None

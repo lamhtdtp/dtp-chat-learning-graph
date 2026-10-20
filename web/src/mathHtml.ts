@@ -36,3 +36,10 @@ export function renderMath(html: string): string {
     .replace(/\$([^$\n]+?)\$/g, (_, m) => tex(m, false))
     .replace(/\\\((.+?)\\\)/g, (_, m) => tex(m, false));
 }
+
+/** Thoát chuỗi do NGƯỜI DÙNG nhập (đáp số điền, nhãn đã chọn…) trước khi ghép vào HTML đưa cho
+ *  `dangerouslySetInnerHTML`. Chuỗi từ server đã được thoát ở phía server thì không cần. */
+export function escHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}

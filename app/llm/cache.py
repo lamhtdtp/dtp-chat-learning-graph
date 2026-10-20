@@ -125,3 +125,15 @@ async def incr_quota(key: str, ttl: int) -> int:
     if n == 1:
         await r.expire(key, ttl)
     return n
+
+
+async def giam_quota(key: str, ttl: int) -> None:
+    """Trả lại một lượt đã đếm (rút thất bại thì không tính vào hạn mức của học
+    sinh). Fail-open: Redis lỗi thì thôi, không chặn ai. Không để bộ đếm âm —
+    âm là tặng thêm lượt cho ngày hôm đó."""
+    try:
+        r = _redis()
+        if await r.decr(key) < 0:
+            await r.set(key, 0, ex=ttl)
+    except Exception as exc:  # noqa: BLE001
+        _bao_hong("giảm hạn mức", exc)

@@ -172,7 +172,8 @@ export interface ThoiGianHoc {
   lich_su: {
     topic_id: number; ten: string; luc: string; phut: number; so_hoi: number;
     doc_x: number; doc_y: number;
-    quiz: { diem: number; tong: number; dat: boolean } | null;
+    /** `nguon` chỉ có khi không phải Kiểm tra nhanh (vd "luyen_them"). */
+    quiz: { diem: number; tong: number; dat: boolean; nguon?: string } | null;
     dang_hoc: boolean;
   }[];
 }
@@ -256,6 +257,36 @@ export interface KetQuaCau {
   so_y: number | null;
   giai_html: string;
   ly_do: Record<string, LyDoPhuongAn>;
+}
+
+/** Lượt "Luyện thêm từ kho đề" (US-25) — POST /lessons/{id}/luyen-them. Như đề cuối kỳ
+ *  nhưng của MỘT bài, tối đa 4 câu; không có đáp án / lời giải trước khi nộp. */
+export interface DeLuyenThem {
+  /** null = không có lượt nào (kho trống / bài chưa có YCCĐ) — `thong_bao` nói rõ vì sao. */
+  de_id: string | null;
+  cau: CauCuoiKy[];
+  du_cau: boolean;
+  thong_bao: string;
+  so_cau_cham_duoc: number;
+  /** false = dưới 3 câu chấm được: vẫn chấm, nhưng không tính đạt bài. */
+  xet_dat: boolean;
+}
+
+export interface KetQuaLuyenThem {
+  de_id: string;
+  cau: (KetQuaCau & { phan: string })[];
+  /** Số câu đúng / số câu CHẤM ĐƯỢC. */
+  diem: number;
+  tong: number;
+  khong_cham: number;
+  xet_dat: boolean;
+  /** Chỉ true khi xét đạt và >= 70%. */
+  dat_yeu_cau: boolean;
+  /** Trạng thái bài SAU lượt (đã đạt thì không hạ). */
+  trang_thai: "dat" | "dang" | "chua";
+  xp: number;
+  /** Có khi không xét đạt: "Lượt này chỉ có N câu chấm tự động (cần ít nhất 3)…". */
+  ghi_chu: string;
 }
 
 export interface YcdKetQua {
