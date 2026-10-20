@@ -24,7 +24,7 @@ WORKDIR /app
 COPY pyproject.toml alembic.ini ./
 COPY app ./app
 COPY alembic ./alembic
-RUN pip install --upgrade pip && pip install ".[itest]"
+RUN pip install --upgrade pip && pip install .
 
 # KaTeX cho render.py — phải nằm đúng ./web/node_modules/katex (parents[2]/web/...).
 # Cùng dòng katex 0.16 với frontend (web/package.json).
