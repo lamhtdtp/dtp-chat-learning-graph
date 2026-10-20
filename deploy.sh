@@ -38,7 +38,11 @@ case "$cmd" in
   # `alembic current` / `alembic downgrade`, xem docs/RUNBOOK-DEPLOY.md.
   run)         $DC run "$@" ;;
 
-  migrate)     $DC run --rm --no-deps api alembic upgrade head ;;
+  # --build BẮT BUỘC: file migration nằm TRONG image (COPY alembic ./alembic).
+  # Thiếu nó thì `run` dùng image CŨ, alembic báo "đã ở head" và im lặng bỏ qua
+  # migration mới — rồi `up` dựng code mới cần cột chưa tồn tại (đã gặp thật:
+  # "column attempt_id of relation de_cuoi_ky does not exist").
+  migrate)     $DC run --rm --build --no-deps api alembic upgrade head ;;
 
   ingest)      # ./deploy.sh ingest --tap 1 --sach cung_kham_pha_tap_1 --pages 5-8
                $DC run --rm worker python -m app.ingestion.cli "$@" ;;
