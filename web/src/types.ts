@@ -296,6 +296,8 @@ export interface KetQuaCau {
   ly_do_ghi_chu?: string;
   /** Bài theo mã giai đoạn 1 (US-30): máy chủ chưa gửi đáp án — chỉ biết `dung`; thẻ câu không hiện đáp án / lời giải. */
   chua_mo_dap_an?: boolean;
+  /** Câu bị rào (thầy cô đã chỉnh): dòng giải thích dưới thẻ câu. */
+  ghi_chu_cau?: string;
 }
 
 /** Lượt "Luyện thêm từ kho đề" (US-25) — POST /lessons/{id}/luyen-them. Như đề cuối kỳ
@@ -421,7 +423,8 @@ export interface KetQuaCauMa {
   cham_duoc?: boolean;
   dung?: boolean;
   bai_xuat_ban?: boolean;
-  // ── chỉ có ở giai đoạn 2 (thầy cô đã đóng bài); giai đoạn 1 KHÔNG có các khoá này ──
+  // ── chỉ có khi máy chủ cho xem đáp án của câu này: thầy cô đã đóng bài, hoặc (lượt còn mở) đáp án KHO đã qua
+  //    hai rào đối chiếu. Câu vướng rào KHÔNG có các khoá này, thay bằng `ghi_chu_cau`. ──
   dap_an?: string;
   dap_an_html?: string;
   giai_html?: string;
@@ -429,6 +432,8 @@ export interface KetQuaCauMa {
   so_y?: number | null;
   ly_do?: Record<string, LyDoPhuongAn>;
   ly_do_ghi_chu?: string;
+  /** "Câu này thầy cô đã chỉnh, đáp án sẽ có khi thầy cô chữa bài" — câu bị rào, không hiện đáp án kho. */
+  ghi_chu_cau?: string;
 }
 export interface KetQuaMa {
   diem: number;
@@ -461,6 +466,8 @@ export interface BaiMa {
    *  2 = đã có đáp án. */
   giai_doan: 0 | 1 | 2;
   co_chi_tiet: boolean;
+  /** Có ít nhất một câu hiện đáp án + lời giải (lượt đã đóng, hoặc đáp án kho đã qua rào). */
+  co_giai_thich?: boolean;
   /** Các dòng trạng thái hiện nguyên văn trên màn kết quả (máy chủ dựng, đúng chữ của US-30). */
   ghi_chu: string[];
 }

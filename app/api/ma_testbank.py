@@ -14,9 +14,11 @@ khoá advisory theo (học sinh, mã) + unique DB; không gọi `vao-thi` lần 
 Mức 1 (US-30, `TESTBANK_DOI_TAC_BAT`): máy chủ vào thi bằng đường ĐỐI TÁC (`/doi-tac/*`, token tài khoản
 dịch vụ), không giữ khoá bài làm. Mức của từng bài CỐ ĐỊNH lúc tạo (`de_cuoi_ky.muc`): bật / tắt cờ sau đó
 không đổi đường đi của bài đã có, và lỗi đường đối tác không bao giờ rơi về mức 0 (sẽ ra bài thứ hai).
-Chi tiết sau nộp / giai đoạn 1-2: `app/exam/bai_ma_chi_tiet.py`.
+Chi tiết sau nộp: `app/exam/bai_ma_chi_tiet.py`. Đáp án ngay sau nộp (lượt còn mở) lấy từ KHO Testbank, có hai
+rào đối chiếu với tờ đề và điểm Testbank: `app/exam/dap_an_kho.py`. Trước khi nộp thì không bao giờ có đáp án.
 
-Bài mức 0: Testbank không gửi đáp án / lời giải nên kết quả chỉ có điểm + Đúng/Sai từng câu; KHÔNG ghi
+Bài mức 0: `/hs/*` của Testbank không đưa mã câu / phiên bản (cố ý, schemas.py) nên không tra được đáp án kho và
+Testbank không gửi đáp án -> kết quả chỉ có điểm + Đúng/Sai từng câu; KHÔNG ghi
 `quiz_attempts` (không đoán YCCĐ — KB 20).
 
 Lỗi Testbank không thành 500: mạng / 5xx -> 503, 4xx lạ -> 502, thông điệp tiếng Việt.
@@ -188,7 +190,7 @@ def _ra(row: DeCuoiKy, bai: dict | None = None) -> dict:
         "thong_bao": _THONG_BAO_NOP.get((ket_qua or {}).get("cach_nop") or "", ""),
         # US-30: 0 = chưa có chi tiết sau nộp (bài mức 0, cờ tắt, hoặc chưa lấy được) · 1 = chờ thầy cô
         # đóng bài · 2 = đã có đáp án. `ghi_chu` là các dòng trạng thái giao diện hiện nguyên văn.
-        "giai_doan": 0, "co_chi_tiet": False, "ghi_chu": [],
+        "giai_doan": 0, "co_chi_tiet": False, "co_giai_thich": False, "ghi_chu": [],
     }
 
 
@@ -201,6 +203,7 @@ async def _xuat(session: AsyncSession, row: DeCuoiKy, bai: dict | None, *, tb: T
         out["ket_qua"], viec = await ct_svc.dung_ket_qua(session, row, tb)
         out["giai_doan"] = ct_svc.giai_doan(row)
         out["co_chi_tiet"] = out["giai_doan"] >= 1
+        out["co_giai_thich"] = out["giai_doan"] == 2 or ct_svc.co_dap_an_kho(row)
         out["ghi_chu"] = ct_svc.ghi_chu(row, kiem)
         if viec:
             # Lý do từng phương án sinh SAU khi đã trả bài: học sinh thấy đáp án + lời giải ngay (KB 18).
@@ -208,10 +211,11 @@ async def _xuat(session: AsyncSession, row: DeCuoiKy, bai: dict | None, *, tb: T
     return out
 
 
-async def _sau_nop(session: AsyncSession, row: DeCuoiKy, dc: DoiTacClient | None) -> str | None:
+async def _sau_nop(session: AsyncSession, row: DeCuoiKy, dc: DoiTacClient | None,
+                   tb: TestbankClient | None = None) -> str | None:
     """Vừa biết bài mức 1 đã nộp (học sinh nộp, hoặc Testbank tự nộp): lấy chi tiết sau nộp ngay lần này."""
     if row.muc == 1 and row.ket_qua_json:
-        return await ct_svc.thu_chi_tiet(session, row, dc)
+        return await ct_svc.thu_chi_tiet(session, row, dc, tb)
     return None
 
 
@@ -254,7 +258,7 @@ async def _hoi_testbank(session: AsyncSession, row: DeCuoiKy, dl, dc, *, tb, bg)
             raise HTTPException(status.HTTP_410_GONE, MSG_QUA_HAN_XEM) from e
         raise _loi(e, MSG_CHUA_MO) from e
     await _dong_bo(session, row, bai)
-    kiem = await _sau_nop(session, row, dc)
+    kiem = await _sau_nop(session, row, dc, tb)
     out = await _xuat(session, row, bai, tb=tb, bg=bg, kiem=kiem)
     await session.commit()
     return out
@@ -276,7 +280,7 @@ async def _mo(session: AsyncSession, uid: int, row: DeCuoiKy, dl, dc, *, tb, bg)
     # Khoá hàng: mở cùng lúc từ hai thiết bị thì một bên chờ rồi thấy bài đã đồng bộ.
     row = await _bai_hoac_404(session, uid, de_id, khoa=True)
     if row.ket_qua_json:
-        kiem = await ct_svc.thu_chi_tiet(session, row, dc) if _can_hoi_chi_tiet(row) else None
+        kiem = await ct_svc.thu_chi_tiet(session, row, dc, tb) if _can_hoi_chi_tiet(row) else None
         out = await _xuat(session, row, None, tb=tb, bg=bg, kiem=kiem)
         await session.commit()
         return out
@@ -375,7 +379,7 @@ async def vao(
         created_at=func.clock_timestamp(), **khoa_bai)
     session.add(row)
     await _dong_bo(session, row, bai)
-    kiem = await _sau_nop(session, row, dc)
+    kiem = await _sau_nop(session, row, dc, tb)
     out = await _xuat(session, row, bai, tb=tb, bg=bg, kiem=kiem)
     await session.commit()
     return out
@@ -474,7 +478,7 @@ async def nop(
     # (KB 19) — Testbank cũng chỉ ghi một lần, đây là để hai bên thấy cùng một bản.
     row = await _bai_hoac_404(session, uid, de_id, khoa=True)
     if row.ket_qua_json:
-        kiem = await ct_svc.thu_chi_tiet(session, row, dc) if _can_hoi_chi_tiet(row) else None
+        kiem = await ct_svc.thu_chi_tiet(session, row, dc, tb) if _can_hoi_chi_tiet(row) else None
         out = await _xuat(session, row, None, tb=tb, bg=bg, kiem=kiem)
         await session.commit()
         return out
@@ -496,7 +500,7 @@ async def nop(
         row.tra_loi_json = json.dumps(da_chon, ensure_ascii=False)
     # Hết giờ / thầy cô đóng bài trước lúc nộp: chỉ các câu ĐÃ LƯU được tính -> giữ nguyên bản đã lưu.
     await _dong_bo(session, row, bai)
-    kiem = await _sau_nop(session, row, dc)
+    kiem = await _sau_nop(session, row, dc, tb)
     out = await _xuat(session, row, bai, tb=tb, bg=bg, kiem=kiem)
     await session.commit()
     return out

@@ -56,6 +56,8 @@ def cau_kieu_kho(c: dict) -> dict:
         "options": [{"key": p["khoa"], "label": p.get("nhan") or p["khoa"], "text": p.get("noi_dung") or ""}
                     for p in c.get("phuong_an") or []],
         "answer_key": c.get("dap_an") or "", "explanation": c.get("bai_giai") or "",
+        # Đáp án này CHÍNH LÀ của kho (đã đối chiếu nội dung với kho lúc lấy): khỏi gọi kho so lại.
+        "_tu_kho": bool(c.get("_tu_kho")),
     }
 
 
@@ -79,18 +81,25 @@ async def _chep_tu_kho(session: AsyncSession, tb: TestbankClient, can: dict[str,
     cu = await ly_do_svc._doc(session, [{"qid": q, "version": v} for q, v in cap])
     if not cu:
         return
-    try:
-        async with asyncio.timeout(_HAN_KHO_GIAY):
-            kho = await lay_cau(tb, sorted({q for q, _ in cap if q in cu}))
-    except Exception as e:  # noqa: BLE001 — kho chậm / chết: không chép được, để sinh mới
-        log.warning("Không lấy được nội dung kho để so với tờ đề (%s)", type(e).__name__)
-        return
-    theo_qid = {k["qid"]: k for k in kho}
+    cho_so = {q for q, _ in cap if q in cu and any(
+        not c["_tu_kho"] and c["qid"] == q for c in can.values())}
+    theo_qid: dict[str, dict] = {}
+    if cho_so:
+        try:
+            async with asyncio.timeout(_HAN_KHO_GIAY):
+                kho = await lay_cau(tb, sorted(cho_so))
+        except Exception as e:  # noqa: BLE001 — kho chậm / chết: không chép được, để sinh mới
+            log.warning("Không lấy được nội dung kho để so với tờ đề (%s)", type(e).__name__)
+            return
+        theo_qid = {k["qid"]: k for k in kho}
     dong = []
     for h, c in can.items():
-        k = theo_qid.get(c["qid"])
-        if k is None or (k.get("version") or "") != c["version"] or dau_van(k) != h:
-            continue                       # tờ đề đã bị sửa so với kho (hoặc khác phiên bản): KHÔNG dùng
+        if not c["_tu_kho"]:
+            k = theo_qid.get(c["qid"])
+            if k is None or (k.get("version") or "") != c["version"] or dau_van(k) != h:
+                continue                   # tờ đề đã bị sửa so với kho (hoặc khác phiên bản): KHÔNG dùng
+        elif c["qid"] not in cu:
+            continue
         for key, v in (cu.get(c["qid"]) or {}).items():
             dong.append({"noi_dung_hash": h, "option_key": key, "noi_dung": v["noi_dung"], "nguon": "kho"})
         dong.append({"noi_dung_hash": h, "option_key": "", "noi_dung": "", "nguon": "kho"})
@@ -127,7 +136,7 @@ async def doc_ly_do(session: AsyncSession, tb: TestbankClient | None, caus: list
 
     co, da_sinh = await doc()
     chua = {h: kho_cau[s] for s, h in hash_cua.items() if h not in da_sinh}
-    if chua and tb is not None:
+    if chua and (tb is not None or any(c["_tu_kho"] for c in chua.values())):
         await _chep_tu_kho(session, tb, chua)
         co, da_sinh = await doc()
 

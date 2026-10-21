@@ -1,11 +1,16 @@
 """Chi tiết sau nộp của bài theo mã Testbank mức 1 (US-30): kết quả theo YCCĐ + Đề xuất ngay sau
 nộp (giai đoạn 1), đáp án + lời giải + lý do từng phương án khi thầy cô đã đóng lượt (giai đoạn 2).
 
+Đáp án SAU NỘP (quyết định mới): lượt chưa đóng thì learning tự lấy đáp án / lời giải của KHO theo (mã câu,
+phiên bản) — `app/exam/dap_an_kho.py` có hai rào (câu thầy cô đã sửa; chấm lại lệch Testbank). Câu qua rào hiện
+như đề tự sinh; câu vướng rào chỉ hiện Đúng/Sai. Khi lượt đã đóng thì đáp án của CHÍNH tờ đề (`chi-tiet`) thay thế.
+
 Luồng dữ liệu một chiều: Testbank `GET /doi-tac/bai-lam/{id}/chi-tiet` -> `chep_chi_tiet` (bản chép
 trong `de_cuoi_ky.chi_tiet_json`) -> `dung_ket_qua` (dựng phản hồi cho trình duyệt). Mọi thứ trình duyệt
-nhận đều đi qua `dung_ket_qua`, và nó chỉ đưa đáp án / lời giải / lý do ra khi CỜ CỦA CHÍNH BÀI NÀY
-(`dap_an_mo`, lấy từ Testbank) bật — không bao giờ dựa vào chuyện learning "có sẵn" dữ liệu (kho,
-bộ nhớ đệm, bài của lượt phát khác cùng nội dung): phần đó KB 22 cấm.
+nhận đều đi qua `dung_ket_qua`, và nó đưa đáp án / lời giải / lý do ra khi CỜ CỦA CHÍNH BÀI NÀY
+(`dap_an_mo`, lấy từ Testbank) bật, HOẶC cho từng câu đã qua hai rào của `dap_an_kho` (đáp án kho đã đối chiếu
+với tờ đề và với điểm Testbank). Không bao giờ dựa vào thứ learning "tình cờ có sẵn" (bộ nhớ đệm, bài của lượt
+phát khác cùng nội dung) mà chưa qua rào.
 
 Thời điểm hỏi Testbank (không bao giờ ở nền, không định kỳ):
   nộp xong · nhận ra bài đã bị tự nộp · học sinh mở lại một bài chưa có đáp án.
@@ -21,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import cuoi_ky as ck
 from app.config import settings
 from app.db.models import DeCuoiKy, QuizAttempt, QuizAttemptItem
+from app.exam import dap_an_kho
 from app.exam import ly_do as ly_do_svc
 from app.exam import ly_do_to_de
 from app.integrations.testbank import cham as cham_svc
@@ -124,10 +130,21 @@ async def _ghi_thong_ke(session: AsyncSession, row: DeCuoiKy, cau: list[dict],
     await session.flush()
 
 
-async def chep_chi_tiet(session: AsyncSession, row: DeCuoiKy, ct: dict) -> None:
-    """Chép chi tiết Testbank vừa trả vào bài + ghi thống kê (một lần). Chưa commit."""
+async def chep_chi_tiet(session: AsyncSession, row: DeCuoiKy, ct: dict, tb: TestbankClient | None = None) -> None:
+    """Chép chi tiết Testbank vừa trả vào bài + ghi thống kê (một lần). Chưa commit.
+
+    Lượt chưa đóng: lấy đáp án từ KHO (`dap_an_kho`) cho các câu chưa có. Quyết định cũ của câu (đã lấy, hoặc
+    bị rào) giữ qua các lần chép lại — mỗi lần mở lại không gọi kho nữa."""
     hien = bool(ct.get("hien_dap_an_cho_hoc_sinh"))
     cau = [chep_cau(c, hien) for c in ct.get("cau") or []]
+    if not hien:
+        cu = {(c.get("qid"), c.get("phien_ban")): c["kho"]
+              for c in (json.loads(row.chi_tiet_json)["cau"] if row.chi_tiet_json else []) if "kho" in c}
+        for c in cau:
+            if (c["qid"], c["phien_ban"]) in cu:
+                c["kho"] = cu[(c["qid"], c["phien_ban"])]
+        kq = json.loads(row.ket_qua_json) if row.ket_qua_json else {"cau": []}
+        await dap_an_kho.bo_sung(tb, cau, {k["stt"]: k.get("chon", "") for k in kq["cau"]}, nhan_bai=row.id)
     row.chi_tiet_json = json.dumps({"cau": cau}, ensure_ascii=False)
     if hien:
         row.dap_an_mo = True
@@ -146,7 +163,8 @@ async def _vua_hoi(session: AsyncSession, row: DeCuoiKy) -> bool:
         "FROM de_cuoi_ky WHERE id = :id"), {"n": HAN_DOC_LAI_GIAY, "id": row.id}))
 
 
-async def thu_chi_tiet(session: AsyncSession, row: DeCuoiKy, dc: DoiTacClient | None) -> str:
+async def thu_chi_tiet(session: AsyncSession, row: DeCuoiKy, dc: DoiTacClient | None,
+                       tb: TestbankClient | None = None) -> str:
     """Lấy chi tiết sau nộp của bài mức 1 ĐÃ NỘP nếu cần. Gọi khi `row` đã bị khoá (FOR UPDATE).
     Không ném lỗi: kết quả là một trong các hằng ở đầu file, chỗ gọi dựng thông điệp. Chưa commit."""
     if not settings.testbank_chi_tiet_sau_nop_bat:
@@ -179,7 +197,7 @@ async def thu_chi_tiet(session: AsyncSession, row: DeCuoiKy, dc: DoiTacClient | 
         return LOI_TAM
     try:
         async with session.begin_nested():
-            await chep_chi_tiet(session, row, ct)
+            await chep_chi_tiet(session, row, ct, tb)
             row.kiem_luc = func.clock_timestamp()
     except Exception:  # noqa: BLE001 — dữ liệu lạ từ Testbank: điểm của em không được mất vì phần phụ
         log.exception("Không chép được chi tiết sau nộp")
@@ -195,11 +213,21 @@ def giai_doan(row: DeCuoiKy) -> int:
     return 2 if row.dap_an_mo else 1
 
 
+def co_dap_an_kho(row: DeCuoiKy) -> bool:
+    """Có ít nhất một câu đã qua rào và hiện đáp án kho (lượt chưa đóng)."""
+    if row.muc != 1 or not row.chi_tiet_json:
+        return False
+    return any((c.get("kho") or {}).get("t") == dap_an_kho.OK for c in json.loads(row.chi_tiet_json)["cau"])
+
+
 def ghi_chu(row: DeCuoiKy, kiem: str | None) -> list[str]:
-    """Các dòng trạng thái đặt trên màn kết quả (thông điệp đúng chữ của US-30)."""
+    """Các dòng trạng thái đặt trên màn kết quả (thông điệp đúng chữ của US-30). Đã hiện đáp án kho cho ít nhất
+    một câu thì BỎ dòng "đáp án sẽ mở khi thầy cô đóng bài" (sai sự thật); mọi câu bị rào thì giữ."""
     gd = giai_doan(row)
     if gd == 2:
         return [MSG_DA_DONG]
+    if co_dap_an_kho(row):
+        return []
     het = row.het_han_dap_an or kiem == HET_HAN
     if gd == 1:
         if het:
@@ -217,14 +245,26 @@ def ghi_chu(row: DeCuoiKy, kiem: str | None) -> list[str]:
     return []
 
 
+def _hieu_luc(c: dict, da_dong: bool) -> tuple[dict, bool]:
+    """(câu dùng để dựng phản hồi, có hiện đáp án không). Câu qua rào của kho: ghép đáp án / lời giải / hình của
+    kho vào bản chép (bản chép trong DB vẫn không có đáp án của tờ đề)."""
+    if da_dong:
+        return c, True
+    kho = c.get("kho") or {}
+    if kho.get("t") != dap_an_kho.OK:
+        return c, False
+    return {**c, "dap_an": kho["dap_an"], "bai_giai": kho["bai_giai"], "anh": {**c["anh"], **kho["anh"]},
+            "anh_co": {**c["anh_co"], **kho["anh_co"]}, "_tu_kho": True}, True
+
+
 def _dung_sai(c: dict) -> dict[str, bool]:
     return ly_do_svc.dung_sai(ly_do_to_de.cau_kieu_kho(c)) if c["phuong_an"] else {}
 
 
 async def dung_ket_qua(session: AsyncSession, row: DeCuoiKy, tb: TestbankClient | None
                        ) -> tuple[dict, list[tuple[str, dict]]]:
-    """`ket_qua` của bài mức 1 ĐÃ NỘP, kèm (khi có bản chép) kết quả theo YCCĐ, khối Đề xuất và — chỉ khi
-    `dap_an_mo` — đáp án / lời giải / lý do. Trả thêm việc sinh lý do nền để chỗ gọi lên lịch.
+    """`ket_qua` của bài mức 1 ĐÃ NỘP, kèm (khi có bản chép) kết quả theo YCCĐ, khối Đề xuất và — khi `dap_an_mo`, hoặc
+    với câu đã qua rào của kho (`_hieu_luc`) — đáp án / lời giải / lý do. Trả thêm việc sinh lý do nền để chỗ gọi lên lịch.
 
     Khối Đề xuất tính lại mỗi lần theo kho học liệu hiện tại (US-27 Q11), không lưu."""
     kq = json.loads(row.ket_qua_json)
@@ -232,18 +272,17 @@ async def dung_ket_qua(session: AsyncSession, row: DeCuoiKy, tb: TestbankClient 
     if gd == 0:
         return {**kq, "giai_doan": 0}, []
     ct = json.loads(row.chi_tiet_json)["cau"]
-    mo = gd == 2
     ban_do = await ck._ban_do_yccd(session, de_xuat_svc.TB_MON, de_xuat_svc.TB_LOP)
     theo_kq = {k["stt"]: k for k in kq["cau"]}
     goc = settings.testbank_content_url
 
-    ly, viec = ({}, [])
-    if mo:
-        ly, viec = await ly_do_to_de.doc_ly_do(session, tb, ct)
+    # Câu nào hiện đáp án: lượt đã đóng -> mọi câu (đáp án của tờ đề); chưa đóng -> câu đã qua rào của kho.
+    hieu = [_hieu_luc(c, gd == 2) for c in ct]
+    ly, viec = await ly_do_to_de.doc_ly_do(session, tb, [e for e, co in hieu if co])
 
     cau_ra: list[dict] = []
     cho_de_xuat: list[dict] = []
-    for c in ct:
+    for c, mo in hieu:
         k = theo_kq.get(c["stt"], {})
         # Nhãn / điểm của câu tự luận lấy theo LẦN CHÉP MỚI NHẤT (thầy cô có thể đã chấm); câu chấm
         # tự động giữ đúng như lúc nộp — "đúng / sai, điểm không đổi giữa hai giai đoạn" (KB 14).
@@ -272,6 +311,8 @@ async def dung_ket_qua(session: AsyncSession, row: DeCuoiKy, tb: TestbankClient 
                 "ly_do": {key: {"noi_dung": nd, "dung": ds.get(key, False)} for key, nd in li["ly_do"].items()},
                 "ly_do_ghi_chu": ly_do_to_de.MSG_DANG_CHUAN_BI if li["trang_thai"] == "dang_chuan_bi" else "",
             })
+        elif (c.get("kho") or {}).get("t") in (dap_an_kho.SUA, dap_an_kho.LECH):
+            item["ghi_chu_cau"] = dap_an_kho.MSG_DA_CHINH
         cau_ra.append(item)
         cho_de_xuat.append({**item, "qid": c["qid"], "dap_an": "", "dap_an_html": None})
 

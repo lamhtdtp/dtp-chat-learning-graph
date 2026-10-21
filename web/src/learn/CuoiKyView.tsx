@@ -187,6 +187,7 @@ export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai, tuLuanNhap }: {
       )}
 
       {daNop && kq!.ly_do_ghi_chu && <div className="ck-tl">{kq!.ly_do_ghi_chu}</div>}
+      {daNop && kq!.ghi_chu_cau && <div className="ck-tl">{kq!.ghi_chu_cau}</div>}
       {daNop && kq!.giai_html && (
         <div className="ex-giai"><b>Lời giải:</b> <span dangerouslySetInnerHTML={{ __html: kq!.giai_html }} /></div>
       )}

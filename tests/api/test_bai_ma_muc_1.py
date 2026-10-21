@@ -148,10 +148,13 @@ def _khong_dung_redis(mocker):
 
 @pytest.fixture(autouse=True)
 def _xoa_cache():
+    from app.exam import dap_an_kho
     from app.lessons import de_xuat
     de_xuat.xoa_cache()
+    dap_an_kho.xoa_cache()
     yield
     de_xuat.xoa_cache()
+    dap_an_kho.xoa_cache()
 
 
 @pytest_asyncio.fixture
@@ -312,7 +315,7 @@ async def test_kb6_loi_vao_thi_bang_duong_doi_tac(canh, caplog, tra, thong_bao, 
 async def test_kb7_nop_khi_luot_con_mo(canh):
     an = await canh.hs()
     out = await canh.lam_va_nop(an)
-    assert out["giai_doan"] == 1 and out["ghi_chu"] == [MSG_CHO] and out["co_chi_tiet"] is True
+    assert out["giai_doan"] == 1 and out["ghi_chu"] == [] and out["co_chi_tiet"] is True
     kq = out["ket_qua"]
     assert kq["diem"] == 3.25 and kq["tong"] == 4.5          # 6 câu đúng x 0,5 + 1 câu đúng một phần x 0,25 and kq["so_cau_cho_cham"] == 1 and kq["khong_cham"] == 1
     nhan = {c["stt"]: c["nhan"] for c in kq["cau"]}
@@ -327,8 +330,11 @@ async def test_kb7_nop_khi_luot_con_mo(canh):
     sai = [c for c in kq["cau"] if c["stt"] in (3, 9, 10)]
     assert all(c["topic_id"] and c["bai_xuat_ban"] is True for c in sai)
     assert next(c for c in kq["cau"] if c["stt"] == 1)["dung"] is True
-    # tuyệt đối không có đáp án / lời giải / lý do / hình lời giải
-    _bi_mat_khong_lo(out, ANH_GIAI, "Lời giải")
+    # Quyết định mới: lượt chưa đóng thì câu qua rào của kho (6-10, nội dung tờ đề = kho) có đáp án + lời giải;
+    # câu 1-5 nội dung tờ đề khác kho -> không có đáp án nào (chi tiết ở mục L). Hình lời giải của TỜ ĐỀ không lộ.
+    _bi_mat_khong_lo({"cau": [c for c in kq["cau"] if c["stt"] <= 5]}, ANH_GIAI, "Lời giải")
+    assert out["ghi_chu"] == [] and out["co_giai_thich"] is True
+    assert ANH_GIAI not in json.dumps(out, ensure_ascii=False)
     assert out["trang_thai"] == "DA_NOP"
 
 
@@ -439,7 +445,7 @@ async def test_kb12_chua_lay_duoc_chi_tiet_luc_nop(canh, monkeypatch, caplog, ti
     if tinh_huong != "tat_co":
         canh.gia.chi_tiet_loi = None                                            # lần mở sau Testbank trả chi tiết
         out2 = await canh.mo(an, out["de_id"])
-        assert out2["giai_doan"] == 1 and out2["ghi_chu"] == [MSG_CHO]
+        assert out2["giai_doan"] == 1 and out2["ghi_chu"] == []      # đã có đáp án kho: bỏ dòng "mở khi đóng bài"
         await canh.mo(an, out["de_id"])
         n = (await canh.session.execute(select(func.count()).select_from(QuizAttempt)
                                         .where(QuizAttempt.user_id == an.id))).scalar()
@@ -536,7 +542,7 @@ async def test_kb15_chi_kiem_khi_mo_bai_va_toi_da_mot_lan_moi_60_giay(canh):
     # mở một bài chờ đáp án (lượt chưa đóng) nhiều lần: nhiều nhất một lần hỏi trong 60 giây
     for _ in range(5):
         out = await canh.mo(an, ds[0]["de_id"])
-        assert out["giai_doan"] == 1 and out["ghi_chu"] == [MSG_CHO]
+        assert out["giai_doan"] == 1 and out["ghi_chu"] == []        # có đáp án kho (mục L)
     assert len(canh.gia.goi) == truoc
     await canh.xem_lai_het_han()
     await canh.mo(an, ds[0]["de_id"])
@@ -674,10 +680,14 @@ async def test_kb20_qua_han_xem_lai_tren_testbank(canh):
     out = await canh.mo(an, a["de_id"])
     assert out["giai_doan"] == 2 and len(canh.gia.goi) == truoc              # An: từ bản chép, không gọi Testbank
     ob = await canh.mo(binh, b["de_id"])                                     # Bình chưa từng mở sau khi đóng
-    assert ob["giai_doan"] == 1 and ob["ghi_chu"] == [MSG_QUA_HAN] and "dap_an" not in json.dumps(ob)
+    # Bình chỉ có đáp án KHO chép lúc nộp (câu qua rào); câu 1-5 không có đáp án nào. Có đáp án nên không còn
+    # dòng "quá hạn mở đáp án"; chữ đó chỉ còn khi mọi câu bị rào (test mục L).
+    assert ob["giai_doan"] == 1 and ob["ghi_chu"] == []
+    assert all("dap_an" not in c for c in ob["ket_qua"]["cau"] if c["stt"] <= 5)
+    assert all("dap_an" in c for c in ob["ket_qua"]["cau"] if c["stt"] >= 6)
     sau = len(canh.gia.goi)
     ob2 = await canh.mo(binh, b["de_id"])
-    assert ob2["ghi_chu"] == [MSG_QUA_HAN] and len(canh.gia.goi) == sau      # các lần sau không gọi lại
+    assert ob2["ghi_chu"] == [] and len(canh.gia.goi) == sau                 # các lần sau không gọi lại
     assert ob2["ket_qua"]["theo_ycd"] == ob["ket_qua"]["theo_ycd"]
 
 
@@ -725,15 +735,23 @@ async def test_kb22_khong_lo_dap_an_truoc_khi_dong_ke_ca_khi_learning_co_san(can
     canh.gia.ro_dap_an = True                                              # Testbank lỡ để lọt đáp án khi lượt còn mở
     an = await canh.hs()
     d = await canh.vao(an)
-    tat_ca = [d]
-    nop = await canh.luu_nop(an, d["de_id"])
-    tat_ca += [nop, await canh.mo(an, d["de_id"]), await canh.vao(an),
-               (await canh.client.get("/exam/cuoi-ky", headers=an.h)).json()]
-    raw = json.dumps(tat_ca, ensure_ascii=False)
+    # TRƯỚC NỘP (đang làm, lưu dần, mở lại, nhập lại mã, lịch sử): tuyệt đối không có đáp án nào, kể cả khi
+    # learning có sẵn đáp án + lý do của cùng mã câu và Testbank lỡ để lọt.
+    luu = await canh.client.put(f"/exam/ma/{d['de_id']}/tra-loi", headers=an.h,
+                                json={"cau": [{"stt": 6, "chon": "C", "seq": 1}]})
+    truoc_nop = [d, luu.json(), await canh.mo(an, d["de_id"]), await canh.vao(an),
+                 (await canh.client.get("/exam/cuoi-ky", headers=an.h)).json()]
+    raw = json.dumps(truoc_nop, ensure_ascii=False)
     for cam in ("BI MAT", "dap_an", "giai_html", "ly_do", "Lời giải", "giai.png", ANH_GIAI, "answer_key"):
         assert cam not in raw, cam
-    assert nop["giai_doan"] == 1 and nop["ghi_chu"] == [MSG_CHO]
-    # bản chép cũng không giữ đáp án
+    assert not [g for g in canh.kho.goi_list if g[1] == "/questions:resolve" and g[2].get("include_answers")]
+    # SAU NỘP, lượt còn mở: đáp án của KHO cho câu qua rào (6-10); câu 1-5 không. Bản chép của TỜ ĐỀ vẫn
+    # không giữ đáp án của Testbank lỡ để lọt.
+    nop = await canh.luu_nop(an, d["de_id"])
+    assert nop["giai_doan"] == 1 and nop["ghi_chu"] == []
+    cau = {c["stt"]: c for c in nop["ket_qua"]["cau"]}
+    assert cau[6]["dap_an"] == "C" and all("dap_an" not in cau[i] for i in range(1, 6))
+    assert "giai.png" not in json.dumps(nop) and ANH_GIAI not in json.dumps(nop)      # hình lời giải của tờ đề
     ct = (await canh.session.execute(text("SELECT chi_tiet_json FROM de_cuoi_ky WHERE id = :i"),
                                      {"i": d["de_id"]})).scalar()
     assert all(c["dap_an"] is None and c["bai_giai"] is None for c in json.loads(ct)["cau"])
@@ -761,7 +779,8 @@ async def test_kb23_chi_chu_bai_xem_duoc_bi_mat_khong_xuong_trinh_duyet_va_log(c
         x = await tk(canh.client, vai)
         r = await canh.client.get(f"/exam/ma/{a['de_id']}", headers=x.h)
         assert r.status_code in (403, 404) and r.json()["detail"] != "Bài" and "dap_an" not in r.text
-    _bi_mat_khong_lo(a)
+    for k in ("khoa_bai_lam", "bai_lam_tb_id", "bai_lam_id"):
+        assert k not in json.dumps([a, day_du]), k
     # không token / mã bài làm / đáp án trong log
     for cam in (bai_id, "tok-dich-vu", "Bearer", "Lời giải", "LÝ DO", "dap_an"):
         assert cam not in caplog.text, cam
@@ -778,7 +797,9 @@ async def test_kb24_testbank_chet_khi_mo_bai_cho_dap_an(canh, loi):
     canh.gia.chi_tiet_loi = loi
     await canh.xem_lai_het_han()
     out = await canh.mo(an, a["de_id"])
-    assert out["giai_doan"] == 1 and out["ghi_chu"] == [MSG_CHO, MSG_CHUA_KIEM]
+    # Đã có đáp án kho từ lúc nộp nên không cần dòng "mở khi đóng bài" / "chưa kiểm tra được" (mục L giữ hai
+    # dòng đó cho trường hợp mọi câu bị rào).
+    assert out["giai_doan"] == 1 and out["ghi_chu"] == []
     for k in ("diem", "tong", "dat_yeu_cau"):
         assert out["ket_qua"][k] == a["ket_qua"][k]
     assert out["ket_qua"]["theo_ycd"] == a["ket_qua"]["theo_ycd"]
@@ -853,3 +874,196 @@ async def test_token_dich_vu_that_dang_nhap_lam_moi_va_thu_lai_khi_401():
     dc = DoiTacClient("http://tb.t/api/delivery", tb)
     r = await dc.xem("BAI-LAM-ID-BI-MAT")
     assert r["bai_lam_id"] == "x" and cap["dang_nhap"] == 2 and cap["bearer"] == ["Bearer a1", "Bearer a2"]
+
+
+# ═══ L. Đáp án từ KHO ngay sau nộp (quyết định mới: đề giao hiện như đề tự sinh) ═══════════════════════
+ANH_DE = "3f2a" + "0" * 26 + "e9"
+MSG_DA_CHINH = "Câu này thầy cô đã chỉnh, đáp án sẽ có khi thầy cô chữa bài"
+_DAP_AN_KHO = {1: ("B", "Xem hình [[anh:" + ANH_GIAI + "]]"), 2: ("A,B", "Hai số nguyên tố"), 3: ("Đ,S", "Ý 2 sai"),
+               4: ("3", "1 + 2 = 3"), 5: ("", "Gợi ý: phân tích thừa số")}
+
+
+def _vao_kho_giong_to_de(canh: Canh) -> None:
+    """Đặt kho cho câu 1-5 GIỐNG HỆT tờ đề (mặc định `canh` chỉ có câu 6-10 giống) và có đáp án + lời giải, để cả
+    mười câu (đủ TN1 / TNN / DS / DSN / TL, câu có hình) đi qua rào."""
+    from tests.api.delivery_gia import cau_mau
+    for i, c in enumerate(cau_mau()[:5], start=1):
+        dap, giai = _DAP_AN_KHO[i]
+        anh = {**(c.get("anh") or {}), **({ANH_GIAI: "/api/content/media/9b/7c/giai.png"} if i == 1 else {})}
+        canh.kho.kho[canh.the.qid(i)] = {
+            **canh.kho.kho[canh.the.qid(i)], "format_code": c["dang"], "stem": c["de_bai"],
+            # DS: Testbank phát đề đánh số lại khoá ý ("1", "2"), kho giữ "A", "B" — như bản Testbank thật.
+            "options": [{"key": "AB"[j] if c["dang"] == "DS" else p["khoa"], "label": p["nhan"], "text": p["noi_dung"]}
+                        for j, p in enumerate(c["phuong_an"])],
+            "answer_key": dap, "explanation": giai, "assets": anh, "asset_sizes": c.get("anh_co") or {}}
+
+
+def _resolve_co_dap_an(canh: Canh) -> list:
+    return [g for g in canh.kho.goi_list if g[1] == "/questions:resolve" and g[2].get("include_answers")]
+
+
+async def test_dk1_nop_xong_hien_nhu_de_tu_sinh_khi_luot_con_mo(canh):
+    _vao_kho_giong_to_de(canh)
+    canh.llm.return_value = llm_tra("ABCD")
+    an = await canh.hs()
+    out = await canh.lam_va_nop(an)
+    assert out["giai_doan"] == 1 and out["ghi_chu"] == [] and out["co_giai_thich"] is True
+    assert MSG_CHO not in json.dumps(out, ensure_ascii=False)
+    cau = {c["stt"]: c for c in out["ket_qua"]["cau"]}
+    # điểm vẫn của Testbank (3,25/4,5), Đúng/Sai của từng câu là của Testbank
+    assert (out["ket_qua"]["diem"], out["ket_qua"]["tong"]) == (3.25, 4.5)
+    assert cau[1]["dap_an"] == "B" and cau[1]["dung"] is True
+    assert "giai.png" in cau[1]["giai_html"] and "<img" in cau[1]["giai_html"]          # câu có hình: hình lời giải của KHO
+    assert cau[3]["dap_an"] == "Đ,S" and cau[3]["dung"] is False and (cau[3]["so_y_dung"], cau[3]["so_y"]) == (1, 2)
+    assert cau[4]["dap_an"] == "3" and cau[2]["dap_an"] == "A,B"
+    assert cau[5]["dang"] == "TL" and cau[5]["cham_duoc"] is False and "phân tích" in cau[5]["giai_html"]   # tự luận
+    assert cau[9]["dung"] is False and cau[9]["dap_an"] == "C" and cau[9]["topic_id"] and cau[9]["bai_xuat_ban"] is True
+    assert all("ghi_chu_cau" not in c for c in cau.values())
+    assert out["ket_qua"]["theo_ycd"] and out["ket_qua"]["de_xuat"]["test_them"]       # khung YCCĐ + Đề xuất như cũ
+    # lý do từng phương án sinh nền từ ĐÁP ÁN KHO, mở lại là thấy (không chặn việc xem đáp án)
+    cau2 = {c["stt"]: c for c in (await canh.mo(an, out["de_id"]))["ket_qua"]["cau"]}
+    assert cau2[7]["ly_do"]["C"] == {"noi_dung": "LÝ DO C", "dung": True} and cau2[7]["ly_do"]["A"]["dung"] is False
+    # bản chép trong DB có đáp án kho, bản chép của TỜ ĐỀ thì không
+    ct = json.loads((await canh.session.execute(text("SELECT chi_tiet_json FROM de_cuoi_ky WHERE id = :i"),
+                                                {"i": out["de_id"]})).scalar())["cau"]
+    assert ct[0]["dap_an"] is None and ct[0]["kho"]["dap_an"] == "B"
+
+
+async def test_dk2_thong_ke_mot_lan_xp_khong_cong_hai_lan_va_mo_lai_khong_goi_kho(canh):
+    _vao_kho_giong_to_de(canh)
+    an = await canh.hs()
+    out = await canh.lam_va_nop(an)
+    assert len(_resolve_co_dap_an(canh)) == 1                      # đúng một lần, cả 10 câu một lô
+    xp = (await canh.session.execute(select(StudentStats.xp_total).where(StudentStats.user_id == an.id))).scalar()
+    for _ in range(3):
+        o = await canh.mo(an, out["de_id"])
+        assert o["ket_qua"]["cau"][0]["dap_an"] == "B"
+    await canh.xem_lai_het_han()                                     # qua 60 giây: hỏi lại Testbank, KHÔNG hỏi lại kho
+    o = await canh.mo(an, out["de_id"])
+    assert o["ket_qua"]["cau"][8]["dap_an"] == "C" and len(_resolve_co_dap_an(canh)) == 1
+    n = (await canh.session.execute(select(func.count()).select_from(QuizAttempt)
+                                    .where(QuizAttempt.user_id == an.id))).scalar()
+    xp2 = (await canh.session.execute(select(StudentStats.xp_total).where(StudentStats.user_id == an.id))).scalar()
+    assert n == 1 and xp2 == xp
+    # lượt đóng: đáp án của CHÍNH tờ đề thay thế, vẫn một lần nộp, không cộng XP
+    canh.gia.dong(MA)
+    await canh.xem_lai_het_han()
+    assert (await canh.mo(an, out["de_id"]))["giai_doan"] == 2
+    assert (await canh.session.execute(select(StudentStats.xp_total).where(StudentStats.user_id == an.id))).scalar() == xp
+
+
+async def test_dk3_hoc_sinh_thu_hai_cung_to_de_dung_bo_nho_dem_theo_ma_cau_phien_ban(canh):
+    _vao_kho_giong_to_de(canh)
+    an, binh = await canh.hs("An"), await canh.hs("Bình")
+    await canh.lam_va_nop(an)
+    b = await canh.lam_va_nop(binh)
+    assert len(_resolve_co_dap_an(canh)) == 1
+    assert b["ket_qua"]["cau"][0]["dap_an"] == "B"
+
+
+async def test_dk4_cau_thay_co_sua_rieng_khong_hien_dap_an_kho(canh):
+    _vao_kho_giong_to_de(canh)
+    qid = canh.the.qid(6)
+    pa = [{"khoa": o["key"], "nhan": o["key"], "noi_dung": o["text"]} for o in canh.kho.kho[qid]["options"]]
+    pa[1] = {**pa[1], "noi_dung": "7 (đã sửa)"}
+    sua = {
+        6: {"phuong_an": pa},                                                 # sửa một phương án
+        7: {"de_bai": canh.kho.kho[canh.the.qid(7)]["stem"].replace(" ", "   ")},   # chỉ khác khoảng trắng: vẫn khớp
+        8: {"de_bai": "Đề đã đổi số liệu"},                                  # sửa đề bài
+        9: {"qid": ""},                                                      # thiếu mã câu
+        10: {"phien_ban": "V02"},                                            # kho đang ở V01: không có bản này
+    }
+    canh.phat(sua=sua)
+    an = await canh.hs()
+    out = await canh.lam_va_nop(an, chon={i: "A" for i in range(1, 11)})
+    cau = {c["stt"]: c for c in out["ket_qua"]["cau"]}
+    for i in (6, 8, 9, 10):
+        assert "dap_an" not in cau[i] and "giai_html" not in cau[i] and "dap_an_html" not in cau[i], i
+        assert cau[i]["ghi_chu_cau"] == MSG_DA_CHINH
+    assert cau[7]["dap_an"] == "C" and "ghi_chu_cau" not in cau[7]            # chuẩn hoá khoảng trắng rồi mới so
+    assert cau[1]["dap_an"] == "B"
+    # vẫn có Đúng / Sai + điểm của Testbank + "Chưa đúng" / bài học cho câu rào
+    assert cau[9]["cham_duoc"] is True and cau[9]["dung"] is not None and cau[9]["nhan"] in ("Đúng", "Sai")
+    assert out["ghi_chu"] == []                                              # còn câu có đáp án
+    raw = json.dumps(out["ket_qua"], ensure_ascii=False)            # (nội dung tờ đề nằm ở `cau`, không ở kết quả)
+    assert "7 (đã sửa)" not in raw and f"Lời giải {qid}" not in raw
+
+
+async def test_dk5_cham_lai_bang_dap_an_kho_lech_testbank_thi_khong_hien(canh, caplog):
+    _vao_kho_giong_to_de(canh)
+    # Thầy cô đổi đáp án câu 7 của TỜ ĐỀ thành A (kho vẫn C), nội dung chữ giữ nguyên; em chọn A: Testbank chấm Đúng,
+    # chấm bằng kho ra Sai -> lệch. Câu 8 (em chọn C, cả hai cùng Đúng) vẫn hiện.
+    canh.phat(sua={7: {"dap_an": "A"}})
+    an = await canh.hs()
+    with caplog.at_level(logging.DEBUG):
+        out = await canh.lam_va_nop(an, chon={7: "A", 8: "C"})
+    cau = {c["stt"]: c for c in out["ket_qua"]["cau"]}
+    assert cau[7]["dung"] is True and cau[7]["nhan"] == "Đúng"               # điểm là của Testbank
+    assert "dap_an" not in cau[7] and "giai_html" not in cau[7] and cau[7]["ghi_chu_cau"] == MSG_DA_CHINH
+    assert cau[8]["dap_an"] == "C"
+    assert "CANH_BAO testbank_cham_lech" in caplog.text
+    for cam in ("Lời giải", "LÝ DO", "tok-dich-vu", "Bearer"):
+        assert cam not in caplog.text, cam
+    # lượt đóng: đáp án của tờ đề (A) thay thế
+    canh.gia.dong(MA)
+    await canh.xem_lai_het_han()
+    cau2 = {c["stt"]: c for c in (await canh.mo(an, out["de_id"]))["ket_qua"]["cau"]}
+    assert cau2[7]["dap_an"] == "A" and "ghi_chu_cau" not in cau2[7]
+
+
+async def test_dk6_moi_cau_deu_bi_rao_thi_giu_dong_cho_thay_co_dong_bai(canh):
+    canh.phat(sua={i: {"de_bai": f"Đề {i} đã chỉnh"} for i in range(1, 11)})
+    an = await canh.hs()
+    out = await canh.lam_va_nop(an)
+    assert out["ghi_chu"] == [MSG_CHO] and out["giai_doan"] == 1 and out["co_giai_thich"] is False
+    assert all("dap_an" not in c and c["ghi_chu_cau"] == MSG_DA_CHINH for c in out["ket_qua"]["cau"])
+    assert out["ket_qua"]["theo_ycd"] and out["ket_qua"]["de_xuat"]                 # khung YCCĐ + Đề xuất vẫn có
+    canh.gia.chi_tiet_loi = "500"
+    await canh.xem_lai_het_han()
+    assert (await canh.mo(an, out["de_id"]))["ghi_chu"] == [MSG_CHO, MSG_CHUA_KIEM]
+
+
+async def test_dk7_kho_chet_khi_nop_diem_van_co_lan_sau_thu_lai(canh):
+    _vao_kho_giong_to_de(canh)
+    an = await canh.hs()
+    d = await canh.vao(an)
+    kho_goc = canh.kho.goi
+
+    async def goi_chet(dich, duong, body):
+        if duong == "/questions:resolve" and body.get("include_answers"):
+            raise TestbankLoi("kho chết")
+        return await kho_goc(dich, duong, body)
+    canh.kho.goi = goi_chet
+    out = await canh.luu_nop(an, d["de_id"])
+    assert out["trang_thai"] == "DA_NOP" and out["ket_qua"]["diem"] == 3.25
+    assert out["ghi_chu"] == [MSG_CHO] and all("dap_an" not in c for c in out["ket_qua"]["cau"])
+    canh.kho.goi = kho_goc                                              # kho sống lại
+    await canh.xem_lai_het_han()
+    o = await canh.mo(an, d["de_id"])
+    assert o["ghi_chu"] == [] and o["ket_qua"]["cau"][0]["dap_an"] == "B"
+    n = (await canh.session.execute(select(func.count()).select_from(QuizAttempt)
+                                    .where(QuizAttempt.user_id == an.id))).scalar()
+    assert n == 1
+
+
+async def test_dk8_truoc_nop_khong_co_dap_an_va_khong_hoi_kho(canh):
+    _vao_kho_giong_to_de(canh)
+    an = await canh.hs()
+    d = await canh.vao(an)
+    r = await canh.client.put(f"/exam/ma/{d['de_id']}/tra-loi", headers=an.h,
+                              json={"cau": [{"stt": 1, "chon": "B", "seq": 1}]})
+    moi = await canh.mo(an, d["de_id"])
+    _bi_mat_khong_lo([d, r.json(), moi])
+    assert _resolve_co_dap_an(canh) == []
+
+
+async def test_dk9_muc_0_khong_co_ma_cau_nen_khong_co_dap_an(canh, monkeypatch):
+    """Mức 0: `/hs/*` của Testbank CỐ Ý không trả mã câu / phiên bản (schemas.py: lớp `CauHs`) nên không có gì để
+    tra đáp án kho — không đoán bằng nội dung."""
+    monkeypatch.setattr(settings, "testbank_doi_tac_bat", False)
+    _vao_kho_giong_to_de(canh)
+    an = await canh.hs()
+    out = await canh.lam_va_nop(an)
+    assert out["giai_doan"] == 0 and out["co_giai_thich"] is False
+    _bi_mat_khong_lo(out)
+    assert _resolve_co_dap_an(canh) == []

@@ -6,10 +6,12 @@ import { Cau, KetQua } from "./CuoiKyView";
 /** Bài theo MÃ THẦY CÔ PHÁT TRÊN TESTBANK (US-29), làm ngay trong app.
  *
  *  Máy chủ learning giữ khoá bài làm và gọi Testbank thay em — trình duyệt chỉ biết `de_id`.
- *  Bài mức 0 (US-29): kết quả chỉ có điểm phần chấm tự động và Đúng / Sai từng câu. Bài mức 1 (US-30)
- *  có hai giai đoạn: 1) ngay sau nộp — kết quả theo YCCĐ, khối Đề xuất, "Xem lại bài", KHÔNG có đáp án;
- *  2) khi thầy cô đóng bài — thêm đáp án, lời giải, lý do từng phương án. Giai đoạn do MÁY CHỦ quyết
- *  (`giai_doan`); giao diện chỉ hiện những gì máy chủ đã gửi, không tự suy ra đáp án ở đâu cả.
+ *  Bài mức 0 (US-29): kết quả chỉ có điểm phần chấm tự động và Đúng / Sai từng câu (Testbank không đưa mã câu
+ *  cho đường học sinh nên không có đáp án để tra). Bài mức 1 (US-30): ngay sau nộp hiện giống đề tự sinh — kết
+ *  quả theo YCCĐ, khối Đề xuất, "Xem lại bài", đáp án + lời giải + lý do từng phương án. Đáp án lấy từ KHO và
+ *  chỉ cho câu đã qua rào đối chiếu với tờ đề; câu bị rào hiện `ghi_chu_cau` thay đáp án, tới khi thầy cô đóng
+ *  bài (`giai_doan` 2, đáp án của chính tờ đề). MÁY CHỦ quyết câu nào có đáp án; giao diện chỉ hiện những gì
+ *  máy chủ đã gửi, không tự suy ra đáp án ở đâu cả.
  *
  *  Lựa chọn lưu dần lên Testbank; chưa lưu được (mất mạng, Testbank bận) thì GIỮ TRÊN MÁY
  *  (localStorage) và gửi lại khi có mạng — đúng điều em cần để "đừng đóng app" có nghĩa. */
@@ -62,7 +64,7 @@ function sangKetQuaCau(c: CauCuoiKy, k: KetQuaCauMa, dt: { cham_duoc: boolean; d
     don_vi: k.don_vi ?? "", chon: k.chon ?? "", dap_an: k.dap_an ?? "", dap_an_html: k.dap_an_html ?? "",
     cham_duoc: dt.cham_duoc, dung: dt.dung, so_y_dung: k.so_y_dung ?? null, so_y: k.so_y ?? null,
     giai_html: k.giai_html ?? "", ly_do: k.ly_do ?? {}, ly_do_ghi_chu: k.ly_do_ghi_chu,
-    bai_xuat_ban: k.bai_xuat_ban, chua_mo_dap_an: k.dap_an === undefined,
+    bai_xuat_ban: k.bai_xuat_ban, chua_mo_dap_an: k.dap_an === undefined, ghi_chu_cau: k.ghi_chu_cau,
   };
 }
 
@@ -80,6 +82,7 @@ function CauKhongTuCham({ c, k }: { c: CauCuoiKy; k: KetQuaCauMa }) {
       <div className="ma-chon">Bài làm của em: <b>{chonChu(c, k.chon ?? "")}</b></div>
       {k.dap_an_html && <div className="ma-chon">Đáp án: <b dangerouslySetInnerHTML={{ __html: k.dap_an_html }} /></div>}
       {k.giai_html && <div className="ex-giai"><b>Lời giải:</b> <span dangerouslySetInnerHTML={{ __html: k.giai_html }} /></div>}
+      {k.ghi_chu_cau && <div className="ck-tl">{k.ghi_chu_cau}</div>}
     </div>
   );
 }
@@ -287,7 +290,7 @@ export function BaiMaView({ bai: ban, exam, onVe, onTuSinh, onMoBai, onMoDe }: {
       )}
       {daNop && kq && (
         <div className="ot-nop">
-          <span>{bai.giai_doan === 2 ? "Chấm ở máy chủ · đáp án chỉ gửi về sau khi nộp." : ""}</span>
+          <span>{bai.giai_doan === 2 || bai.co_giai_thich ? "Chấm ở máy chủ · đáp án chỉ gửi về sau khi nộp." : ""}</span>
           <button className="btn" type="button" onClick={onTuSinh}>Làm đề tự sinh để luyện thêm</button>
         </div>
       )}
