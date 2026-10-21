@@ -129,3 +129,84 @@ async def test_nhat_ky_ghi_ca_lan_bi_tu_choi(client, session, sso_bat):
     dong = (await session.scalars(select(NhatKySsoTestbank).where(
         NhatKySsoTestbank.email == email.lower()))).all()
     assert [(d.ket_qua, d.jti) for d in dong] == [("tu_choi_vai", None)]
+
+
+# ── quay_ve (T8): chống chuyển hướng mở ──────────────────────────────────────────────────────
+
+GOC_THAT = "https://testbank.dtpsoft.vn"
+
+
+@pytest.mark.parametrize("quay_ve", [
+    "https://testbank.dtpsoft.vn/sso",
+    "https://TESTBANK.dtpsoft.vn/sso",
+    "https://testbank.dtpsoft.vn:443/sso",
+])
+async def test_quay_ve_dung_origin_duoc_nhan_va_url_dung_tu_cau_hinh(client, monkeypatch, sso_bat, quay_ve):
+    monkeypatch.setattr(settings, "testbank_web_teacher_url", GOC_THAT)
+    _, h = await tao_tai_khoan(client, "giao_vien")
+    r = await client.post("/auth/sso/testbank", json={"quay_ve": quay_ve}, headers=h)
+    assert r.status_code == 200, r.text
+    # URL dựng từ cấu hình, KHÔNG phải chuỗi người gửi (kể cả khi chỉ khác hoa/thường).
+    assert r.json()["url"].startswith(f"{GOC_THAT}/sso#phieu=")
+    assert "?" not in r.json()["url"].split("#")[0]
+
+
+@pytest.mark.parametrize("quay_ve", [
+    "https://testbank.dtpsoft.vn.evil.com/sso",         # đuôi tên miền
+    "https://evil.com/sso",
+    "//evil.com",
+    "//testbank.dtpsoft.vn/sso",                        # thiếu scheme
+    "javascript:alert(1)",
+    "https://testbank.dtpsoft.vn@evil.com/sso",         # userinfo
+    "https://evil.com@testbank.dtpsoft.vn/sso",
+    "https://testbank.dtpsoft.vn\\@evil.com/sso",       # `\` trình duyệt đọc như `/`
+    "http://testbank.dtpsoft.vn/sso",                   # http vs https
+    "https://testbank.dtpsoft.vn:8443/sso",             # cổng khác
+    "https://testbank.dtpsoft.vn/",                     # sai đường dẫn
+    "https://testbank.dtpsoft.vn/sso/../x",
+    "https://testbank.dtpsoft.vn/sso?next=https://evil.com",
+    "https://testbank.dtpsoft.vn/sso#x",
+    " https://testbank.dtpsoft.vn/sso",
+    "https://testbank.dtpsoft.vn/sso\n",
+    "https://[::1/sso",                                 # URL hỏng: không được thành 500
+    "",
+])
+async def test_quay_ve_sai_bi_400_khong_phieu_va_ghi_nhat_ky(client, session, monkeypatch, sso_bat, quay_ve):
+    monkeypatch.setattr(settings, "testbank_web_teacher_url", GOC_THAT)
+    email, h = await tao_tai_khoan(client, "giao_vien", prefix="qv")
+    r = await client.post("/auth/sso/testbank", json={"quay_ve": quay_ve}, headers=h)
+    assert r.status_code == 400 and r.json()["detail"] == "Địa chỉ quay về Testbank không hợp lệ"
+    assert "phieu" not in r.text and "x-testbank-url" not in r.headers
+    dong = (await session.scalars(select(NhatKySsoTestbank).where(
+        NhatKySsoTestbank.email == email.lower()))).all()
+    assert [(d.ket_qua, d.jti) for d in dong] == [("quay_ve_sai", None)]
+
+
+async def test_quay_ve_cong_khac_chi_nhan_khi_cau_hinh_cung_cong(client, monkeypatch, sso_bat):
+    monkeypatch.setattr(settings, "testbank_web_teacher_url", "http://localhost:5174")
+    _, h = await tao_tai_khoan(client, "giao_vien")
+    ok = await client.post("/auth/sso/testbank", json={"quay_ve": "http://localhost:5174/sso"}, headers=h)
+    sai = await client.post("/auth/sso/testbank", json={"quay_ve": "http://localhost:5175/sso"}, headers=h)
+    assert ok.status_code == 200 and sai.status_code == 400
+
+
+async def test_hoc_sinh_co_quay_ve_van_bi_403_khong_phieu(client, sso_bat):
+    _, h = await tao_tai_khoan(client, "hoc_sinh")
+    r = await client.post("/auth/sso/testbank", json={"quay_ve": f"{GOC}/sso"}, headers=h)
+    assert r.status_code == 403 and "phieu" not in r.text
+
+
+async def test_sso_tat_co_quay_ve_hop_le_khong_phieu(client, monkeypatch, sso_bat):
+    monkeypatch.setattr(settings, "sso_testbank_bat", False)
+    _, h = await tao_tai_khoan(client, "giao_vien")
+    r = await client.post("/auth/sso/testbank", json={"quay_ve": f"{GOC}/sso"}, headers=h)
+    assert r.status_code == 200 and r.json() == {"che_do": "dang_nhap", "url": GOC}
+
+
+async def test_thieu_khoa_ky_voi_quay_ve_hop_le_503_kem_dia_chi_ve_tu_cau_hinh(client, monkeypatch, sso_bat):
+    monkeypatch.setattr(settings, "sso_testbank_private_key", "")
+    _, h = await tao_tai_khoan(client, "giao_vien")
+    ok = await client.post("/auth/sso/testbank", json={"quay_ve": f"{GOC}/sso"}, headers=h)
+    khong = await client.post("/auth/sso/testbank", json={}, headers=h)
+    assert ok.status_code == 503 and ok.headers["x-testbank-url"] == GOC
+    assert khong.status_code == 503 and "x-testbank-url" not in khong.headers

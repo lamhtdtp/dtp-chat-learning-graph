@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getMe, tokenStore } from "./api";
+import { DUONG_SSO_TESTBANK, SsoTestbankView } from "./components/SsoTestbankView";
 import { LoginView } from "./components/LoginView";
 import { LearnApp } from "./learn/LearnApp";
 import { useTheme } from "./hooks/useTheme";
@@ -14,6 +15,12 @@ const CHI_CMS: Role[] = ["chuyen_gia", "admin"];
 const CHAN_CMS = "Tài khoản quản trị / chuyên gia không dùng được ở đây. Bạn vào khu quản trị riêng nhé.";
 
 export function App() {
+  // Đường /sso/testbank tự lo đăng nhập và cả vai quản trị / chuyên gia (CHI_CMS ở dưới sẽ đuổi họ).
+  if (window.location.pathname.replace(/\/+$/, "") === DUONG_SSO_TESTBANK) return <SsoTestbankView />;
+  return <AppChinh />;
+}
+
+function AppChinh() {
   useTheme(); // áp data-theme (auto/light/dark) lên <html> ngay từ đầu
   const [session, setSession] = useState<Session>(null);
   const [ready, setReady] = useState(false);

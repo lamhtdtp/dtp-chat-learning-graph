@@ -7,9 +7,11 @@ Testbank bị lộ cũng không giả được phiếu của learning. Phiếu s
 Hàm thuần: nhận cấu hình và đồng hồ qua tham số để test không phải chờ 60 giây thật.
 """
 import base64
+import re
 import time
 import uuid
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 import jwt
 from cryptography.hazmat.primitives import serialization
@@ -98,3 +100,39 @@ def url_mo_testbank(goc_web_teacher: str, phieu: str | None) -> str:
     header Referer (KB 8). Không phiếu: chính trang giáo viên, Testbank tự chuyển tới đăng nhập."""
     goc = goc_web_teacher.strip().rstrip("/")
     return f"{goc}/sso#phieu={phieu}" if phieu else goc
+
+
+#: Ký tự điều khiển, khoảng trắng, `\` : trình duyệt đọc `\` như `/` còn bộ phân tích URL của
+#: Python thì không, nên `https://testbank.dtpsoft.vn\@evil.com/sso` hai bên hiểu hai nghĩa khác nhau.
+_KY_TU_LA = re.compile(r"[\x00-\x20\x7f\\]")
+
+
+def _goc_nguon(url: str) -> tuple[str, str, int] | None:
+    """(scheme, host, cổng thật) hoặc None. Cổng ngầm định 80/443 được điền để `https://a` và
+    `https://a:443` coi là một origin."""
+    try:
+        t = urlsplit(url)
+        host = t.hostname
+        cong = t.port or {"http": 80, "https": 443}.get(t.scheme)
+    except ValueError:
+        return None
+    if t.scheme not in ("http", "https") or not host or cong is None:
+        return None
+    return t.scheme, host.lower(), cong
+
+
+def quay_ve_hop_le(quay_ve: str, goc_web_teacher: str) -> bool:
+    """`quay_ve` do Testbank gửi qua trình duyệt nên là dữ liệu của kẻ lạ: chỉ nhận khi ĐÚNG origin
+    của web giáo viên đã cấu hình và đường dẫn đúng `/sso` (chống chuyển hướng mở). Không có
+    userinfo, query hay fragment. Kết quả chỉ để cho phép / từ chối — URL trả về luôn dựng từ cấu
+    hình, không bao giờ ghép từ chuỗi này."""
+    if not quay_ve or _KY_TU_LA.search(quay_ve):
+        return False
+    try:
+        t = urlsplit(quay_ve)
+    except ValueError:
+        return False
+    if t.username is not None or t.password is not None or t.query or t.fragment or t.path != "/sso":
+        return False
+    a, b = _goc_nguon(quay_ve), _goc_nguon(goc_web_teacher.strip())
+    return a is not None and a == b

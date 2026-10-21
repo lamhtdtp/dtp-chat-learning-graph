@@ -12,7 +12,8 @@ nhập mật khẩu). Nút trên CMS giữ nguyên ở cả hai chế độ.
 """
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -27,6 +28,10 @@ router = APIRouter(prefix="/auth", tags=["sso"])
 
 MSG_CHI_THAY_CO = "Chỉ thầy cô dùng được Testbank"
 MSG_CHUA_NOI = "Chưa kết nối Testbank, thầy cô báo quản trị viên giúp nhé"
+MSG_QUAY_VE_SAI = "Địa chỉ quay về Testbank không hợp lệ"
+#: Có header này (giá trị do CẤU HÌNH dựng, không phải chuỗi người gửi) nghĩa là máy chủ đã chấp
+#: nhận `quay_ve`: màn /sso/testbank chỉ được hiện nút "Về Testbank" khi thấy nó, kể cả lúc 503.
+HEADER_VE_TESTBANK = "X-Testbank-Url"
 
 
 async def _ghi_nhat_ky(session: AsyncSession, user: User, ket_qua: str, jti: str | None = None) -> None:
@@ -40,11 +45,18 @@ async def _ghi_nhat_ky(session: AsyncSession, user: User, ket_qua: str, jti: str
              sso.chuan_hoa_email(email), vai, jti)
 
 
+def _503(goc: str, quay_ve_ok: bool) -> JSONResponse:
+    return JSONResponse({"detail": MSG_CHUA_NOI}, status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        headers={HEADER_VE_TESTBANK: sso.url_mo_testbank(goc, None)} if quay_ve_ok else None)
+
+
 @router.post("/sso/testbank")
 async def xin_lien_ket_testbank(
+    # Body tuỳ chọn: nút CMS (US-28) vẫn gửi `{}`; màn /sso/testbank gửi thêm `quay_ve`.
+    quay_ve: str | None = Body(default=None, embed=True, max_length=2048),
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> dict:
+):
     if user.role not in sso.VAI_DUOC_SSO:
         await _ghi_nhat_ky(session, user, "tu_choi_vai")
         raise HTTPException(status.HTTP_403_FORBIDDEN, MSG_CHI_THAY_CO)
@@ -52,6 +64,10 @@ async def xin_lien_ket_testbank(
     if not goc:
         await _ghi_nhat_ky(session, user, "chua_cau_hinh")
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, MSG_CHUA_NOI)
+    if quay_ve is not None and not sso.quay_ve_hop_le(quay_ve, goc):
+        await _ghi_nhat_ky(session, user, "quay_ve_sai")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, MSG_QUAY_VE_SAI)
+    ve_ok = quay_ve is not None
 
     if not settings.sso_testbank_bat:
         # Phương án tối thiểu: không phiếu. Giáo viên tự đăng nhập Testbank bằng mật khẩu.
@@ -63,7 +79,7 @@ async def xin_lien_ket_testbank(
     except sso.SsoChuaCauHinh as exc:
         log.error("SSO Testbank bật nhưng chưa cấu hình được khoá: %s", exc)
         await _ghi_nhat_ky(session, user, "chua_cau_hinh")
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, MSG_CHUA_NOI) from exc
+        return _503(goc, ve_ok)
     # Đọc TRƯỚC commit trong `_ghi_nhat_ky` (MissingGreenlet).
     phieu, than = sso.tao_phieu(khoa, user_id=user.id, email=user.email, ten=user.name, vai=user.role)
     await _ghi_nhat_ky(session, user, "da_cap", jti=than["jti"])

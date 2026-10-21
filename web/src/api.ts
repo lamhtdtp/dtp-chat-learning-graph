@@ -100,6 +100,29 @@ export function getMe(): Promise<Me> {
   return req("/auth/me", { auth: true });
 }
 
+/** Kết quả xin phiếu SSO Testbank cho màn /sso/testbank. `veTestbank` chỉ có khi máy chủ ĐÃ chấp nhận
+ *  `quay_ve` (địa chỉ do máy chủ dựng từ cấu hình) — không bao giờ lấy từ query của trang. */
+export type KetQuaSsoTestbank =
+  | { loai: "chuyen"; url: string }
+  | { loai: "dang_nhap"; veTestbank: string }
+  | { loai: "loi"; status: number; message: string; veTestbank: string | null };
+
+export async function xinSsoTestbank(quayVe: string | null): Promise<KetQuaSsoTestbank> {
+  const res = await fetch(`${API_BASE}/auth/sso/testbank`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenStore.get() ?? ""}` },
+    body: JSON.stringify(quayVe === null ? {} : { quay_ve: quayVe }),
+  }).catch(() => null);
+  if (!res) return { loai: "loi", status: 0, message: "Không kết nối được máy chủ", veTestbank: null };
+  let data: { detail?: string; che_do?: string; url?: string } = {};
+  try { data = await res.json(); } catch { /* không phải JSON: rơi xuống nhánh lỗi */ }
+  if (res.ok && data.url) {
+    return data.che_do === "sso" ? { loai: "chuyen", url: data.url } : { loai: "dang_nhap", veTestbank: data.url };
+  }
+  return { loai: "loi", status: res.status, message: data.detail ?? `Lỗi ${res.status}`,
+           veTestbank: res.headers.get("X-Testbank-Url") };
+}
+
 // ── Giáo trình có cấu trúc (mục lục → bài học 4 phần → tiến độ → kiểm tra nhanh) ──
 export function getCurriculum(mon = "Toán", khoi = "Lớp 6"): Promise<CurriculumGroup[]> {
   return req(`/curriculum?mon=${encodeURIComponent(mon)}&khoi=${encodeURIComponent(khoi)}`, { auth: true });

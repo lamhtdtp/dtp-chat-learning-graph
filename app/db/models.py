@@ -301,7 +301,7 @@ class NhatKySsoTestbank(Base):
     vai: Mapped[str] = mapped_column(String(20))
     #: NULL khi không cấp phiếu (học sinh, chưa cấu hình, chế độ đăng nhập thường).
     jti: Mapped[str | None] = mapped_column(String(36), default=None)
-    #: da_cap | mo_dang_nhap | tu_choi_vai | chua_cau_hinh
+    #: da_cap | mo_dang_nhap | tu_choi_vai | chua_cau_hinh | quay_ve_sai
     ket_qua: Mapped[str] = mapped_column(String(20))
     created_at: Mapped[datetime] = mapped_column(server_default=func.clock_timestamp())
 
