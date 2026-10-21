@@ -21,6 +21,10 @@ BAT_BUOC = [
     "testbank_identity_url", "testbank_content_url", "testbank_exam_url",
     "testbank_email", "testbank_password", "de_cuoi_ky_daily_limit",
     "luyen_them_daily_limit", "de_giao_daily_limit",
+    # US-28 / US-29: giáo viên soạn đề trên Testbank, học sinh làm trong learning.
+    "testbank_delivery_url", "testbank_doi_tac_bat", "testbank_chi_tiet_sau_nop_bat",
+    "testbank_web_student_url", "testbank_web_teacher_url",
+    "sso_testbank_private_key", "sso_testbank_kid", "sso_testbank_bat", "de_giao_learning_bat",
 ]
 
 

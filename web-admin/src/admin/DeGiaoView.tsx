@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ApiError, deGiaoBai, deGiaoCapMa, deGiaoChiTiet, deGiaoDong, deGiaoDs, deGiaoHuy,
-  deGiaoKetQua, deGiaoXemTruoc, tokenStore,
+  ApiError, deGiaoBai, deGiaoChiTiet, deGiaoDong, deGiaoDs, deGiaoKetQua, tokenStore,
 } from "../api";
+import { SsoTestbankNut } from "./SsoTestbankNut";
 import type {
   BaiDeGiao, CauDeGiao, DeGiaoChiTiet, DeGiaoTomTat, KetQuaCauGv, KetQuaDeGiao,
-  Role, XemTruocDeGiao,
+  Role,
 } from "../types";
 
 const KY: Record<string, string> = { CK1: "Cuối kỳ 1", CK2: "Cuối kỳ 2" };
@@ -13,7 +13,6 @@ const MUC: Record<string, string> = { B: "Biết", H: "Hiểu", V: "Vận dụng
 const DANG: Record<string, string> = {
   TN1: "Một đáp án", TNN: "Nhiều đáp án", DS: "Đúng / Sai", DSN: "Điền đáp số", TL: "Tự luận",
 };
-const SO_CAU_MAC_DINH = 12;
 
 const ngayGio = (iso: string | null) => {
   if (!iso) return "—";
@@ -89,48 +88,26 @@ function CauXem({ c, kq }: { c: CauDeGiao; kq?: KetQuaCauGv }) {
   );
 }
 
-type Man = { k: "ds" } | { k: "tao" } | { k: "ma"; ma: string; id: number } | { k: "kq"; id: number };
+type Man = { k: "ds" } | { k: "kq"; id: number };
 
-/** Giao đề bằng mã (US-26): tạo → xem trước kèm đáp án → cấp mã; danh sách; bảng kết quả một mã. */
+/** Đề giao CŨ của learning (US-26, đã ngừng cấp mã mới — US-26 mục 7): danh sách + bảng kết quả một
+ *  mã vẫn xem được, đóng được mã còn mở. Soạn và giao đề mới: nút sang Testbank (US-28). */
 export function DeGiaoView({ role, onLogout }: { role: Role; onLogout: () => void }) {
   const [man, setMan] = useState<Man>({ k: "ds" });
   const handle401 = (e: unknown): boolean => {
     if (e instanceof ApiError && e.status === 401) { tokenStore.clear(); onLogout(); return true; }
     return false;
   };
-  if (man.k === "tao") {
-    return <TaoDe onVe={() => setMan({ k: "ds" })} onCapMa={(id, ma) => setMan({ k: "ma", id, ma })}
-      handle401={handle401} />;
-  }
-  if (man.k === "ma") {
-    return (
-      <>
-        <div className="page-head"><div><h1>Đã cấp mã</h1>
-          <div className="ps">Đọc mã này cho cả lớp — học sinh nhập mã ở app học để làm đúng đề này.</div></div></div>
-        <div className="panel dg-ma-box">
-          <div className="dg-ma-nhan">Mã đề</div>
-          <div className="dg-ma" aria-label="Mã đề" data-testid="ma-de">{man.ma}</div>
-          <span className="pill p-xong">Đang mở</span>
-          <div className="dg-ma-act">
-            <button className="btn btn-primary" type="button" onClick={() => setMan({ k: "kq", id: man.id })}>
-              Xem kết quả</button>
-            <button className="btn btn-ghost" type="button" onClick={() => setMan({ k: "ds" })}>
-              Về danh sách đề giao</button>
-          </div>
-        </div>
-      </>
-    );
-  }
   if (man.k === "kq") {
     return <KetQuaMa id={man.id} onVe={() => setMan({ k: "ds" })} handle401={handle401} />;
   }
-  return <DanhSach laAdmin={role === "admin"} onTao={() => setMan({ k: "tao" })}
+  return <DanhSach laAdmin={role === "admin"}
     onMo={(id) => setMan({ k: "kq", id })} handle401={handle401} />;
 }
 
 // ── Danh sách ──────────────────────────────────────────────────────────────
-function DanhSach({ laAdmin, onTao, onMo, handle401 }: {
-  laAdmin: boolean; onTao: () => void; onMo: (id: number) => void; handle401: (e: unknown) => boolean;
+function DanhSach({ laAdmin, onMo, handle401 }: {
+  laAdmin: boolean; onMo: (id: number) => void; handle401: (e: unknown) => boolean;
 }) {
   const [ds, setDs] = useState<DeGiaoTomTat[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -143,10 +120,10 @@ function DanhSach({ laAdmin, onTao, onMo, handle401 }: {
     <>
       <div className="page-head">
         <div><h1>Đề giao</h1>
-          <div className="ps">Rút một đề cuối kỳ từ kho, nhận mã 6 ký tự cho cả lớp làm và xem kết quả
-            {ds ? ` (${ds.length})` : ""}</div></div>
+          <div className="ps">Đề giao mới tạo trên Testbank. Các đề giao cũ vẫn xem được bên dưới
+            {ds ? ` (${ds.length})` : ""}.</div></div>
         <div className="sp" />
-        <button className="btn btn-primary" type="button" onClick={onTao}>＋ Tạo đề giao</button>
+        <SsoTestbankNut />
       </div>
       {err && <div className="warn-box" style={{ marginBottom: 14 }}>⚠️ {err}</div>}
       <div className="panel">
@@ -176,7 +153,7 @@ function DanhSach({ laAdmin, onTao, onMo, handle401 }: {
               ))}
               {ds && ds.length === 0 && (
                 <tr><td colSpan={laAdmin ? 9 : 8} style={{ textAlign: "center", color: "var(--ink-3)", padding: 28 }}>
-                  Chưa có đề giao nào. Bấm "Tạo đề giao" để rút đề và nhận mã.</td></tr>
+                  Chưa có đề giao cũ nào. Thầy cô soạn và giao đề mới trên Testbank.</td></tr>
               )}
               {!ds && !err && <tr><td colSpan={laAdmin ? 9 : 8} style={{ textAlign: "center", color: "var(--ink-3)", padding: 28 }}>
                 Đang tải…</td></tr>}
@@ -184,121 +161,6 @@ function DanhSach({ laAdmin, onTao, onMo, handle401 }: {
           </table>
         </div>
       </div>
-    </>
-  );
-}
-
-// ── Tạo đề: form → xem trước → cấp mã / huỷ ────────────────────────────────
-function TaoDe({ onVe, onCapMa, handle401 }: {
-  onVe: () => void; onCapMa: (id: number, ma: string) => void; handle401: (e: unknown) => boolean;
-}) {
-  const [exam, setExam] = useState<"CK1" | "CK2">("CK1");
-  const [tong, setTong] = useState(String(SO_CAU_MAC_DINH));
-  const [dang, setDang] = useState<"" | "rut" | "cap" | "huy">("");
-  const [err, setErr] = useState<string | null>(null);
-  const [xt, setXt] = useState<XemTruocDeGiao | null>(null);
-
-  const bao = (e: unknown, mac: string) => {
-    if (handle401(e)) return;
-    setErr(e instanceof ApiError ? e.message : mac);
-  };
-
-  const rut = async (ev: React.FormEvent) => {
-    ev.preventDefault();
-    if (dang) return;          // đang tạo thì không cho bấm hai lần — mỗi lần là một lượt hạn mức
-    setErr(null);
-    const n = Number(tong);
-    // Cùng luật với máy chủ; chặn sớm để không tốn lượt hạn mức vì gõ nhầm.
-    if (tong.trim() === "" || !Number.isInteger(n) || n < 1 || n > 40) {
-      setErr("Số câu phải từ 1 đến 40"); return;
-    }
-    setDang("rut");
-    try { setXt(await deGiaoXemTruoc(exam, n)); }
-    catch (e) { bao(e, "Không kết nối được máy chủ"); }
-    finally { setDang(""); }
-  };
-
-  const capMa = async () => {
-    if (!xt?.nhap_id || dang) return;
-    setDang("cap"); setErr(null);
-    try { const r = await deGiaoCapMa(xt.nhap_id); onCapMa(r.id, r.ma); }
-    catch (e) { bao(e, "Không cấp được mã, thử lại nhé"); }
-    finally { setDang(""); }
-  };
-
-  const huy = async () => {
-    if (dang) return;
-    if (!xt?.nhap_id) { setXt(null); return; }
-    setDang("huy"); setErr(null);
-    try { await deGiaoHuy(xt.nhap_id); setXt(null); }
-    catch (e) { bao(e, "Không huỷ được, thử lại nhé"); }
-    finally { setDang(""); }
-  };
-
-  return (
-    <>
-      <div className="page-head">
-        <div><h1>Tạo đề giao</h1>
-          <div className="ps">Xem trước đề (kèm đáp án) rồi mới cấp mã — chưa bấm "Cấp mã" thì học sinh chưa làm được.</div></div>
-        <div className="sp" />
-        <button className="btn btn-ghost" type="button" onClick={onVe}>← Về danh sách</button>
-      </div>
-
-      {err && <div className="warn-box" role="alert" style={{ marginBottom: 14 }}>⚠️ {err}</div>}
-
-      {!xt && (
-        <form className="panel dg-form" noValidate onSubmit={(e) => void rut(e)}>
-          <label>Kỳ
-            <select value={exam} disabled={!!dang} onChange={(e) => setExam(e.target.value as "CK1" | "CK2")}>
-              <option value="CK1">Cuối kỳ 1</option>
-              <option value="CK2">Cuối kỳ 2</option>
-            </select>
-          </label>
-          <label>Số câu
-            <input type="number" inputMode="numeric" value={tong} min={1} max={40} step={1} disabled={!!dang}
-              onChange={(e) => setTong(e.target.value)} aria-describedby="dg-so-cau-ghi" />
-            <small id="dg-so-cau-ghi">Mặc định 12, từ 1 đến 40</small>
-          </label>
-          <div className="dg-tile">
-            <span>Tỉ lệ Biết / Hiểu / Vận dụng</span>
-            <b>40 / 30 / 30</b>
-          </div>
-          <button className="btn btn-primary" type="submit" disabled={!!dang}>
-            {dang === "rut" ? "Đang tạo đề…" : "Xem trước đề →"}
-          </button>
-          {dang === "rut" && (
-            <div className="dg-cho" role="status">⏳ Đang rút đề từ kho và viết lý do từng phương án — có thể mất
-              tới 1 phút, thầy cô đừng bấm lại.</div>
-          )}
-        </form>
-      )}
-
-      {xt && (
-        <>
-          <div className="panel dg-tomtat">
-            <div className="dg-tt-dong">
-              <b>{KY[xt.exam]}</b>
-              <span>{xt.so_cau > 0 ? soCauChu(xt.so_cau, xt.total) : "0 câu"}</span>
-              {xt.du_cau && xt.so_cau > 0 && <span className="pill p-xong">Đủ câu</span>}
-              {!xt.du_cau && xt.so_cau > 0 && <span className="pill p-duyet">Thiếu câu</span>}
-            </div>
-            {xt.thong_bao && (
-              <div className={xt.so_cau > 0 ? "warn-box" : "warn-box dg-rong"} role="status">ℹ️ {xt.thong_bao}</div>
-            )}
-            <div className="dg-act">
-              {xt.co_the_cap_ma && (
-                <button className="btn btn-primary" type="button" disabled={!!dang} onClick={() => void capMa()}>
-                  {dang === "cap" ? "Đang cấp mã…"
-                    : xt.du_cau ? "Cấp mã" : `Vẫn cấp mã với ${xt.so_cau} câu`}
-                </button>
-              )}
-              <button className="btn btn-ghost" type="button" disabled={!!dang} onClick={() => void huy()}>
-                {xt.co_the_cap_ma ? "Huỷ" : "← Quay lại"}</button>
-            </div>
-          </div>
-          {xt.cau.map((c) => <CauXem key={c.qid} c={c} />)}
-        </>
-      )}
     </>
   );
 }

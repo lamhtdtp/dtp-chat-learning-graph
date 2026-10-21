@@ -230,7 +230,8 @@ export interface CauCuoiKy {
   topic_id: number | null;
   don_vi: string;
   de_html: string;
-  phuong_an: { key: string; html: string }[];
+  /** `nhan` chỉ có ở bài theo mã Testbank (nhãn hiển thị; `key` mới là khoá gửi đi). */
+  phuong_an: { key: string; html: string; nhan?: string }[];
   du_kien_html: string;
   cau_dan: string;
   /** false = không chấm tự động (tự luận, đáp số là hình) — không tính vào điểm. */
@@ -381,8 +382,57 @@ export interface DeCuoiKyTomTat {
   diem: number | null;
   tong: number | null;
   dat: boolean | null;
-  /** "de_giao" = bài theo mã thầy cô giao: có nhãn mã, KHÔNG xoá được. */
-  loai: "cuoi_ky" | "de_giao";
+  /** "de_giao" = bài theo mã US-26 cũ; "testbank" = bài theo mã thầy cô phát trên Testbank (US-29).
+   *  Cả hai có nhãn mã và KHÔNG xoá được. */
+  loai: "cuoi_ky" | "de_giao" | "testbank";
   ma: string | null;
+  tieu_de?: string | null;
   xoa_duoc: boolean;
+  /** Bài theo mã US-26 chưa nộp mà đề giao đã ngừng: hiện nhãn, không mở được. */
+  da_ngung?: boolean;
+}
+
+/* ── Bài theo mã thầy cô phát trên Testbank (US-29) — /exam/ma/* ──────────────
+ * KHÔNG có đáp án, lời giải, YCCĐ, khoá bài làm: máy chủ không có / không đưa xuống. */
+export interface KetQuaCauMa {
+  stt: number;
+  /** DUNG | SAI | DUNG_MOT_PHAN | CHO_GIAO_VIEN_CHAM */
+  trang_thai: string;
+  /** Đúng | Sai | Đúng một phần | Chưa chấm — như Testbank trả. */
+  nhan: string;
+  diem: number | null;
+  diem_toi_da: number | null;
+  /** Lựa chọn em đã chọn (cùng dạng chuỗi như lúc làm). */
+  chon: string;
+  dang: string;
+}
+export interface KetQuaMa {
+  diem: number;
+  tong: number;
+  so_cau_cho_cham: number;
+  cau: KetQuaCauMa[];
+  cach_nop: "TAY" | "HET_GIO" | "DONG_LUOT_PHAT" | null;
+}
+export interface BaiMa {
+  de_id: string;
+  ma: string;
+  tieu_de: string;
+  nhan: string;
+  trang_thai: "DANG_LAM" | "DA_NOP";
+  cau: CauCuoiKy[];
+  /** Lựa chọn đã lưu, theo qid ("c1"…). */
+  tra_loi: Record<string, string>;
+  /** Giờ MÁY CHỦ Testbank; đồng hồ đếm ngược tính theo hiệu hai giá trị này, không theo giờ máy em. */
+  han_nop_luc: string | null;
+  gio_may_chu: string | null;
+  thoi_gian_phut: number | null;
+  ket_qua: KetQuaMa | null;
+  thong_bao: string;
+  /** false cho tới khi Testbank có chi tiết sau nộp (T5): không đáp án / YCCĐ / Đề xuất. */
+  co_chi_tiet: boolean;
+}
+export interface CheDoNhapMa {
+  /** tich_hop: làm trong app · du_phong: mở web-student của Testbank · tat: chưa nối gì. */
+  che_do: "tich_hop" | "du_phong" | "tat";
+  url_du_phong: string | null;
 }

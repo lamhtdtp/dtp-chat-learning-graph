@@ -33,6 +33,7 @@ dependencies = [
     # dù anthropic/openai đã kéo httpx theo: phụ thuộc ngầm thì hỏng im lặng vào
     # ngày hai gói kia đổi phiên bản, và lỗi hiện ra ở chỗ không liên quan.
     "httpx>=0.27",
+    "cryptography>=43",
 ]
 
 [project.optional-dependencies]

@@ -408,3 +408,11 @@ export function hocLieuSua(id: number, b: HocLieuNhap): Promise<HocLieu> {
 export function hocLieuXoa(id: number): Promise<void> {
   return req(`/cms/hoc-lieu/${id}`, { method: "DELETE", auth: true });
 }
+
+// ── SSO sang DTP Testbank (US-28) ──
+/** Xin liên kết mở Testbank. `che_do` "sso": url có phiếu đăng nhập một lần (60 giây); "dang_nhap":
+ *  Testbank chưa nhận phiếu — url chỉ là trang giáo viên của Testbank. Lỗi: 403 không phải thầy cô,
+ *  503 "Chưa kết nối Testbank…". */
+export function ssoTestbank(): Promise<{ che_do: "sso" | "dang_nhap"; url: string }> {
+  return req("/auth/sso/testbank", { method: "POST", body: {}, auth: true });
+}

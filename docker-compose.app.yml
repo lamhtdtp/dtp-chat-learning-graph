@@ -63,6 +63,16 @@ services:
       DE_CUOI_KY_DAILY_LIMIT: ${DE_CUOI_KY_DAILY_LIMIT:-10}
       LUYEN_THEM_DAILY_LIMIT: ${LUYEN_THEM_DAILY_LIMIT:-20}
       DE_GIAO_DAILY_LIMIT: ${DE_GIAO_DAILY_LIMIT:-20}
+      # Giáo viên soạn & giao đề trên Testbank, học sinh làm trong learning (US-28, US-29).
+      TESTBANK_DELIVERY_URL: ${TESTBANK_DELIVERY_URL:-}
+      TESTBANK_DOI_TAC_BAT: ${TESTBANK_DOI_TAC_BAT:-false}
+      TESTBANK_CHI_TIET_SAU_NOP_BAT: ${TESTBANK_CHI_TIET_SAU_NOP_BAT:-false}
+      TESTBANK_WEB_STUDENT_URL: ${TESTBANK_WEB_STUDENT_URL:-}
+      TESTBANK_WEB_TEACHER_URL: ${TESTBANK_WEB_TEACHER_URL:-}
+      SSO_TESTBANK_PRIVATE_KEY: ${SSO_TESTBANK_PRIVATE_KEY:-}
+      SSO_TESTBANK_KID: ${SSO_TESTBANK_KID:-}
+      SSO_TESTBANK_BAT: ${SSO_TESTBANK_BAT:-false}
+      DE_GIAO_LEARNING_BAT: ${DE_GIAO_LEARNING_BAT:-false}
       # ⚠️ KHỐI environment NÀY LÀ DANH SÁCH TRẮNG. Không có `env_file:`, và image
       # KHÔNG chứa .env — nên `env_file=".env"` của pydantic (app/config.py) không
       # tìm thấy gì trong container. Đặt một biến trong .env mà KHÔNG khai ở đây

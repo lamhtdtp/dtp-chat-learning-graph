@@ -1,6 +1,8 @@
 import { API_BASE } from "./config";
 import type {
   CurriculumGroup,
+  BaiMa,
+  CheDoNhapMa,
   DeCuoiKy,
   DeCuoiKyTomTat,
   DeLuyenThem,
@@ -233,14 +235,26 @@ export function moDeCuoiKy(deId: string): Promise<DeCuoiKy> {
   return req(`/exam/cuoi-ky/${encodeURIComponent(deId)}`, { auth: true });
 }
 
-// ── Đề thầy cô giao bằng mã (US-26) ──
-/** Nhập mã: mở (hoặc mở lại) đề thầy cô giao. Không có đáp án; đã nộp thì kèm `ket_qua`. */
-export function vaoDeGiao(ma: string): Promise<DeCuoiKy> {
-  return req("/de-giao/vao", { auth: true, body: { ma } });
+// ── Bài theo mã thầy cô phát trên Testbank (US-29) ──
+export function cheDoNhapMa(): Promise<CheDoNhapMa> {
+  return req("/exam/ma/cau-hinh", { auth: true });
 }
-/** Nộp bài theo mã (mỗi em một lần; nộp lại trả kết quả lần đầu). */
-export function nopDeGiao(deId: string, traLoi: Record<string, string>): Promise<KetQuaCuoiKy> {
-  return req("/de-giao/nop", { auth: true, body: { de_id: deId, tra_loi: traLoi } });
+/** Nhập mã: vào thi lần đầu hoặc mở lại đúng bài cũ. 404 mã sai / đã đóng, 422 sai định dạng,
+ *  429 nhập sai nhiều lần, 503 Testbank bận — `message` là câu tiếng Việt để hiện thẳng. */
+export function vaoMaTestbank(ma: string): Promise<BaiMa> {
+  return req("/exam/ma/vao", { auth: true, body: { ma } });
+}
+export function moBaiMa(deId: string): Promise<BaiMa> {
+  return req(`/exam/ma/${encodeURIComponent(deId)}`, { auth: true });
+}
+export interface TraLoiMot { stt: number; chon: string; seq: number }
+/** Lưu dần. `da_nop: true` = bài đã nộp (hết giờ / thầy cô đóng bài) -> `bai` là kết quả. */
+export function luuBaiMa(deId: string, cau: TraLoiMot[]):
+  Promise<{ da_nop: false; da_luu: number[]; loi: unknown[] } | { da_nop: true; bai: BaiMa }> {
+  return req(`/exam/ma/${encodeURIComponent(deId)}/tra-loi`, { method: "PUT", auth: true, body: { cau } });
+}
+export function nopBaiMa(deId: string, cau: TraLoiMot[]): Promise<BaiMa> {
+  return req(`/exam/ma/${encodeURIComponent(deId)}/nop`, { auth: true, body: { cau } });
 }
 
 /** Rút một lượt "Luyện thêm từ kho đề" của bài (tối đa 4 câu, không có đáp án). */

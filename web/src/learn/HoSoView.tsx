@@ -37,7 +37,7 @@ function ngayPhien(iso: string): [string, string] {
 export function HoSoView({ onMoBai, onMoDeCuoiKy, ten }: {
   onMoBai?: (topicId: number, phan?: string) => void;
   /** Mở lại một đề cuối kỳ đã làm (xem kết quả / làm tiếp đề bỏ dở). */
-  onMoDeCuoiKy?: (exam: string, deId: string) => void;
+  onMoDeCuoiKy?: (exam: string, deId: string, loai?: string) => void;
   /** Tên học sinh — mockup đặt tiêu đề là "An · Toán lớp 6". */
   ten?: string;
 }) {
@@ -123,7 +123,7 @@ export function HoSoView({ onMoBai, onMoDeCuoiKy, ten }: {
         <>
           <h3><span className="hi">📝</span> Đề cuối kỳ</h3>
           <LichSu ls={deCk} tieuDe="Các lần gần nhất" nhanXoaHet="Xoá toàn bộ lịch sử đề cuối kỳ"
-            onMo={(x) => onMoDeCuoiKy?.(x.exam ?? "CK1", x.de_id)} />
+            onMo={(x) => onMoDeCuoiKy?.(x.exam ?? "CK1", x.de_id, x.loai)} />
         </>
       )}
 

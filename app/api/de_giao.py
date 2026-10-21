@@ -66,6 +66,11 @@ MSG_SO_CAU = "Số câu phải từ 1 đến 40"
 MSG_KHO_RONG = "Kho chưa có câu nào cho đề này."
 MSG_DA_CAP_MA = "Đề giao đã cấp mã không xoá được, chỉ đóng được"
 MSG_CHI_HOC_SINH = "Chỉ tài khoản học sinh làm bài theo mã"
+#: US-26 mục 7 (KB 40-41): giáo viên soạn và phát mã trên Testbank, học sinh nhập mã Testbank ở màn
+#: đề cuối kỳ (US-29). Ba chỗ cấp / nhận mã của learning trả 410 thay vì 500 hay im lặng.
+MSG_NGUNG_TAO = "Đề giao mới tạo trên Testbank"
+MSG_NGUNG_NHAP = ("Mã này không dùng ở đây nữa. Em nhập mã thầy cô phát trên Testbank "
+                  "ở màn Đề cuối kỳ nhé")
 MSG_SAI_DINH_DANG = "Mã gồm 6 chữ và số, em kiểm tra lại nhé"
 MSG_KHONG_THAY_MA = "Không tìm thấy mã này, em hỏi lại thầy cô nhé"
 MSG_CHAN_DO = "Em nhập sai mã nhiều lần, thử lại sau 10 phút nhé"
@@ -98,6 +103,20 @@ async def _hoc_sinh(user: User = Depends(get_current_user)) -> User:
     if user.role != "hoc_sinh":
         raise HTTPException(status.HTTP_403_FORBIDDEN, MSG_CHI_HOC_SINH)
     return user
+
+
+# Chốt "Ẩn" của US-26 (KB 40-41). Đặt SAU kiểm vai: học sinh gọi đường của giáo viên vẫn nhận 403,
+# không biết gì thêm. Chạy TRƯỚC `lay_testbank` / hạn mức / LLM nên bị từ chối là chưa tốn gì.
+async def _giao_vien_tao(gv: User = Depends(_giao_vien)) -> User:
+    if not settings.de_giao_learning_bat:
+        raise HTTPException(status.HTTP_410_GONE, MSG_NGUNG_TAO)
+    return gv
+
+
+async def _hoc_sinh_nhap_ma_cu(hs: User = Depends(_hoc_sinh)) -> User:
+    if not settings.de_giao_learning_bat:
+        raise HTTPException(status.HTTP_410_GONE, MSG_NGUNG_NHAP)
+    return hs
 
 
 _INT32_MAX = 2**31 - 1
@@ -173,7 +192,7 @@ def _so_cau_hop_le(total: Any) -> bool:
 @router.post("/xem-truoc")
 async def xem_truoc(
     body: XemTruocBody,
-    gv: User = Depends(_giao_vien),            # khai TRƯỚC `tb`: học sinh nhận 403, không phải lỗi cấu hình kho
+    gv: User = Depends(_giao_vien_tao),            # khai TRƯỚC `tb`: học sinh nhận 403, không phải lỗi cấu hình kho
     session: AsyncSession = Depends(get_session),
     tb: TestbankClient = Depends(lay_testbank),
 ) -> dict:
@@ -220,7 +239,7 @@ async def xem_truoc(
 @router.post("/{nhap_id}/cap-ma")
 async def cap_ma(
     nhap_id: int,
-    gv: User = Depends(_giao_vien),
+    gv: User = Depends(_giao_vien_tao),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     giao = await _lay_de(session, nhap_id, gv, khoa=True)    # khoá hàng: bấm hai lần không ra hai mã
@@ -444,7 +463,7 @@ async def _bai_cua_em(session: AsyncSession, giao_id: int, user_id: int) -> DeCu
 @router.post("/vao")
 async def vao(
     body: VaoBody,
-    hs: User = Depends(_hoc_sinh),
+    hs: User = Depends(_hoc_sinh_nhap_ma_cu),
     session: AsyncSession = Depends(get_session),
     tb: TestbankClient | None = Depends(cuoi_ky.lay_testbank_tuy_chon),
 ) -> dict:
@@ -492,7 +511,7 @@ async def vao(
 @router.post("/nop")
 async def nop(
     body: cuoi_ky.SubmitBody,
-    hs: User = Depends(_hoc_sinh),
+    hs: User = Depends(_hoc_sinh_nhap_ma_cu),
     session: AsyncSession = Depends(get_session),
     tb: TestbankClient | None = Depends(cuoi_ky.lay_testbank_tuy_chon),
 ) -> dict:

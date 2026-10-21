@@ -70,3 +70,14 @@ async def tao_tai_khoan(client, role: str = "hoc_sinh", ten: str = "An",
         u.role = role
         await sess.commit()
     return email, {"Authorization": f"Bearer {r.json()['token']}"}
+
+
+@pytest.fixture
+def de_giao_cu_bat(monkeypatch):
+    """Bật lại đề giao bằng mã của learning (US-26) — mặc định ĐÃ NGỪNG (US-26 mục 7).
+
+    Các test của US-26 / US-27 mô tả hành vi của dữ liệu cũ và còn đi qua đường cấp mã + nhập
+    mã của learning để dựng bài theo mã; đường đó nay chỉ mở khi cờ này bật. Test kiểm việc
+    NGỪNG cấp mã (`test_us26_an.py`) thì KHÔNG dùng fixture này."""
+    from app.config import settings
+    monkeypatch.setattr(settings, "de_giao_learning_bat", True)

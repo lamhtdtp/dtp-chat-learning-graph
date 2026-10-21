@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, moDeCuoiKy, nopDeCuoiKy, nopDeGiao, rutDeCuoiKy, vaoDeGiao } from "../api";
-import type { CauCuoiKy, DeCuoiKy, DeCuoiKyTomTat, KetQuaCau, KetQuaCuoiKy } from "../types";
+import { ApiError, cheDoNhapMa, moBaiMa, moDeCuoiKy, nopDeCuoiKy, rutDeCuoiKy, vaoMaTestbank } from "../api";
+import type {
+  BaiMa, CauCuoiKy, CheDoNhapMa, DeCuoiKy, DeCuoiKyTomTat, KetQuaCau, KetQuaCuoiKy,
+} from "../types";
+import { BaiMaView } from "./BaiMaView";
 import { DeXuatView } from "./DeXuatView";
 import { useLichSuDe } from "./useLichSuDe";
 
@@ -32,7 +35,7 @@ const ngayGio = (iso: string) => {
 
 /** Một câu, cả lúc làm lẫn sau khi nộp. `chon` luôn là CHUỖI nhãn như server
  *  nhận ("B", "A,C", "Đ,S,Đ,S", "3,5") — không giữ chỉ số phương án. */
-export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai }: {
+export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai, tuLuanNhap }: {
   c: CauCuoiKy;
   chon: string;
   onChon: (v: string) => void;
@@ -41,6 +44,9 @@ export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai }: {
   /** Ẩn nút "Xem lại bài" — dùng khi câu nằm NGAY trong bài đó (Luyện thêm), nơi đã có
    *  "Đọc lại phần này" riêng. */
   anXemLai?: boolean;
+  /** Bài theo mã Testbank: câu tự luận GÕ ĐOẠN CHỮ ngay trong app (Testbank nhận, thầy cô chấm). Đề tự
+   *  rút thì tự luận làm ra giấy, không có ô nhập. */
+  tuLuanNhap?: boolean;
 }) {
   const [cls, ten] = MUC[c.muc_do] ?? ["", c.muc_do];
   const daNop = !!kq;
@@ -93,7 +99,7 @@ export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai }: {
               <div className={"b4-pa " + boc} key={p.key}>
                 <button type="button" className={optCls.join(" ")} disabled={daNop}
                   aria-pressed={chonP} onClick={() => bam(p.key)}>
-                  <span className="k">{p.key}</span>
+                  <span className="k">{p.nhan ?? p.key}</span>
                   <span dangerouslySetInnerHTML={{ __html: p.html }} />
                   {/* Trạng thái nói bằng dấu, không chỉ bằng màu. */}
                   {daNop && laDung && <span className="ck-dau" aria-label="đáp án đúng">✓</span>}
@@ -122,7 +128,7 @@ export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai }: {
             return (
               <div className={"b4-pa " + (daNop ? (saiY ? "sai" : "dung") : "")} key={p.key}>
                 <div className={"opt ck-y" + (daNop ? (saiY ? " wrong" : " correct") : "")}>
-                  <span className="k">{p.key}</span>
+                  <span className="k">{p.nhan ?? p.key}</span>
                   <span className="ck-y-tx" dangerouslySetInnerHTML={{ __html: p.html }} />
                   <span className="ck-ds-nut" role="group" aria-label={`Ý ${p.key} đúng hay sai`}>
                     {["Đ", "S"].map((v) => (
@@ -160,7 +166,14 @@ export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai }: {
         </div>
       )}
 
-      {!c.tu_cham && (
+      {tuLuanNhap && c.dang === "TL" && (
+        <div className="ck-tl-nhap">
+          <textarea value={chon} maxLength={5000} rows={4} placeholder="Gõ bài làm của em ở đây"
+            aria-label={`Bài làm câu ${c.stt}`} onChange={(e) => onChon(e.target.value)} />
+          <div className="ck-tl">Câu này thầy cô chấm</div>
+        </div>
+      )}
+      {!c.tu_cham && !tuLuanNhap && (
         <div className="ck-tl">
           {c.dang === "TL"
             ? "Câu tự luận — em làm ra giấy, so với lời giải sau khi nộp. Câu này không tính vào điểm."
@@ -194,14 +207,14 @@ export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai }: {
  *  Đáp án KHÔNG có ở client trước khi nộp — server chấm, rồi mới trả đáp án,
  *  lời giải và lý do từng phương án. Kết quả chấm theo YÊU CẦU CẦN ĐẠT (khoá bền
  *  `ar_id`), không theo số câu: đề sinh lại thì số câu đổi, YCCĐ thì không. */
-export function CuoiKyView({ exam, ten, moDe, kieu, onMoBai, onDong }: {
+export function CuoiKyView({ exam, ten, moDe, moLoai, role, onMoBai, onDong }: {
   exam: string;
   ten: string;
-  /** "ma" = màn NHẬP MÃ đề thầy cô giao (US-26): cùng khung làm bài / nộp / kết quả, chỉ khác
-   *  lối vào (nhập mã thay vì rút) và nơi nộp (`/de-giao/nop`). */
-  kieu?: "ma";
-  /** Mở thẳng đề này (bấm từ Hồ sơ học tập) thay vì màn bắt đầu. */
+  /** Vai: chỉ tài khoản HỌC SINH nhập được mã (US-29 KB 4); thầy cô thấy "giao đề trên Testbank". */
+  role?: string;
+  /** Mở thẳng đề này (bấm từ Hồ sơ học tập) thay vì màn bắt đầu. `moLoai` = loại bài của dòng đó. */
   moDe?: string;
+  moLoai?: string;
   onMoBai: (topicId: number, phan?: string) => void;
   onDong: () => void;
 }) {
@@ -213,6 +226,12 @@ export function CuoiKyView({ exam, ten, moDe, kieu, onMoBai, onDong }: {
   // "Bài làm mới" chỉ trong các YCCĐ còn yếu -> ghi lại để tiêu đề nói đúng.
   const [onLai, setOnLai] = useState(false);
   const [maNhap, setMaNhap] = useState("");
+  // Bài theo mã thầy cô phát trên Testbank (US-29): làm trong BaiMaView, không qua `de` ở trên.
+  const [maBai, setMaBai] = useState<BaiMa | null>(null);
+  const [cheDo, setCheDo] = useState<CheDoNhapMa | null>(null);
+  useEffect(() => {
+    if (role === "hoc_sinh") cheDoNhapMa().then(setCheDo).catch(() => setCheDo({ che_do: "tich_hop", url_du_phong: null }));
+  }, [role]);
   // Khung cuộn là cột `.main`, không phải window — window.scrollTo không làm gì.
   const dau = useRef<HTMLDivElement>(null);
   // Cuộn SAU khi đã render: gọi ngay lúc setState thì khối kết quả chèn vào phía
@@ -224,7 +243,7 @@ export function CuoiKyView({ exam, ten, moDe, kieu, onMoBai, onDong }: {
   }, [cuon]);
 
   // Lịch sử đề của kỳ này — tải lại mỗi lần về màn bắt đầu, để đề vừa nộp hiện ngay.
-  const ls = useLichSuDe(exam, 10, !de);
+  const ls = useLichSuDe(exam, 10, !de && !maBai);
 
   /** Mở lại một đề: đã nộp -> hiện nguyên kết quả cũ; chưa nộp -> làm tiếp từ nháp. */
   const mo = async (deId: string, onLaiDe = false) => {
@@ -241,7 +260,7 @@ export function CuoiKyView({ exam, ten, moDe, kieu, onMoBai, onDong }: {
       setLoi(e instanceof ApiError ? e.message : "Không mở được đề, thử lại nhé");
     } finally { setDang(""); }
   };
-  useEffect(() => { if (moDe) void mo(moDe); }, [moDe]); // eslint-disable-line
+  useEffect(() => { if (moDe && moLoai !== "testbank") void mo(moDe); }, [moDe]); // eslint-disable-line
 
   // Lưu nháp khi đang làm (chưa nộp).
   useEffect(() => {
@@ -251,18 +270,35 @@ export function CuoiKyView({ exam, ten, moDe, kieu, onMoBai, onDong }: {
   /** Kỳ của đề đang làm: đề theo mã thì lấy theo đề (màn nhập mã không biết trước kỳ). */
   const examDe = de?.exam ?? kq?.goi_y.de_moi.exam ?? exam;
 
+  /** Nhập mã Testbank. Dự phòng (Testbank chưa nối phát đề): mở trang làm bài của Testbank ở tab mới,
+   *  mã điền sẵn. Còn lại máy chủ vào thi thay em; sai định dạng thì máy chủ báo, không hỏi Testbank. */
   const vaoMa = async (e: React.FormEvent) => {
     e.preventDefault();
-    setDang("rut"); setLoi(null);
+    setLoi(null);
+    if (cheDo?.che_do === "du_phong" && cheDo.url_du_phong) {
+      const ma = maNhap.replace(/\s+/g, "").toUpperCase();
+      if (!/^[A-HJKMNP-Z2-9]{6}$/.test(ma)) { setLoi("Mã gồm 6 chữ và số, em kiểm tra lại nhé"); return; }
+      const u = new URL(cheDo.url_du_phong);
+      u.searchParams.set("ma", ma);
+      window.open(u.toString(), "_blank", "noopener");
+      return;
+    }
+    setDang("rut");
     try {
-      const d = await vaoDeGiao(maNhap);
-      setDe(d); setKq(d.ket_qua ?? null); setOnLai(false);
-      setChon(d.ket_qua ? Object.fromEntries(d.ket_qua.cau.map((c) => [c.qid, c.chon])) : {});
+      setMaBai(await vaoMaTestbank(maNhap));
       veDau();
     } catch (err) {
-      setLoi(err instanceof ApiError ? err.message : "Không mở được đề, thử lại nhé");
+      setLoi(err instanceof ApiError ? err.message : "Chưa mở được đề, em thử lại sau ít phút nhé");
     } finally { setDang(""); }
   };
+  /** Mở lại bài theo mã từ lịch sử. */
+  const moMa = async (deId: string) => {
+    setDang("rut"); setLoi(null);
+    try { setMaBai(await moBaiMa(deId)); veDau(); }
+    catch (err) { setLoi(err instanceof ApiError ? err.message : "Chưa mở được bài, em thử lại sau ít phút nhé"); }
+    finally { setDang(""); }
+  };
+  useEffect(() => { if (moDe && moLoai === "testbank") void moMa(moDe); }, [moDe, moLoai]); // eslint-disable-line
 
   const rut = async () => {
     setDang("rut"); setLoi(null);
@@ -280,7 +316,7 @@ export function CuoiKyView({ exam, ten, moDe, kieu, onMoBai, onDong }: {
     if (!de?.de_id) return;
     setDang("nop"); setLoi(null);
     try {
-      setKq(await (de.ma ? nopDeGiao : nopDeCuoiKy)(de.de_id, chon));
+      setKq(await nopDeCuoiKy(de.de_id, chon));
       xoaNhap(de.de_id);
       veDau();
     } catch (e) {
@@ -293,6 +329,13 @@ export function CuoiKyView({ exam, ten, moDe, kieu, onMoBai, onDong }: {
   const tuCham = de?.cau.filter((c) => c.tu_cham).length ?? 0;
   const kqTheoQid = useMemo(() => new Map(kq?.cau.map((k) => [k.qid, k]) ?? []), [kq]);
 
+  if (maBai) {
+    return (
+      <BaiMaView key={maBai.de_id} bai={maBai} onVe={() => { setMaBai(null); setLoi(null); }}
+        onTuSinh={() => { setMaBai(null); void rut(); }} />
+    );
+  }
+
   return (
     <div className="lesson ck" ref={dau}>
       <div className="ot-top">
@@ -301,42 +344,49 @@ export function CuoiKyView({ exam, ten, moDe, kieu, onMoBai, onDong }: {
         </span>
         {de && (
           <button className="ot-dong" type="button" onClick={() => { setDe(null); setKq(null); setLoi(null); }}>
-            {kieu === "ma" ? "🔑 Nhập mã khác" : "☰ Các lần làm"}</button>
+            ☰ Các lần làm</button>
         )}
         <button className="ot-dong ck-ve" type="button" onClick={onDong}>← Về bài học</button>
       </div>
       <h1>{de?.ma ? `Đề cuối học kỳ ${(de.exam ?? "").replace(/\D/g, "") || ""} · Toán 6` : ten}</h1>
       {de?.ma && <p className="ck-giao-ghi">{de.ghi_chu ?? "Đề thầy cô giao"} · cả lớp làm cùng một đề</p>}
 
-      {!de && kieu === "ma" && (
+      {!de && (
         <div className="ck-mo">
-          <p className="ot-sub">Thầy cô đọc cho cả lớp một mã gồm 6 chữ và số. Em nhập mã để làm đúng đề
-            thầy cô giao. Mỗi em chỉ nộp được một lần cho mỗi mã.</p>
-          <form className="ck-ma" onSubmit={(e) => void vaoMa(e)}>
-            <label>
-              <span>Mã đề</span>
-              <input type="text" value={maNhap} maxLength={12} autoComplete="off" autoCapitalize="characters"
-                spellCheck={false} placeholder="Ví dụ: K7M3PX" aria-label="Mã đề thầy cô giao"
-                onChange={(e) => setMaNhap(e.target.value)} />
-            </label>
-            <button className="btn btn-primary" type="submit" disabled={dang === "rut" || !maNhap.trim()}>
-              {dang === "rut" ? "Đang mở đề…" : "Vào làm bài →"}
-            </button>
-          </form>
-          {loi && <div className="ot-loi" role="alert">⚠️ {loi}</div>}
-        </div>
-      )}
-
-      {!de && kieu !== "ma" && (
-        <div className="ck-mo">
-          <p className="ot-sub">12 câu rút từ kho đề ôn luyện của DTP Testbank, đúng tỉ lệ ma trận:
-            5 câu Biết · 4 câu Hiểu · 3 câu Vận dụng. Làm xong em xem được vì sao từng phương án
-            đúng hay sai, và kết quả theo từng yêu cầu cần đạt.</p>
-          {loi && <div className="ot-loi">⚠️ {loi}</div>}
-          <button className="btn btn-primary" type="button" disabled={dang === "rut"} onClick={() => void rut()}>
-            {dang === "rut" ? "Đang rút đề…" : "Bắt đầu làm đề →"}
-          </button>
-          <LichSu ls={ls} onMo={(x) => void mo(x.de_id, x.on_lai)}
+          {/* Hai cách, theo thứ tự (US-29 KB 2): mã thầy cô giao trên Testbank, rồi đề tự sinh. */}
+          <div className="ck-cach">
+            <section className="ck-the" aria-label="Nhập mã đề thầy cô giao">
+              <h2>🔑 Nhập mã đề thầy cô giao</h2>
+              <p className="ot-sub">Thầy cô tạo đề trên Testbank và đọc mã 6 chữ và số</p>
+              {role === "hoc_sinh" ? (
+                <>
+                  <form className="ck-ma" onSubmit={(e) => void vaoMa(e)}>
+                    <label>
+                      <span>Mã đề</span>
+                      <input type="text" value={maNhap} maxLength={12} autoComplete="off" autoCapitalize="characters"
+                        spellCheck={false} placeholder="Ví dụ: K7M3PX" aria-label="Mã đề thầy cô giao"
+                        onChange={(e) => setMaNhap(e.target.value)} />
+                    </label>
+                    <button className="btn btn-primary" type="submit" disabled={dang === "rut" || !maNhap.trim()}>
+                      {dang === "rut" ? "Đang mở đề…" : "Vào làm bài →"}
+                    </button>
+                  </form>
+                  {loi && <div className="ot-loi" role="alert">⚠️ {loi}</div>}
+                </>
+              ) : (
+                <p className="ck-the-gv">Thầy cô giao đề trên Testbank</p>
+              )}
+            </section>
+            <section className="ck-the" aria-label="Làm đề tự sinh">
+              <h2>📝 Làm đề tự sinh</h2>
+              <p className="ot-sub">12 câu từ kho đề · chấm theo yêu cầu cần đạt</p>
+              <button className="btn btn-primary" type="button" disabled={dang === "rut"} onClick={() => void rut()}>
+                {dang === "rut" ? "Đang rút đề…" : "Bắt đầu làm đề →"}
+              </button>
+              {role !== "hoc_sinh" && loi && <div className="ot-loi">⚠️ {loi}</div>}
+            </section>
+          </div>
+          <LichSu ls={ls} onMo={(x) => (x.loai === "testbank" ? void moMa(x.de_id) : void mo(x.de_id, x.on_lai))}
             nhanXoaHet={`Xoá tất cả đề cuối kỳ ${exam.replace(/\D/g, "")}`} />
         </div>
       )}
@@ -444,21 +494,26 @@ export function LichSu({ ls, onMo, tieuDe = "Các lần làm trước", nhanXoaH
       <div className="ck-ls-h">🕒 {tieuDe}</div>
       {ls.ds.map((x) => {
         const pct = x.da_nop && x.tong ? Math.round(((x.diem ?? 0) * 100) / x.tong) : null;
+        const ngung = !!x.da_ngung;
+        const theoMa = x.loai === "de_giao" || x.loai === "testbank";
         return (
           <div className="ck-ls-r" key={x.de_id}>
             {/* Hai nút tách rời: nút xoá không được lồng trong nút mở đề (HTML
                 không cho button lồng button, và bấm xoá sẽ mở luôn đề). */}
-            <button type="button" className="ck-ls-mo" onClick={() => onMo(x)}>
+            <button type="button" className={"ck-ls-mo" + (ngung ? " ck-ls-ngung" : "")} disabled={ngung}
+              onClick={() => onMo(x)}>
               {x.da_nop
-                ? <span className={"badge " + (x.dat ? "b-dat" : "b-dang")}>{x.diem}/{x.tong}</span>
-                : <span className="badge b-chua">Chưa nộp</span>}
+                ? <span className={"badge " + (x.dat ? "b-dat" : "b-dang")}>{Math.round((x.diem ?? 0) * 100) / 100}/{Math.round((x.tong ?? 0) * 100) / 100}</span>
+                : <span className="badge b-chua">{x.loai === "testbank" ? "Đang làm" : "Chưa nộp"}</span>}
               <span className="tx">
-                <b>{x.loai === "de_giao" ? `Thầy cô giao · mã ${x.ma}`
+                <b>{theoMa ? `Thầy cô giao · mã ${x.ma}`
                   : x.exam ? `Cuối kỳ ${x.exam.replace(/\D/g, "")}` : "Đề cuối kỳ"}
                   {x.on_lai && " · ôn lại chỗ yếu"}</b>
-                <span className="num">{ngayGio(x.nop_luc ?? x.luc)} · {x.so_cau} câu</span>
+                <span className="num">
+                  {x.loai === "testbank" && x.tieu_de ? `${x.tieu_de} · ` : ""}
+                  {ngung ? "Chưa nộp (đề giao đã ngừng)" : `${ngayGio(x.nop_luc ?? x.luc)}${x.loai === "testbank" ? "" : ` · ${x.so_cau} câu`}`}</span>
               </span>
-              <span className="kq">{pct !== null ? `${pct}%` : "Làm tiếp →"}</span>
+              <span className="kq">{ngung ? "" : pct !== null ? `${pct}%` : "Làm tiếp →"}</span>
             </button>
             {/* Bài thầy cô giao không có nút xoá: là dữ liệu của giáo viên (US-26 KB 24). */}
             {x.xoa_duoc && (

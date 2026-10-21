@@ -994,3 +994,24 @@
   .learn .dx{padding:12px}
   .learn .dx-row{gap:8px;padding-left:10px}
 }
+
+/* ── Hai cách làm đề cuối kỳ + bài theo mã Testbank (US-29) ── */
+.learn .ck-cach{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:16px}
+.learn .ck-the{border:1px solid var(--border);background:var(--surface);border-radius:16px;padding:16px;
+  display:flex;flex-direction:column;gap:10px}
+.learn .ck-the h2{margin:0;font-size:16px}
+.learn .ck-the .ot-sub{margin:0}
+.learn .ck-the-gv{font-weight:700;color:var(--teal-ink)}
+.learn .ck-tl-nhap textarea{width:100%;box-sizing:border-box;margin-top:10px;border:1px solid var(--border);
+  background:var(--surface);color:var(--ink);border-radius:10px;padding:10px 12px;font:inherit;font-size:14px;resize:vertical}
+.learn .ck-tl-nhap textarea:focus{outline:2px solid var(--ring);border-color:var(--primary)}
+.learn .ma-thanh{display:flex;align-items:center;gap:14px;margin:0 0 12px;font-size:13px;font-weight:700}
+.learn .ma-dongho{color:var(--teal-ink)}
+.learn .ma-dongho.gap{color:color-mix(in srgb,var(--danger) 62%,var(--ink))}
+.learn .ma-luu{color:var(--ink-2)}
+.learn .ma-luu.loi{color:color-mix(in srgb,var(--danger) 62%,var(--ink))}
+.learn .ma-nhan{font-size:12px;font-weight:800;padding:3px 10px;border-radius:999px;background:var(--surface-3);color:var(--ink-2)}
+.learn .ma-nhan.ok{background:var(--primary-weak);color:var(--teal-ink)}
+.learn .ma-nhan.no{background:var(--accent-weak);color:var(--accent-ink)}
+.learn .ma-chon{margin-top:8px;font-size:13.5px;color:var(--ink-2);overflow-wrap:anywhere}
+.learn .ck-ls-ngung{opacity:.7;cursor:default}

@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, auth, cms, cuoi_ky, de_giao, hoc_lieu, lessons, luyen_them, tutor, video
+from app.api import (
+    admin, auth, cms, cuoi_ky, de_giao, hoc_lieu, lessons, luyen_them, ma_testbank, sso_testbank, tutor, video,
+)
 from app.config import settings
 
 # Nền tảng giáo trình có cấu trúc (đã bỏ hẳn chat/RAG/sinh-đề — xem P5). Video AI
@@ -17,12 +19,14 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(sso_testbank.router)
 app.include_router(video.router)
 app.include_router(admin.router)
 app.include_router(lessons.router)
 app.include_router(cms.router)
 app.include_router(tutor.router)
 app.include_router(cuoi_ky.router)
+app.include_router(ma_testbank.router)
 app.include_router(luyen_them.router)
 app.include_router(de_giao.router)
 app.include_router(hoc_lieu.router)

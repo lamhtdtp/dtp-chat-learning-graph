@@ -52,6 +52,33 @@ class Settings(BaseSettings):
     # testbank + tới 12 lượt gọi model sinh lý do.
     de_giao_daily_limit: int = 20
 
+    # ── Giáo viên soạn & giao đề trên Testbank, học sinh làm trong learning (US-28, US-29) ──
+    # Dịch vụ phát đề ("delivery") của Testbank — đường học sinh /hs/* (mức 0: mã + họ tên,
+    # không token; khoá bài làm do mình giữ). Máy dev: http://127.0.0.1:8004 ; prod (nginx của
+    # Testbank): https://testbank.dtpsoft.vn/api/delivery. Để trống = chưa nối: ô nhập mã chuyển
+    # sang phương án dự phòng (mở trang làm bài của Testbank), KHÔNG lỗi 500.
+    testbank_delivery_url: str = ""
+    # Mức 1 (T7: /doi-tac/*, token đối tác) và chi tiết sau nộp (T5) — Testbank CHƯA làm.
+    # Cờ chỉ để đặt chỗ: bật khi Testbank báo xong. Hiện bật cũng chưa có tác dụng (xem
+    # app/integrations/testbank/delivery.py), nên mặc định TẮT.
+    testbank_doi_tac_bat: bool = False
+    testbank_chi_tiet_sau_nop_bat: bool = False
+    # Gốc web-student của Testbank (dự phòng P2: mở `<gốc>/?ma=<mã>` ở tab mới) và gốc web-teacher
+    # (nút "Soạn & giao đề trên Testbank"). Ví dụ máy dev: http://localhost:5174 ; prod:
+    # https://testbank.dtpsoft.vn. Thiếu web-teacher thì nút báo "Chưa kết nối Testbank".
+    testbank_web_student_url: str = ""
+    testbank_web_teacher_url: str = ""
+    # SSO giáo viên (US-28): learning ký phiếu RS256 bằng khoá riêng này (PEM; xuống dòng viết
+    # "\n" cũng được). Thiếu khoá -> báo "chưa kết nối", không 500. KHÔNG commit khoá.
+    sso_testbank_private_key: str = ""
+    sso_testbank_kid: str = ""
+    # Bật khi Testbank đã làm xong T3 (nhận phiếu tại <web-teacher>/sso). Tắt: nút chỉ mở trang
+    # đăng nhập của Testbank (phương án tối thiểu, US-28 mục 8) và KHÔNG cấp phiếu nào.
+    sso_testbank_bat: bool = False
+    # Đề giao bằng mã do learning cấp (US-26) đã NGỪNG (US-26 mục 7, KB 40-41). Đặt true chỉ để
+    # bật lại tạm thời khi cần quay lui; mặc định tắt. Dữ liệu cũ luôn đọc được.
+    de_giao_learning_bat: bool = False
+
     database_url: str = "postgresql+asyncpg://lamthanh@localhost:5432/chat_learning"
     redis_url: str = "redis://localhost:6380/0"
 

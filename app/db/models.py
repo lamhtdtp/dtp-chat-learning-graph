@@ -267,10 +267,43 @@ class DeCuoiKy(Base):
     #: user_id -> mỗi em chỉ có MỘT bài cho mỗi mã, hai thiết bị mở cùng lúc cũng vậy.
     #: NULL với đề cuối kỳ tự rút (Postgres coi các NULL là khác nhau nên không vướng).
     de_giao_id: Mapped[int | None] = mapped_column(ForeignKey("de_giao.id"), default=None, index=True)
+    #: Bài theo MÃ TESTBANK (US-29, loai="testbank"): mã vào thi 6 ký tự giáo viên phát trên
+    #: Testbank. Unique cùng user_id -> mỗi em MỘT bài cho mỗi mã (Testbank mức 0 không bảo đảm
+    #: điều đó: mỗi lần vào thi là một bài mới), nên chốt ở đây.
+    ma_testbank: Mapped[str | None] = mapped_column(String(8), default=None)
+    #: Khoá bài làm của Testbank — BÍ MẬT: ai cầm nó là đọc / sửa / nộp được bài của em. Chỉ ở
+    #: máy chủ, KHÔNG BAO GIỜ trả ra API hay ghi log.
+    khoa_bai_lam: Mapped[str | None] = mapped_column(Text, default=None)
+    #: Tiêu đề lượt phát trên Testbank ("Kiểm tra cuối kỳ 1 — 6A").
+    tieu_de: Mapped[str | None] = mapped_column(Text, default=None)
+    #: Câu trả lời đã lưu lên Testbank lần cuối ({"c1": "B", ...}) — Testbank KHÔNG trả lại câu trả
+    #: lẫn nội dung câu sau khi nộp, nên giữ bản chép để hiện "lựa chọn em đã chọn".
+    tra_loi_json: Mapped[str | None] = mapped_column(Text, default=None)
     nop_luc: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
-    __table_args__ = (UniqueConstraint("de_giao_id", "user_id", name="uq_de_cuoi_ky_de_giao_user"),)
+    __table_args__ = (
+        UniqueConstraint("de_giao_id", "user_id", name="uq_de_cuoi_ky_de_giao_user"),
+        UniqueConstraint("user_id", "ma_testbank", name="uq_de_cuoi_ky_testbank_user"),
+    )
+
+
+class NhatKySsoTestbank(Base):
+    """Mỗi lần giáo viên bấm "Soạn & giao đề trên Testbank" (US-28 KB 13): thời điểm, tài khoản,
+    mã phiếu và kết quả phía learning. KHÔNG lưu nguyên phiếu — phiếu là thứ dùng để đăng nhập."""
+
+    __tablename__ = "nhat_ky_sso_testbank"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    #: Email tại thời điểm cấp: vận hành tra theo email (KB 13), mà email có thể đổi sau.
+    email: Mapped[str] = mapped_column(String(255), index=True)
+    vai: Mapped[str] = mapped_column(String(20))
+    #: NULL khi không cấp phiếu (học sinh, chưa cấu hình, chế độ đăng nhập thường).
+    jti: Mapped[str | None] = mapped_column(String(36), default=None)
+    #: da_cap | mo_dang_nhap | tu_choi_vai | chua_cau_hinh
+    ket_qua: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.clock_timestamp())
 
 
 class LyDoPhuongAn(Base):

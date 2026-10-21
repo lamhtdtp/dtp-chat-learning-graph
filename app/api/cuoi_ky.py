@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import cast, delete, func, select
+from sqlalchemy import cast, delete, func, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,6 +60,7 @@ _GAN_DAY = 5
 
 MSG_KHONG_XOA_BAI_GIAO = "Bài thầy cô giao không xoá được"
 MSG_MA_DA_DONG = "Mã này đã đóng, em không làm được nữa"
+MSG_DE_GIAO_NGUNG = "Đề giao này đã ngừng, bài chưa nộp không làm tiếp được"
 _MSG_CHUA_NOI = ("Đề cuối kỳ chưa được kết nối với kho câu hỏi. "
                  "Em làm bài kiểm tra nhanh trong từng bài trước nhé!")
 _MSG_BAN = "Kho đề đang bận, em thử lại sau ít phút nhé."
@@ -509,8 +510,11 @@ async def submit(
 
 def _loc_ky(exam: str | None):
     """Điều kiện lọc kỳ, chạy TRONG SQL. Lọc sau khi cắt trang thì trang ra thiếu
-    đề dù kỳ đó còn nhiều. `tham_so_json` là Text nên ép sang JSONB để đọc khoá."""
-    return [cast(DeCuoiKy.tham_so_json, JSONB)["exam"].astext == exam] if exam else []
+    đề dù kỳ đó còn nhiều. `tham_so_json` là Text nên ép sang JSONB để đọc khoá.
+
+    Bài theo MÃ TESTBANK không thuộc kỳ nào (mã có thể là đề bất kỳ — US-29 G4): hiện ở cả hai màn."""
+    return [or_(DeCuoiKy.loai == "testbank",
+                cast(DeCuoiKy.tham_so_json, JSONB)["exam"].astext == exam)] if exam else []
 
 
 async def danh_sach_de(session: AsyncSession, user_id: int, *, exam: str | None = None,
@@ -524,11 +528,13 @@ async def danh_sach_de(session: AsyncSession, user_id: int, *, exam: str | None 
     rows = (await session.execute(
         select(DeCuoiKy, DeGiao.ma)
         .outerjoin(DeGiao, DeGiao.id == DeCuoiKy.de_giao_id)
-        .where(DeCuoiKy.user_id == user_id, DeCuoiKy.loai.in_(("cuoi_ky", "de_giao")),
+        .where(DeCuoiKy.user_id == user_id, DeCuoiKy.loai.in_(("cuoi_ky", "de_giao", "testbank")),
                # Bài theo mã em mở dở mà mã đã đóng: không nộp được, không xoá được, không có
                # kết quả nào để xem — để lại chỉ thành dòng "Làm tiếp →" dẫn tới lỗi 410.
-               ~((DeCuoiKy.loai == "de_giao") & DeCuoiKy.ket_qua_json.is_(None)
-                 & (DeGiao.trang_thai == "dong")),
+               # Khi đề giao của learning đã NGỪNG (US-26 KB 41) thì KHÔNG ẩn: bài dở hiện với nhãn
+               # "Chưa nộp (đề giao đã ngừng)" cho em biết bài đó còn đó mà không làm tiếp được.
+               *([~((DeCuoiKy.loai == "de_giao") & DeCuoiKy.ket_qua_json.is_(None)
+                    & (DeGiao.trang_thai == "dong"))] if settings.de_giao_learning_bat else []),
                *_loc_ky(exam))
         # id phá hoà khi hai đề trùng giờ — không thì trang sau lặp/sót đề.
         .order_by(DeCuoiKy.created_at.desc(), DeCuoiKy.id.desc())
@@ -545,7 +551,10 @@ async def danh_sach_de(session: AsyncSession, user_id: int, *, exam: str | None 
             "nop_luc": d.nop_luc.isoformat() if d.nop_luc else None,
             "diem": kq["diem"] if kq else None, "tong": kq["tong"] if kq else None,
             "dat": kq["dat_yeu_cau"] if kq else None,
-            "loai": d.loai, "ma": ma, "xoa_duoc": d.loai == "cuoi_ky",
+            "loai": d.loai, "ma": d.ma_testbank if d.loai == "testbank" else ma,
+            "tieu_de": d.tieu_de, "xoa_duoc": d.loai == "cuoi_ky",
+            # Đề giao của learning đã ngừng: bài chưa nộp không làm tiếp được (US-26 KB 41).
+            "da_ngung": d.loai == "de_giao" and kq is None and not settings.de_giao_learning_bat,
         })
     return out, len(rows) > gioi_han
 
@@ -604,10 +613,11 @@ async def xoa_mot(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
-    de = await _de_cua(session, de_id, user, ("cuoi_ky", "de_giao"))
-    if de.loai == "de_giao":
-        # Bài theo mã là dữ liệu của giáo viên (bảng kết quả, thống kê YCCĐ): học sinh
-        # xoá thì điểm của cả lớp đổi theo. Chặn ở máy chủ, không chỉ ẩn nút.
+    de = await _de_cua(session, de_id, user, ("cuoi_ky", "de_giao", "testbank"))
+    if de.loai in ("de_giao", "testbank"):
+        # Bài theo mã là dữ liệu của giáo viên (bảng kết quả, thống kê YCCĐ; bài Testbank là bản
+        # chép kết quả em đã nhận): học sinh xoá thì điểm của cả lớp đổi theo. Chặn ở máy chủ, không
+        # chỉ ẩn nút.
         raise HTTPException(status.HTTP_403_FORBIDDEN, MSG_KHONG_XOA_BAI_GIAO)
     await _xoa_han(session, user.id, [de])
     await session.commit()
@@ -632,6 +642,8 @@ async def mo_lai(
            "ket_qua": ket_qua,
            "loai": de.loai, "ma": None, "exam": json.loads(de.tham_so_json).get("exam")}
     if de.loai == "de_giao":
+        if not de.ket_qua_json and not settings.de_giao_learning_bat:
+            raise HTTPException(status.HTTP_410_GONE, MSG_DE_GIAO_NGUNG)
         giao = await session.get(DeGiao, de.de_giao_id)
         out["ma"] = giao.ma
         if giao.trang_thai == "dong" and not de.ket_qua_json:

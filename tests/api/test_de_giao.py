@@ -41,6 +41,8 @@ from types import SimpleNamespace
 
 import copy
 import pytest
+
+pytestmark = pytest.mark.usefixtures("de_giao_cu_bat")  # US-26 đã ngừng: bật lại để dựng dữ liệu cũ
 from sqlalchemy import func, select
 
 from app.api import cuoi_ky
