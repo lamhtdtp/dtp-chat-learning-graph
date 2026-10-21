@@ -107,10 +107,17 @@ export type KetQuaSsoTestbank =
   | { loai: "dang_nhap"; veTestbank: string }
   | { loai: "loi"; status: number; message: string; veTestbank: string | null };
 
-export async function xinSsoTestbank(quayVe: string | null): Promise<KetQuaSsoTestbank> {
+/** Đăng nhập KHÔNG lưu token: màn /sso/testbank dùng token này trong bộ nhớ để xin phiếu, tránh
+ *  ghi đè phiên học sinh đang nằm trong localStorage của trình duyệt. */
+export function dangNhapKhongLuu(email: string, password: string): Promise<AuthResult> {
+  return post<AuthResult>("/auth/login", { email, password });
+}
+
+/** `token` (nếu có) dùng thay cho token trong localStorage. */
+export async function xinSsoTestbank(quayVe: string | null, token?: string): Promise<KetQuaSsoTestbank> {
   const res = await fetch(`${API_BASE}/auth/sso/testbank`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenStore.get() ?? ""}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? tokenStore.get() ?? ""}` },
     body: JSON.stringify(quayVe === null ? {} : { quay_ve: quayVe }),
   }).catch(() => null);
   if (!res) return { loai: "loi", status: 0, message: "Không kết nối được máy chủ", veTestbank: null };
