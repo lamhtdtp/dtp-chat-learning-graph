@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, luuBaiMa, moBaiMa, nopBaiMa } from "../api";
 import type { BaiMa, CauCuoiKy, KetQuaCau, KetQuaCauMa } from "../types";
-import { Cau } from "./CuoiKyView";
-import { DeXuatView } from "./DeXuatView";
+import { Cau, KetQua } from "./CuoiKyView";
 
 /** Bài theo MÃ THẦY CÔ PHÁT TRÊN TESTBANK (US-29), làm ngay trong app.
  *
@@ -44,6 +43,27 @@ function chonChu(c: CauCuoiKy | undefined, chon: string): string {
   }
   if (c?.dang === "TNN") return chon.split(",").join(", ");
   return chon;
+}
+
+/** Câu có chấm tự động không, đúng không. Bài mức 1 có sẵn `cham_duoc` / `dung` từ máy chủ; bài mức 0 chỉ có
+ *  nhãn của Testbank nên suy ra từ đó (tự luận không tính — như `_cham_duoc` ở máy chủ). */
+function dangTuCham(c: CauCuoiKy | undefined, k: KetQuaCauMa): { cham_duoc: boolean; dung: boolean } {
+  const cham = k.cham_duoc ?? ((c?.dang ?? k.dang) !== "TL"
+    && ["DUNG", "SAI", "DUNG_MOT_PHAN"].includes(k.trang_thai));
+  return { cham_duoc: cham && (c?.dang ?? k.dang) !== "TL", dung: cham && (k.dung ?? k.trang_thai === "DUNG") };
+}
+
+/** Kết quả một câu của bài theo mã -> dạng `KetQuaCau` mà thẻ câu của đề tự sinh đọc. Chưa có đáp án
+ *  (giai đoạn 1 / mức 0) thì để trống các trường đáp án và bật `chua_mo_dap_an`: thẻ câu chỉ đánh dấu
+ *  phương án em chọn. */
+function sangKetQuaCau(c: CauCuoiKy, k: KetQuaCauMa, dt: { cham_duoc: boolean; dung: boolean }): KetQuaCau {
+  return {
+    stt: c.stt, qid: c.qid, dang: c.dang, ar_id: k.ar_id ?? "", ycd: k.ycd ?? "", topic_id: k.topic_id ?? null,
+    don_vi: k.don_vi ?? "", chon: k.chon ?? "", dap_an: k.dap_an ?? "", dap_an_html: k.dap_an_html ?? "",
+    cham_duoc: dt.cham_duoc, dung: dt.dung, so_y_dung: k.so_y_dung ?? null, so_y: k.so_y ?? null,
+    giai_html: k.giai_html ?? "", ly_do: k.ly_do ?? {}, ly_do_ghi_chu: k.ly_do_ghi_chu,
+    bai_xuat_ban: k.bai_xuat_ban, chua_mo_dap_an: k.dap_an === undefined,
+  };
 }
 
 /** Câu tự luận (hoặc không chấm tự động được) ở giai đoạn 2: bài làm của em, nhãn chấm như Testbank trả ở
@@ -190,6 +210,13 @@ export function BaiMaView({ bai: ban, exam, onVe, onTuSinh, onMoBai, onMoDe }: {
   const phut = conLai == null ? "" : `${Math.floor(conLai / 60000)}:${String(Math.floor(conLai / 1000) % 60).padStart(2, "0")}`;
   const kq = bai.ket_qua;
   const theoStt = new Map<number, KetQuaCauMa>((kq?.cau ?? []).map((k) => [k.stt, k]));
+  // Điểm "x/y câu" của khung kết quả = số câu chấm tự động đúng / số câu chấm tự động (như đề tự sinh);
+  // điểm Testbank (có thể lẻ) nằm ở dòng ghi chú bên dưới.
+  const dts = (kq?.cau ?? []).map((k) => dangTuCham(bai.cau.find((c) => c.stt === k.stt), k));
+  const tomTat = kq && {
+    diem: dts.filter((d) => d.dung).length, tong: dts.filter((d) => d.cham_duoc).length,
+    khong_cham: dts.filter((d) => !d.cham_duoc).length, theo_ycd: kq.theo_ycd ?? [], de_xuat: kq.de_xuat,
+  };
 
   return (
     <div className="lesson ck" ref={dau}>
@@ -210,37 +237,25 @@ export function BaiMaView({ bai: ban, exam, onVe, onTuSinh, onMoBai, onMoDe }: {
       )}
       {hetGio && !daNop && <div className="ck-thieu" role="status">⏱ Hết giờ, đang nộp bài của em…</div>}
 
+      {/* Cùng khung, cùng thứ tự khối, cùng thẻ câu với đề tự sinh (CuoiKyView) — chỉ khác những gì
+          máy chủ CHƯA gửi: giai đoạn 1 không có đáp án / lời giải / lý do, bài mức 0 không có YCCĐ. */}
       {daNop && kq && (
-        <div className="ck-kq">
-          {bai.thong_bao && <div className="ck-thieu" role="status">ℹ️ {bai.thong_bao}</div>}
-          {bai.ghi_chu.map((g) => <div className="ck-thieu" role="status" key={g}>ℹ️ {g}</div>)}
-          <div className="pmach">
-            <div className="pmach-h">
-              <span className="tt">Em được {so(kq.diem)} / {so(kq.tong)} điểm phần chấm tự động</span>
-            </div>
-            {kq.so_cau_cho_cham > 0 && (
-              <div className="ck-ghi">{kq.so_cau_cho_cham} câu thầy cô chấm sau</div>
-            )}
-            {bai.giai_doan === 0 && bai.ghi_chu.length === 0 && (
-              <div className="ck-ghi">Thầy cô sẽ chữa bài trên lớp.</div>
-            )}
-            {/* Kết quả theo YÊU CẦU CẦN ĐẠT, đúng thứ tự ma trận (giống đề tự sinh). */}
-            {!!kq.theo_ycd?.length && (
-              <div className="ycd">
-                {kq.theo_ycd.map((y) => (
-                  <div className="ycd-row" key={y.ar_id}>
-                    <span className={"badge b-" + y.trang}>{y.dung}/{y.tong}</span>
-                    <span className="ck-ycd-tx">{y.ycd}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          {kq.de_xuat && <DeXuatView dx={kq.de_xuat} exam={exam} onMoBai={onMoBai} onMoDe={onMoDe} />}
-          <div className="ot-nop">
-            <button className="btn btn-primary" type="button" onClick={onTuSinh}>Làm đề tự sinh để luyện thêm</button>
-          </div>
-        </div>
+        <KetQua kq={tomTat!} exam={exam} onMoBai={onMoBai} onMoDe={onMoDe}
+          thongBao={(bai.thong_bao || bai.ghi_chu.length > 0) && (
+            <>
+              {bai.thong_bao && <div className="ck-thieu" role="status">ℹ️ {bai.thong_bao}</div>}
+              {bai.ghi_chu.map((g) => <div className="ck-thieu" role="status" key={g}>ℹ️ {g}</div>)}
+            </>
+          )}
+          ghiChu={(
+            <>
+              <div className="ck-ghi">Điểm phần chấm tự động: {so(kq.diem)}/{so(kq.tong)}</div>
+              {kq.so_cau_cho_cham > 0 && <div className="ck-ghi">{kq.so_cau_cho_cham} câu thầy cô chấm sau</div>}
+              {bai.giai_doan === 0 && bai.ghi_chu.length === 0 && (
+                <div className="ck-ghi">Thầy cô sẽ chữa bài trên lớp.</div>
+              )}
+            </>
+          )} />
       )}
 
       <div className="ex-wrap">
@@ -252,35 +267,12 @@ export function BaiMaView({ bai: ban, exam, onVe, onTuSinh, onMoBai, onMoDe }: {
             );
           }
           const k = theoStt.get(c.stt);
-          // Giai đoạn 2: máy chủ đã gửi đáp án (`dap_an` có mặt) — dùng lại thẻ câu của đề tự sinh.
-          if (k && k.dap_an !== undefined) {
-            const day = k as KetQuaCauMa & KetQuaCau;
-            if (c.dang === "TL" || k.cham_duoc === false) return <CauKhongTuCham key={c.qid} c={c} k={k} />;
-            return (
-              <Cau key={c.qid} c={c} chon={k.chon ?? ""} kq={{ ...day, qid: c.qid, ly_do: k.ly_do ?? {} }}
-                onChon={() => undefined} onMoBai={onMoBai} />
-            );
-          }
-          const cls = k?.trang_thai === "DUNG" ? "ok" : k?.trang_thai === "CHO_GIAO_VIEN_CHAM" ? "cho" : "no";
+          if (!k) return <Cau key={c.qid} c={c} chon="" onChon={() => undefined} onMoBai={onMoBai} />;
+          const dt = dangTuCham(c, k);
+          if (!dt.cham_duoc) return <CauKhongTuCham key={c.qid} c={c} k={k} />;
           return (
-            <div className="ex-card ck-cau ma-kq-cau" key={c.qid}>
-              <div className="ex-head">
-                <b>Câu {c.stt}</b>
-                <span className={"ma-nhan " + cls}>{k?.nhan ?? "Chưa chấm"}</span>
-                {k?.diem != null && k.diem_toi_da != null && (
-                  <span className="ck-dang">{so(k.diem)}/{so(k.diem_toi_da)} điểm</span>)}
-              </div>
-              <div className="ex-q ck-q" dangerouslySetInnerHTML={{ __html: c.de_html }} />
-              <div className="ma-chon">Em đã chọn: <b>{chonChu(c, k?.chon ?? "")}</b></div>
-              {/* Giai đoạn 1: chỉ nút "Xem lại bài" cho câu chưa đúng có YCCĐ khớp bài học đã xuất bản. */}
-              {k && k.cham_duoc && !k.dung && k.topic_id != null && k.bai_xuat_ban !== false && (
-                <div className="ex-foot">
-                  <button className="hoi-cau" type="button" onClick={() => onMoBai(k.topic_id!, "kien_thuc")}>
-                    📚 Xem lại bài: {k.don_vi}
-                  </button>
-                </div>
-              )}
-            </div>
+            <Cau key={c.qid} c={{ ...c, muc_do: k.muc_do || c.muc_do, don_vi: k.don_vi || c.don_vi, ycd: k.ycd || c.ycd }}
+              chon={k.chon ?? ""} kq={sangKetQuaCau(c, k, dt)} onChon={() => undefined} onMoBai={onMoBai} />
           );
         })}
       </div>
@@ -291,6 +283,12 @@ export function BaiMaView({ bai: ban, exam, onVe, onTuSinh, onMoBai, onMoDe }: {
           <span className="tnum">Đã trả lời {daTraLoi}/{bai.cau.length}</span>
           <button className="btn btn-primary" type="button" disabled={dangNop || hetGio}
             onClick={() => void nop()}>{dangNop ? "Đang nộp…" : "Nộp bài"}</button>
+        </div>
+      )}
+      {daNop && kq && (
+        <div className="ot-nop">
+          <span>{bai.giai_doan === 2 ? "Chấm ở máy chủ · đáp án chỉ gửi về sau khi nộp." : ""}</span>
+          <button className="btn" type="button" onClick={onTuSinh}>Làm đề tự sinh để luyện thêm</button>
         </div>
       )}
     </div>

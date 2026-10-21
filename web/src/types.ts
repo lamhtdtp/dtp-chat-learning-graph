@@ -294,6 +294,8 @@ export interface KetQuaCau {
   ly_do: Record<string, LyDoPhuongAn>;
   /** Bài theo mã giai đoạn 2 (US-30): "Đang chuẩn bị giải thích từng phương án…" khi lý do chưa sinh xong. */
   ly_do_ghi_chu?: string;
+  /** Bài theo mã giai đoạn 1 (US-30): máy chủ chưa gửi đáp án — chỉ biết `dung`; thẻ câu không hiện đáp án / lời giải. */
+  chua_mo_dap_an?: boolean;
 }
 
 /** Lượt "Luyện thêm từ kho đề" (US-25) — POST /lessons/{id}/luyen-them. Như đề cuối kỳ
@@ -411,6 +413,7 @@ export interface KetQuaCauMa {
   dang: string;
   // ── US-30: chỉ có ở bài mức 1 đã có chi tiết sau nộp (giai đoạn 1 và 2) ──
   qid?: string;
+  muc_do?: string;
   ycd?: string;
   ar_id?: string;
   topic_id?: number | null;

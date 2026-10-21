@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ApiError, cheDoNhapMa, moBaiMa, moDeCuoiKy, nopDeCuoiKy, rutDeCuoiKy, vaoMaTestbank } from "../api";
 import type {
   BaiMa, CauCuoiKy, CheDoNhapMa, DeCuoiKy, DeCuoiKyTomTat, KetQuaCau, KetQuaCuoiKy,
@@ -51,7 +51,10 @@ export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai, tuLuanNhap }: {
   const [cls, ten] = MUC[c.muc_do] ?? ["", c.muc_do];
   const daNop = !!kq;
   const daChon = new Set(chon.split(",").filter(Boolean));
-  const dungKeys = new Set((kq?.dap_an ?? "").split(",").map((x) => x.trim()));
+  // Bài theo mã khi thầy cô CHƯA đóng bài (US-30 giai đoạn 1): máy chủ chỉ cho biết câu Đúng / Sai, không
+  // gửi đáp án — nên chỉ đánh dấu phương án em chọn (xanh nếu câu đúng, đỏ nếu chưa đúng).
+  const anDapAn = !!kq?.chua_mo_dap_an;
+  const dungKeys = new Set(anDapAn ? [] : (kq?.dap_an ?? "").split(",").map((x) => x.trim()));
 
   // DS: mỗi ý một ô Đ/S, giữ vị trí kể cả ý bỏ trống ("Đ,,S,").
   const yDs = c.dang === "DS" ? c.phuong_an.map((_, i) => chon.split(",")[i] ?? "") : [];
@@ -73,7 +76,7 @@ export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai, tuLuanNhap }: {
   return (
     <div className="ex-card ck-cau" id={`ck-cau-${c.stt}`}>
       <div className="ex-head">
-        <span className={"ex-type " + cls}>{ten}</span>
+        {ten && <span className={"ex-type " + cls}>{ten}</span>}
         <span className="ck-dang">{DANG[c.dang] ?? c.dang}</span>
         {c.don_vi && <span className="ck-dv" title={c.ycd}>{c.don_vi}</span>}
       </div>
@@ -87,9 +90,9 @@ export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai, tuLuanNhap }: {
       {(c.dang === "TN1" || c.dang === "TNN") && (
         <div className="opts">
           {c.phuong_an.map((p) => {
-            const laDung = dungKeys.has(p.key);
             const chonP = daChon.has(p.key);
-            const ld = kq?.ly_do[p.key];
+            const laDung = anDapAn ? chonP && !!kq?.dung : dungKeys.has(p.key);
+            const ld = kq?.ly_do?.[p.key];
             const boc = daNop ? (laDung ? "dung" : chonP ? "sai" : "") : "";
             const optCls = ["opt"];
             if (!daNop && chonP) optCls.push("picked");
@@ -122,12 +125,13 @@ export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai, tuLuanNhap }: {
       {c.dang === "DS" && (
         <div className="ck-ds">
           {c.phuong_an.map((p, i) => {
-            const ld = kq?.ly_do[p.key];
+            const ld = kq?.ly_do?.[p.key];
             const dungY = yDsDung[i];
-            const saiY = daNop && yDs[i] !== dungY;
+            // Chưa mở đáp án: không biết ý nào đúng — không tô từng ý, kết luận chung nằm ở chân thẻ.
+            const saiY = daNop && !anDapAn && yDs[i] !== dungY;
             return (
-              <div className={"b4-pa " + (daNop ? (saiY ? "sai" : "dung") : "")} key={p.key}>
-                <div className={"opt ck-y" + (daNop ? (saiY ? " wrong" : " correct") : "")}>
+              <div className={"b4-pa " + (daNop && !anDapAn ? (saiY ? "sai" : "dung") : "")} key={p.key}>
+                <div className={"opt ck-y" + (daNop && !anDapAn ? (saiY ? " wrong" : " correct") : "")}>
                   <span className="k">{p.nhan ?? p.key}</span>
                   <span className="ck-y-tx" dangerouslySetInnerHTML={{ __html: p.html }} />
                   <span className="ck-ds-nut" role="group" aria-label={`Ý ${p.key} đúng hay sai`}>
@@ -138,7 +142,7 @@ export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai, tuLuanNhap }: {
                     ))}
                   </span>
                 </div>
-                {daNop && (
+                {daNop && !anDapAn && (
                   <div className="opt-ly">
                     <span className="nhan">{saiY ? "✗" : "✓"} Ý này {dungY === "Đ" ? "ĐÚNG" : "SAI"}</span>
                     {ld?.noi_dung ?? (saiY ? `Em chọn ${yDs[i] ? (yDs[i] === "Đ" ? "Đúng" : "Sai") : "bỏ trống"}.` : "")}
@@ -157,7 +161,8 @@ export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai, tuLuanNhap }: {
             <input type="text" inputMode="decimal" maxLength={60} value={chon} disabled={daNop}
               placeholder="Nhập đáp số" onChange={(e) => onChon(e.target.value)} />
           </label>
-          {daNop && (
+          {/* Chưa mở đáp án: kết luận Đúng / Chưa đúng đã có ở chân thẻ, không lặp lại ở đây. */}
+          {daNop && !anDapAn && (
             <div className={"ck-dsn-kq " + (kq!.dung ? "ok" : "no")}>
               {kq!.dung ? "✓ Đúng" : "✗ Chưa đúng"} · Đáp án:{" "}
               <b dangerouslySetInnerHTML={{ __html: kq!.dap_an_html }} />
@@ -444,16 +449,22 @@ export function CuoiKyView({ exam, ten, moDe, moLoai, role, onMoBai, onDong }: {
   );
 }
 
-/** Kết quả theo YCCĐ + khối Đề xuất chung (bước ④). */
-function KetQua({ kq, exam, onMoBai, onMoDe }: {
-  kq: KetQuaCuoiKy;
+/** Kết quả theo YCCĐ + khối Đề xuất chung (bước ④). Dùng cho cả đề tự sinh lẫn bài theo mã Testbank
+ *  (BaiMaView) — hai màn phải GIỐNG NHAU, nên chỉ có MỘT khung này. */
+export function KetQua({ kq, exam, onMoBai, onMoDe, thongBao, ghiChu }: {
+  kq: Pick<KetQuaCuoiKy, "diem" | "tong" | "khong_cham" | "theo_ycd" | "de_xuat"> & Partial<Pick<KetQuaCuoiKy, "ma" | "dat_yeu_cau">>;
   exam: string;
   onMoBai: (topicId: number, phan?: string) => void;
   onMoDe: (deId: string) => void;
+  /** Dòng trạng thái đặt TRÊN khung kết quả (bài theo mã: "Đáp án và giải thích sẽ mở khi…"). */
+  thongBao?: ReactNode;
+  /** Thay dòng "n câu không chấm tự động…" (bài theo mã: câu tự luận thầy cô chấm sau, điểm số…). */
+  ghiChu?: ReactNode;
 }) {
   const pct = kq.tong ? Math.round((kq.diem * 100) / kq.tong) : 0;
   return (
     <div className="ck-kq">
+      {thongBao}
       <div className="pmach">
         <div className="pmach-h">
           <span className="tt">Kết quả: {kq.diem}/{kq.tong} câu
@@ -462,22 +473,24 @@ function KetQua({ kq, exam, onMoBai, onMoDe }: {
           <div className="bar-track"><div className="bar-fill" style={{ width: `${pct}%` }} /></div>
           <span className="num">{pct}%</span>
         </div>
-        {kq.khong_cham > 0 && (
+        {ghiChu ?? (kq.khong_cham > 0 && (
           <div className="ck-ghi">{kq.khong_cham} câu không chấm tự động, không tính vào điểm.</div>
-        )}
+        ))}
         {/* Chấm theo YÊU CẦU CẦN ĐẠT, đúng thứ tự ma trận — không xếp theo điểm. */}
-        <div className="ycd">
-          {kq.theo_ycd.map((y) => (
-            <div className="ycd-row" key={y.ar_id}>
-              <span className={"badge b-" + y.trang}>{y.dung}/{y.tong}</span>
-              <span className="ck-ycd-tx">{y.ycd}</span>
-            </div>
-          ))}
-        </div>
+        {kq.theo_ycd.length > 0 && (
+          <div className="ycd">
+            {kq.theo_ycd.map((y) => (
+              <div className="ycd-row" key={y.ar_id}>
+                <span className={"badge b-" + y.trang}>{y.dung}/{y.tong}</span>
+                <span className="ck-ycd-tx">{y.ycd}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Đọc thêm · Video · Test thêm — một khối cho mọi loại bài (US-27), sau kết quả theo YCCĐ. */}
-      <DeXuatView dx={kq.de_xuat} exam={exam} onMoBai={onMoBai} onMoDe={onMoDe} />
+      {kq.de_xuat && <DeXuatView dx={kq.de_xuat} exam={exam} onMoBai={onMoBai} onMoDe={onMoDe} />}
     </div>
   );
 }
