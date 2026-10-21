@@ -11,8 +11,13 @@ Khoá bài làm Testbank cấp nằm ở cột `de_cuoi_ky.khoa_bai_lam`, KHÔNG
 Mỗi mã vào thi một bài làm MỚI trên Testbank, nên "mỗi em một bài cho mỗi mã" do đây chốt:
 khoá advisory theo (học sinh, mã) + unique DB; không gọi `vao-thi` lần hai.
 
-Đáp án / lời giải không có ở learning (Testbank không gửi trước hay sau khi nộp — chưa có T5), nên
-kết quả chỉ có điểm + Đúng/Sai từng câu; KHÔNG ghi `quiz_attempts` (không đoán YCCĐ — KB 20).
+Mức 1 (US-30, `TESTBANK_DOI_TAC_BAT`): máy chủ vào thi bằng đường ĐỐI TÁC (`/doi-tac/*`, token tài khoản
+dịch vụ), không giữ khoá bài làm. Mức của từng bài CỐ ĐỊNH lúc tạo (`de_cuoi_ky.muc`): bật / tắt cờ sau đó
+không đổi đường đi của bài đã có, và lỗi đường đối tác không bao giờ rơi về mức 0 (sẽ ra bài thứ hai).
+Chi tiết sau nộp / giai đoạn 1-2: `app/exam/bai_ma_chi_tiet.py`.
+
+Bài mức 0: Testbank không gửi đáp án / lời giải nên kết quả chỉ có điểm + Đúng/Sai từng câu; KHÔNG ghi
+`quiz_attempts` (không đoán YCCĐ — KB 20).
 
 Lỗi Testbank không thành 500: mạng / 5xx -> 503, 4xx lạ -> 502, thông điệp tiếng Việt.
 """
@@ -21,18 +26,24 @@ import logging
 import math
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.cuoi_ky import lay_testbank_tuy_chon
 from app.api.deps import get_current_user
 from app.config import settings
 from app.db.models import DeCuoiKy, User
 from app.db.session import get_session
+from app.exam import bai_ma_chi_tiet as ct_svc
+from app.exam import ly_do_to_de
 from app.exam.ma_de import chuan_hoa_ma
 from app.integrations.testbank import delivery as dl_mod
+from app.integrations.testbank import doi_tac as dt_mod
+from app.integrations.testbank.client import TestbankClient
 from app.integrations.testbank.delivery import DeliveryClient, DeliveryLoi
+from app.integrations.testbank.doi_tac import DoiTacClient
 from app.lessons import stats as stats_svc
 from app.llm import cache as llm_cache
 
@@ -79,6 +90,13 @@ def lay_delivery() -> DeliveryClient | None:
         return None
 
 
+def lay_doi_tac(tb: TestbankClient | None = Depends(lay_testbank_tuy_chon)) -> DoiTacClient | None:
+    """Client đường đối tác (mức 1). None = chưa đủ cấu hình (tài khoản dịch vụ hoặc gốc phát đề). Dùng
+    chung token tài khoản dịch vụ với mọi lời gọi Testbank khác. Test thay bằng client dùng `MockTransport`."""
+    goc = (settings.testbank_delivery_url or "").strip()
+    return DoiTacClient(goc, tb) if tb is not None and goc else None
+
+
 async def _hoc_sinh(user: User = Depends(get_current_user)) -> User:
     # Khai TRƯỚC `lay_delivery` ở chỗ dùng: giáo viên gọi thẳng nhận 403, không động tới Testbank.
     if user.role != "hoc_sinh":
@@ -86,10 +104,21 @@ async def _hoc_sinh(user: User = Depends(get_current_user)) -> User:
     return user
 
 
-def _can_delivery(dl: DeliveryClient | None, msg: str) -> DeliveryClient:
+def _can_delivery(dl: DeliveryClient | DoiTacClient | None, msg: str):
     if dl is None:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, msg)
     return dl
+
+
+def _client_cua(row: DeCuoiKy, dl: DeliveryClient | None, dc: DoiTacClient | None, msg: str):
+    """Client đúng mức của bài: mức 0 -> đường học sinh, mức 1 -> đường đối tác. Hai đường KHÔNG đọc
+    được bài của nhau (Testbank trả "không tìm thấy bài"), nên không bao giờ dùng nhầm."""
+    return _can_delivery(dc if row.muc == 1 else dl, msg)
+
+
+def _dinh_danh(row: DeCuoiKy) -> str:
+    """Thứ đã định danh bài trên Testbank: khoá bài làm (mức 0) hoặc mã bài làm (mức 1) — BÍ MẬT cả hai."""
+    return row.bai_lam_tb_id if row.muc == 1 else row.khoa_bai_lam
 
 
 def _loi(e: DeliveryLoi, msg: str) -> HTTPException:
@@ -141,8 +170,8 @@ async def _bai_hoac_404(session: AsyncSession, uid: int, de_id: str, *, khoa: bo
 
 
 def _ra(row: DeCuoiKy, bai: dict | None = None) -> dict:
-    """Thứ DUY NHẤT của bài theo mã đi ra trình duyệt. Không có khoá bài làm; không có đáp án vì
-    learning không bao giờ có (Testbank không gửi)."""
+    """Thứ DUY NHẤT của bài theo mã đi ra trình duyệt (cùng với `_xuat`). Không có khoá bài làm / mã bài
+    làm Testbank; không có đáp án: bài mức 0 learning không bao giờ có, bài mức 1 chỉ qua `_xuat`."""
     ket_qua = json.loads(row.ket_qua_json) if row.ket_qua_json else None
     dang_lam = bai is not None and bai.get("trang_thai") == "DANG_LAM" and ket_qua is None
     return {
@@ -157,9 +186,33 @@ def _ra(row: DeCuoiKy, bai: dict | None = None) -> dict:
         "thoi_gian_phut": bai.get("thoi_gian_phut") if dang_lam else None,
         "ket_qua": ket_qua,
         "thong_bao": _THONG_BAO_NOP.get((ket_qua or {}).get("cach_nop") or "", ""),
-        # Testbank chưa trả chi tiết sau nộp (T5): giao diện không hiện đáp án / YCCĐ / Đề xuất.
-        "co_chi_tiet": False,
+        # US-30: 0 = chưa có chi tiết sau nộp (bài mức 0, cờ tắt, hoặc chưa lấy được) · 1 = chờ thầy cô
+        # đóng bài · 2 = đã có đáp án. `ghi_chu` là các dòng trạng thái giao diện hiện nguyên văn.
+        "giai_doan": 0, "co_chi_tiet": False, "ghi_chu": [],
     }
+
+
+async def _xuat(session: AsyncSession, row: DeCuoiKy, bai: dict | None, *, tb: TestbankClient | None,
+                bg: BackgroundTasks, kiem: str | None = None) -> dict:
+    """Phản hồi của một bài. Bài mức 1 đã nộp: kết quả theo YCCĐ + Đề xuất (+ đáp án khi lượt đã đóng).
+    Gọi TRƯỚC `commit` (đọc thuộc tính ORM sau commit là MissingGreenlet)."""
+    out = _ra(row, bai)
+    if row.muc == 1 and row.ket_qua_json:
+        out["ket_qua"], viec = await ct_svc.dung_ket_qua(session, row, tb)
+        out["giai_doan"] = ct_svc.giai_doan(row)
+        out["co_chi_tiet"] = out["giai_doan"] >= 1
+        out["ghi_chu"] = ct_svc.ghi_chu(row, kiem)
+        if viec:
+            # Lý do từng phương án sinh SAU khi đã trả bài: học sinh thấy đáp án + lời giải ngay (KB 18).
+            bg.add_task(ly_do_to_de.sinh_nen, viec)
+    return out
+
+
+async def _sau_nop(session: AsyncSession, row: DeCuoiKy, dc: DoiTacClient | None) -> str | None:
+    """Vừa biết bài mức 1 đã nộp (học sinh nộp, hoặc Testbank tự nộp): lấy chi tiết sau nộp ngay lần này."""
+    if row.muc == 1 and row.ket_qua_json:
+        return await ct_svc.thu_chi_tiet(session, row, dc)
+    return None
 
 
 async def _dong_bo(session: AsyncSession, row: DeCuoiKy, bai: dict) -> None:
@@ -185,36 +238,49 @@ async def _dong_bo(session: AsyncSession, row: DeCuoiKy, bai: dict) -> None:
     row.ket_qua_json = json.dumps(kq, ensure_ascii=False)
     # Giờ của POSTGRES như mọi cột thời gian khác của app (DB chạy giờ +07).
     row.nop_luc = func.clock_timestamp()
-    # G3: XP như đề cuối kỳ tự rút, theo số câu đúng Testbank chấm.
+    # G3: XP như đề cuối kỳ tự rút, theo số câu đúng Testbank chấm. Chỉ ở ĐÂY: có chi tiết sau nộp hay
+    # mở đáp án về sau cũng không cộng thêm (US-30 KB 9).
     xp = kq["so_cau_dung"] * _XP_MOI_CAU + (_XP_DAT if kq["dat_yeu_cau"] else 0)
     await stats_svc.award(session, row.user_id, xp)
 
 
-async def _hoi_testbank(session: AsyncSession, row: DeCuoiKy, dl: DeliveryClient) -> dict:
+async def _hoi_testbank(session: AsyncSession, row: DeCuoiKy, dl, dc, *, tb, bg) -> dict:
     """Đọc bài từ Testbank rồi đồng bộ + commit. Gọi khi `row` đã bị khoá và chưa nộp."""
+    cl = _client_cua(row, dl, dc, MSG_CHUA_MO)
     try:
-        bai = await dl.xem(row.khoa_bai_lam)
+        bai = await cl.xem(_dinh_danh(row))
     except DeliveryLoi as e:
         if e.status == 410:
             raise HTTPException(status.HTTP_410_GONE, MSG_QUA_HAN_XEM) from e
         raise _loi(e, MSG_CHUA_MO) from e
     await _dong_bo(session, row, bai)
-    out = _ra(row, bai)
+    kiem = await _sau_nop(session, row, dc)
+    out = await _xuat(session, row, bai, tb=tb, bg=bg, kiem=kiem)
     await session.commit()
     return out
 
 
-async def _mo(session: AsyncSession, uid: int, row: DeCuoiKy, dl: DeliveryClient | None) -> dict:
-    if row.ket_qua_json:
-        # Đã nộp: bản chép ở learning. KHÔNG hỏi Testbank — lượt phát đóng 3 ngày rồi vẫn xem
-        # được (KB 11), và Testbank khoá đọc kết quả sau 30 ngày.
-        return _ra(row)
+def _can_hoi_chi_tiet(row: DeCuoiKy) -> bool:
+    """Bài mức 1 đã nộp còn phải/được hỏi Testbank về chi tiết không (chưa có đáp án, chưa quá hạn)."""
+    return (row.muc == 1 and settings.testbank_chi_tiet_sau_nop_bat
+            and not row.dap_an_mo and not row.het_han_dap_an)
+
+
+async def _mo(session: AsyncSession, uid: int, row: DeCuoiKy, dl, dc, *, tb, bg) -> dict:
+    if row.ket_qua_json and not _can_hoi_chi_tiet(row):
+        # Đã nộp và không còn gì để hỏi: bản chép ở learning. KHÔNG hỏi Testbank — lượt phát đóng 3
+        # ngày rồi vẫn xem được (KB 11), Testbank khoá đọc kết quả sau 30 ngày, bài đủ đáp án không bao
+        # giờ đọc lại (US-30 KB 14, 20).
+        return await _xuat(session, row, None, tb=tb, bg=bg)
     de_id = row.id
     # Khoá hàng: mở cùng lúc từ hai thiết bị thì một bên chờ rồi thấy bài đã đồng bộ.
     row = await _bai_hoac_404(session, uid, de_id, khoa=True)
     if row.ket_qua_json:
-        return _ra(row)
-    return await _hoi_testbank(session, row, _can_delivery(dl, MSG_CHUA_MO))
+        kiem = await ct_svc.thu_chi_tiet(session, row, dc) if _can_hoi_chi_tiet(row) else None
+        out = await _xuat(session, row, None, tb=tb, bg=bg, kiem=kiem)
+        await session.commit()
+        return out
+    return await _hoi_testbank(session, row, dl, dc, tb=tb, bg=bg)
 
 
 @router.get("/cau-hinh")
@@ -231,12 +297,29 @@ class VaoBody(BaseModel):
     ma: str = Field(max_length=64)
 
 
+def _loi_vao_muc_1(e: DeliveryLoi, uid: int) -> HTTPException:
+    """Lỗi vào thi bằng đường đối tác (US-30 KB 6). Chỉ "mã sai / đã đóng" mới tính vào bộ đếm sai mã.
+    KHÔNG tự chuyển sang mức 0: Testbank đã có thể tạo bài ở đường này, rơi xuống mức 0 là bài thứ hai."""
+    if e.status == 404 and e.ma == dt_mod.MA_KHONG_DUNG:
+        return HTTPException(status.HTTP_404_NOT_FOUND, MSG_MA_SAI)
+    if e.status == 429:
+        if e.ma == dt_mod.MA_DOI_TAC_NHAP_SAI_NHIEU:
+            log.warning("CANH_BAO testbank_chan_nhap_ma_doi_tac retry_after=%s hs=%s", e.retry_after, uid)
+            return HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, _msg_khoa_nhap_ma(e.retry_after or 600))
+        return HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, MSG_CHAN_DO)
+    log.warning("CANH_BAO testbank_doi_tac_vao_thi_loi status=%s ma=%s hs=%s", e.status, e.ma, uid)
+    return _loi(e, MSG_CHUA_MO)
+
+
 @router.post("/vao")
 async def vao(
     body: VaoBody,
+    bg: BackgroundTasks,
     hs: User = Depends(_hoc_sinh),
     session: AsyncSession = Depends(get_session),
     dl: DeliveryClient | None = Depends(lay_delivery),
+    dc: DoiTacClient | None = Depends(lay_doi_tac),
+    tb: TestbankClient | None = Depends(lay_testbank_tuy_chon),
 ) -> dict:
     ma = chuan_hoa_ma(body.ma)
     if ma is None:
@@ -252,31 +335,48 @@ async def vao(
                           {"k": f"matb:{uid}:{ma}"})
     row = await _bai_cua_em(session, uid, ma=ma)
     if row is not None:
-        return await _mo(session, uid, row, dl)
+        # Bài đã có giữ nguyên mức của nó, bất kể cờ đang bật hay tắt (US-30 KB 4, 5).
+        return await _mo(session, uid, row, dl, dc, tb=tb, bg=bg)
 
-    dl = _can_delivery(dl, MSG_CHUA_MO)
-    try:
-        khoa, bai = await dl.vao_thi(ma, dl_mod.ho_ten_gui(ten, uid))
-    except DeliveryLoi as e:
-        if e.status == 404:
-            await _ghi_sai(uid)
-            raise HTTPException(status.HTTP_404_NOT_FOUND, MSG_MA_SAI) from e
-        if e.status == 429:
-            # Testbank chặn nhập mã (đếm theo IP của cả learning): báo chung, KHÔNG tính vào bộ
-            # đếm của em này, và để lại dấu cho người vận hành (KB 9).
-            log.warning("CANH_BAO testbank_chan_nhap_ma retry_after=%s hs=%s", e.retry_after, uid)
-            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
-                                _msg_khoa_nhap_ma(e.retry_after or 600)) from e
-        raise _loi(e, MSG_CHUA_MO) from e
+    if settings.testbank_doi_tac_bat:
+        # Mức 1: mã học sinh = mã tài khoản learning, họ tên thuần (không hậu tố "· HS<số>": nhãn
+        # "Gia sư DTP · HS<mã>" trên bảng kết quả do Testbank tự dựng). Mất phản hồi giữa chừng thì lần
+        # nhập sau gọi lại và nhận đúng bài đã tạo — Testbank bảo đảm mỗi học sinh một bài.
+        try:
+            bai_id, _vao_lai, bai = await _can_delivery(dc, MSG_CHUA_MO).vao_thi(
+                ma, str(uid), dl_mod.ho_ten_thuan(ten))
+        except DeliveryLoi as e:
+            err = _loi_vao_muc_1(e, uid)
+            if err.status_code == status.HTTP_404_NOT_FOUND:
+                await _ghi_sai(uid)
+            raise err from e
+        khoa_bai = dict(muc=1, bai_lam_tb_id=bai_id, khoa_bai_lam=None)
+    else:
+        dl = _can_delivery(dl, MSG_CHUA_MO)
+        try:
+            khoa, bai = await dl.vao_thi(ma, dl_mod.ho_ten_gui(ten, uid))
+        except DeliveryLoi as e:
+            if e.status == 404:
+                await _ghi_sai(uid)
+                raise HTTPException(status.HTTP_404_NOT_FOUND, MSG_MA_SAI) from e
+            if e.status == 429:
+                # Testbank chặn nhập mã (đếm theo IP của cả learning): báo chung, KHÔNG tính vào bộ
+                # đếm của em này, và để lại dấu cho người vận hành (KB 9).
+                log.warning("CANH_BAO testbank_chan_nhap_ma retry_after=%s hs=%s", e.retry_after, uid)
+                raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
+                                    _msg_khoa_nhap_ma(e.retry_after or 600)) from e
+            raise _loi(e, MSG_CHUA_MO) from e
+        khoa_bai = dict(muc=0, khoa_bai_lam=khoa)
 
     row = DeCuoiKy(
-        id=secrets.token_urlsafe(12), user_id=uid, loai=LOAI, ma_testbank=ma, khoa_bai_lam=khoa,
+        id=secrets.token_urlsafe(12), user_id=uid, loai=LOAI, ma_testbank=ma,
         tieu_de=bai.get("tieu_de") or "", cau_json="[]",
         tham_so_json=json.dumps({"exam": None, "nguon": "testbank", "ma": ma}),
-        created_at=func.clock_timestamp())
+        created_at=func.clock_timestamp(), **khoa_bai)
     session.add(row)
     await _dong_bo(session, row, bai)
-    out = _ra(row, bai)
+    kiem = await _sau_nop(session, row, dc)
+    out = await _xuat(session, row, bai, tb=tb, bg=bg, kiem=kiem)
     await session.commit()
     return out
 
@@ -284,13 +384,16 @@ async def vao(
 @router.get("/{de_id}")
 async def mo_lai(
     de_id: str,
+    bg: BackgroundTasks,
     hs: User = Depends(_hoc_sinh),
     session: AsyncSession = Depends(get_session),
     dl: DeliveryClient | None = Depends(lay_delivery),
+    dc: DoiTacClient | None = Depends(lay_doi_tac),
+    tb: TestbankClient | None = Depends(lay_testbank_tuy_chon),
 ) -> dict:
     uid = hs.id
     row = await _bai_hoac_404(session, uid, de_id)
-    return await _mo(session, uid, row, dl)
+    return await _mo(session, uid, row, dl, dc, tb=tb, bg=bg)
 
 
 class TraLoiMot(BaseModel):
@@ -316,25 +419,28 @@ def _goi_len(row: DeCuoiKy, cau: list[TraLoiMot]) -> list[dict]:
 async def luu_tra_loi(
     de_id: str,
     body: LuuBody,
+    bg: BackgroundTasks,
     hs: User = Depends(_hoc_sinh),
     session: AsyncSession = Depends(get_session),
     dl: DeliveryClient | None = Depends(lay_delivery),
+    dc: DoiTacClient | None = Depends(lay_doi_tac),
+    tb: TestbankClient | None = Depends(lay_testbank_tuy_chon),
 ) -> dict:
     uid = hs.id
     row = await _bai_hoac_404(session, uid, de_id)
     if row.ket_qua_json:
-        return {"da_nop": True, "bai": _ra(row)}
-    dl = _can_delivery(dl, MSG_GUI_LOI)
+        return {"da_nop": True, "bai": await _mo(session, uid, row, dl, dc, tb=tb, bg=bg)}
+    cl = _client_cua(row, dl, dc, MSG_GUI_LOI)
     try:
-        out = await dl.luu(row.khoa_bai_lam, _goi_len(row, body.cau))
+        out = await cl.luu(_dinh_danh(row), _goi_len(row, body.cau))
     except DeliveryLoi as e:
         if e.status == 409:
             # Đã nộp (em nộp từ máy khác / thầy cô đóng bài) hoặc hết giờ: Testbank đã nộp hộ.
             # Lấy kết quả thật về thay vì để em tiếp tục sửa một bài đã khoá.
             row = await _bai_hoac_404(session, uid, de_id, khoa=True)
             if row.ket_qua_json:
-                return {"da_nop": True, "bai": _ra(row)}
-            return {"da_nop": True, "bai": await _hoi_testbank(session, row, dl)}
+                return {"da_nop": True, "bai": await _mo(session, uid, row, dl, dc, tb=tb, bg=bg)}
+            return {"da_nop": True, "bai": await _hoi_testbank(session, row, dl, dc, tb=tb, bg=bg)}
         raise _loi(e, MSG_GUI_LOI) from e
 
     da_chon = json.loads(row.tra_loi_json or "{}")
@@ -356,19 +462,25 @@ class NopBody(BaseModel):
 async def nop(
     de_id: str,
     body: NopBody,
+    bg: BackgroundTasks,
     hs: User = Depends(_hoc_sinh),
     session: AsyncSession = Depends(get_session),
     dl: DeliveryClient | None = Depends(lay_delivery),
+    dc: DoiTacClient | None = Depends(lay_doi_tac),
+    tb: TestbankClient | None = Depends(lay_testbank_tuy_chon),
 ) -> dict:
     uid = hs.id
     # Khoá hàng: hai thiết bị nộp cùng lúc thì bên sau chờ rồi trả đúng kết quả bên trước đã ghi
     # (KB 19) — Testbank cũng chỉ ghi một lần, đây là để hai bên thấy cùng một bản.
     row = await _bai_hoac_404(session, uid, de_id, khoa=True)
     if row.ket_qua_json:
-        return _ra(row)
-    dl = _can_delivery(dl, MSG_GUI_LOI)
+        kiem = await ct_svc.thu_chi_tiet(session, row, dc) if _can_hoi_chi_tiet(row) else None
+        out = await _xuat(session, row, None, tb=tb, bg=bg, kiem=kiem)
+        await session.commit()
+        return out
+    cl = _client_cua(row, dl, dc, MSG_GUI_LOI)
     try:
-        bai = await dl.nop(row.khoa_bai_lam, _goi_len(row, body.cau))
+        bai = await cl.nop(_dinh_danh(row), _goi_len(row, body.cau))
     except DeliveryLoi as e:
         if e.status == 422:
             raise HTTPException(422, MSG_CAU_SAI) from e
@@ -384,6 +496,7 @@ async def nop(
         row.tra_loi_json = json.dumps(da_chon, ensure_ascii=False)
     # Hết giờ / thầy cô đóng bài trước lúc nộp: chỉ các câu ĐÃ LƯU được tính -> giữ nguyên bản đã lưu.
     await _dong_bo(session, row, bai)
-    out = _ra(row, bai)
+    kiem = await _sau_nop(session, row, dc)
+    out = await _xuat(session, row, bai, tb=tb, bg=bg, kiem=kiem)
     await session.commit()
     return out

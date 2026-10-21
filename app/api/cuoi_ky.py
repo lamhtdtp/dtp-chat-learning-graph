@@ -517,6 +517,15 @@ def _loc_ky(exam: str | None):
                 cast(DeCuoiKy.tham_so_json, JSONB)["exam"].astext == exam)] if exam else []
 
 
+def _nhan_dap_an(d: DeCuoiKy) -> str | None:
+    """Bài mức 0, bài chưa có chi tiết, bài quá hạn: không nhãn thêm."""
+    if d.loai != "testbank" or d.muc != 1 or not d.chi_tiet_json:
+        return None
+    if d.dap_an_mo:
+        return "Đã có đáp án"
+    return None if d.het_han_dap_an else "Chờ thầy cô đóng bài"
+
+
 async def danh_sach_de(session: AsyncSession, user_id: int, *, exam: str | None = None,
                        gioi_han: int = 10, bo_qua: int = 0) -> tuple[list[dict], bool]:
     """Các đề cuối kỳ của một học sinh, mới nhất trước — cả đề đã nộp lẫn đề rút
@@ -553,6 +562,8 @@ async def danh_sach_de(session: AsyncSession, user_id: int, *, exam: str | None 
             "dat": kq["dat_yeu_cau"] if kq else None,
             "loai": d.loai, "ma": d.ma_testbank if d.loai == "testbank" else ma,
             "tieu_de": d.tieu_de, "xoa_duoc": d.loai == "cuoi_ky",
+            # US-30 KB 21: nhãn trạng thái của bài theo mã mức 1, dựng từ bản chép (KHÔNG gọi Testbank).
+            "nhan_trang_thai": _nhan_dap_an(d),
             # Đề giao của learning đã ngừng: bài chưa nộp không làm tiếp được (US-26 KB 41).
             "da_ngung": d.loai == "de_giao" and kq is None and not settings.de_giao_learning_bat,
         })

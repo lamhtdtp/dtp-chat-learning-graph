@@ -100,6 +100,9 @@ TASK_TIER: dict[str, Tier] = {
     # Kịch bản video bám câu trả lời ĐÃ grounding sẵn (chỉ diễn đạt lại, không
     # cần suy luận mới) -> tầng rẻ đủ dùng, rẻ cho tính năng đính kèm.
     "video_script": "cheap",
+    # Giám khảo của eval lý do từng phương án (`evals/run_ly_do_eval.py`, US-30 KB 17): chấm lý do do tầng
+    # rẻ sinh ra nên dùng tầng mạnh. Chỉ eval gọi, không có đường phục vụ nào dùng.
+    "eval_judge": "strong",
     "solve": "strong",
     "exam_gen": "strong",
     # Sinh trắc nghiệm "Kiểm tra nhanh" cho 1 đơn vị kiến thức theo ma trận

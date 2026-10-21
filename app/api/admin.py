@@ -163,6 +163,11 @@ async def student_result(
         select(DeCuoiKy.attempt_id, DeGiao.ma)
         .join(DeGiao, DeGiao.id == DeCuoiKy.de_giao_id)
         .where(DeCuoiKy.user_id == user_id, DeCuoiKy.attempt_id.is_not(None)))).all()}
+    # Bài theo mã Testbank mức 1 (US-30) cũng ghi lần nộp nguồn "de_giao", mã nằm ở chính dòng bài.
+    ma_cua_lan.update({aid: ma for aid, ma in (await session.execute(
+        select(DeCuoiKy.attempt_id, DeCuoiKy.ma_testbank)
+        .where(DeCuoiKy.user_id == user_id, DeCuoiKy.attempt_id.is_not(None),
+               DeCuoiKy.loai == "testbank"))).all()})
 
     def _ten(a: QuizAttempt, dv: str | None) -> str:
         if a.nguon == "cuoi_ky":

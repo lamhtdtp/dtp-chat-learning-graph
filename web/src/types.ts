@@ -241,7 +241,7 @@ export interface CauCuoiKy {
 export interface LyDoPhuongAn {
   noi_dung: string;
   /** "ai" = sinh tự động, "testbank" = bản chính thức có người duyệt. */
-  nguon: "ai" | "testbank" | string;
+  nguon?: "ai" | "testbank" | string;
   dung: boolean;
 }
 
@@ -292,6 +292,8 @@ export interface KetQuaCau {
   so_y: number | null;
   giai_html: string;
   ly_do: Record<string, LyDoPhuongAn>;
+  /** Bài theo mã giai đoạn 2 (US-30): "Đang chuẩn bị giải thích từng phương án…" khi lý do chưa sinh xong. */
+  ly_do_ghi_chu?: string;
 }
 
 /** Lượt "Luyện thêm từ kho đề" (US-25) — POST /lessons/{id}/luyen-them. Như đề cuối kỳ
@@ -387,6 +389,8 @@ export interface DeCuoiKyTomTat {
   loai: "cuoi_ky" | "de_giao" | "testbank";
   ma: string | null;
   tieu_de?: string | null;
+  /** Bài theo mã Testbank mức 1 (US-30): "Chờ thầy cô đóng bài" | "Đã có đáp án" | null. */
+  nhan_trang_thai?: string | null;
   xoa_duoc: boolean;
   /** Bài theo mã US-26 chưa nộp mà đề giao đã ngừng: hiện nhãn, không mở được. */
   da_ngung?: boolean;
@@ -405,6 +409,23 @@ export interface KetQuaCauMa {
   /** Lựa chọn em đã chọn (cùng dạng chuỗi như lúc làm). */
   chon: string;
   dang: string;
+  // ── US-30: chỉ có ở bài mức 1 đã có chi tiết sau nộp (giai đoạn 1 và 2) ──
+  qid?: string;
+  ycd?: string;
+  ar_id?: string;
+  topic_id?: number | null;
+  don_vi?: string;
+  cham_duoc?: boolean;
+  dung?: boolean;
+  bai_xuat_ban?: boolean;
+  // ── chỉ có ở giai đoạn 2 (thầy cô đã đóng bài); giai đoạn 1 KHÔNG có các khoá này ──
+  dap_an?: string;
+  dap_an_html?: string;
+  giai_html?: string;
+  so_y_dung?: number | null;
+  so_y?: number | null;
+  ly_do?: Record<string, LyDoPhuongAn>;
+  ly_do_ghi_chu?: string;
 }
 export interface KetQuaMa {
   diem: number;
@@ -412,6 +433,11 @@ export interface KetQuaMa {
   so_cau_cho_cham: number;
   cau: KetQuaCauMa[];
   cach_nop: "TAY" | "HET_GIO" | "DONG_LUOT_PHAT" | null;
+  /** US-30: kết quả theo YCCĐ + khối Đề xuất (giai đoạn 1 và 2). */
+  giai_doan?: 0 | 1 | 2;
+  theo_ycd?: YcdKetQua[];
+  khong_cham?: number;
+  de_xuat?: DeXuat;
 }
 export interface BaiMa {
   de_id: string;
@@ -428,8 +454,12 @@ export interface BaiMa {
   thoi_gian_phut: number | null;
   ket_qua: KetQuaMa | null;
   thong_bao: string;
-  /** false cho tới khi Testbank có chi tiết sau nộp (T5): không đáp án / YCCĐ / Đề xuất. */
+  /** 0 = chưa có chi tiết sau nộp (bài mức 0 / cờ tắt / chưa lấy được) · 1 = chờ thầy cô đóng bài ·
+   *  2 = đã có đáp án. */
+  giai_doan: 0 | 1 | 2;
   co_chi_tiet: boolean;
+  /** Các dòng trạng thái hiện nguyên văn trên màn kết quả (máy chủ dựng, đúng chữ của US-30). */
+  ghi_chu: string[];
 }
 export interface CheDoNhapMa {
   /** tich_hop: làm trong app · du_phong: mở web-student của Testbank · tat: chưa nối gì. */

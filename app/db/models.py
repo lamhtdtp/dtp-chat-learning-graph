@@ -282,6 +282,25 @@ class DeCuoiKy(Base):
     nop_luc: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
+    # ── Bài theo mã mức 1 (US-30). Mức của từng bài CỐ ĐỊNH lúc tạo: bật / tắt cờ sau đó
+    # không đổi đường đi của bài đã có (bài mức 0 không đọc được qua đường đối tác và ngược lại).
+    #: 0 = đường học sinh (US-29, giữ `khoa_bai_lam`) · 1 = đường đối tác (giữ `bai_lam_tb_id`).
+    muc: Mapped[int] = mapped_column(default=0, server_default="0")
+    #: Mã bài làm Testbank của bài mức 1 — BÍ MẬT như `khoa_bai_lam`: chỉ ở máy chủ, không ra API,
+    #: không vào log (nó nằm trong URL `/doi-tac/bai-lam/{id}`).
+    bai_lam_tb_id: Mapped[str | None] = mapped_column(Text, default=None)
+    #: Bản chép "chi tiết sau nộp" (danh sách câu: YCCĐ, nội dung theo TỜ ĐỀ, câu trả lời, trạng thái
+    #: chấm; đáp án + lời giải CHỈ khi `dap_an_mo`). NULL = chưa lấy được lần nào.
+    chi_tiet_json: Mapped[str | None] = mapped_column(Text, default=None)
+    #: Lần chép có cờ "cho học sinh xem đáp án" bật (lượt phát đã đóng) = giai đoạn 2. Một chiều:
+    #: đã mở thì không bao giờ đóng lại, và bài này không bao giờ hỏi Testbank nữa.
+    dap_an_mo: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
+    #: Testbank trả 410 "quá hạn xem lại" trước khi learning chép được bản đầy đủ: hết cách lấy đáp án.
+    het_han_dap_an: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
+    #: Lần hỏi Testbank gần nhất có phản hồi (giờ POSTGRES) — chặn hỏi quá một lần mỗi 60 giây
+    #: cho cùng một bài, kể cả khi mở từ nhiều tab / nhiều replica.
+    kiem_luc: Mapped[datetime | None] = mapped_column(default=None)
+
     __table_args__ = (
         UniqueConstraint("de_giao_id", "user_id", name="uq_de_cuoi_ky_de_giao_user"),
         UniqueConstraint("user_id", "ma_testbank", name="uq_de_cuoi_ky_testbank_user"),
@@ -327,6 +346,27 @@ class LyDoPhuongAn(Base):
     option_key: Mapped[str]
     noi_dung: Mapped[str] = mapped_column(Text)
     nguon: Mapped[str] = mapped_column(default="ai")     # ai | testbank
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class LyDoToDe(Base):
+    """Lý do từng phương án theo NỘI DUNG CÂU TRÊN TỜ ĐỀ của bài theo mã Testbank (US-30 KB 16).
+
+    Khác `LyDoPhuongAn` (khoá theo mã câu + phiên bản): thầy cô sửa riêng câu cho tờ đề thì nội dung
+    / đáp án khác kho dù cùng mã câu và phiên bản, nên lý do của kho có thể nói ngược đáp án của tờ
+    đề. Khoá ở đây là DẤU VÂN nội dung (`noi_dung_hash`, xem `app/exam/ly_do_to_de.py`): hai lượt phát
+    cùng nội dung dùng chung, nội dung khác thì sinh riêng. `option_key=""` là dòng ĐÁNH DẤU "đã sinh
+    một lần" (model có thể bỏ sót phương án — chấp nhận thiếu, không gọi lại)."""
+
+    __tablename__ = "ly_do_to_de"
+    __table_args__ = (UniqueConstraint("noi_dung_hash", "option_key"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    noi_dung_hash: Mapped[str] = mapped_column(String(64), index=True)
+    option_key: Mapped[str] = mapped_column(String(16))
+    noi_dung: Mapped[str] = mapped_column(Text, default="")
+    #: ai | kho (chép từ lý do theo mã câu của kho khi nội dung tờ đề trùng nội dung kho)
+    nguon: Mapped[str] = mapped_column(String(16), default="ai")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 

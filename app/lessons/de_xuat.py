@@ -212,7 +212,7 @@ def xuat_ban_cua(c: CauKq, danh_muc: DanhMuc) -> bool:
 
 # ── Hàm thuần: chọn học liệu ────────────────────────────────────────────────
 def tinh_de_xuat(cau: list[CauKq], hoc_lieu: list[dict], danh_muc: DanhMuc,
-                 chua_vung: set[str]) -> dict:
+                 chua_vung: set[str], *, bo_hl_theo_cau: bool = False) -> dict:
     """Chọn học liệu + bài học cho khối Đề xuất (KB 12-25, 27).
 
     `hoc_lieu`: dict `{ma, loai, nhan, url, muc_dich, ycd_key, qid, option_key}` còn hiệu
@@ -221,7 +221,10 @@ def tinh_de_xuat(cau: list[CauKq], hoc_lieu: list[dict], danh_muc: DanhMuc,
 
     Thứ tự trong mỗi nhóm: Ôn lại trước Củng cố; rồi theo phương án -> theo câu -> theo
     YCCĐ; cùng tầng thì thứ tự YCCĐ trong ma trận, thứ tự câu trong đề, mã tăng dần.
-    Cùng đầu vào cho ra đúng cùng một danh sách (mở lại kết quả nhiều lần)."""
+    Cùng đầu vào cho ra đúng cùng một danh sách (mở lại kết quả nhiều lần).
+
+    `bo_hl_theo_cau`: bỏ học liệu gắn theo CÂU / PHƯƠNG ÁN (còn lại theo YCCĐ) — bài theo mã Testbank
+    (US-30 KB 11): thầy cô có thể đã sửa câu trên tờ đề nên không còn là câu Q của kho."""
     tu_cham = [c for c in cau if c.cham_duoc]
     sai: dict[str, list[CauKq]] = defaultdict(list)
     dung_cua: dict[str, list[CauKq]] = defaultdict(list)
@@ -247,6 +250,8 @@ def tinh_de_xuat(cau: list[CauKq], hoc_lieu: list[dict], danh_muc: DanhMuc,
     for hl in hoc_lieu:
         khoa = hl["ycd_key"]
         if khoa not in danh_muc.theo_khoa:
+            continue
+        if bo_hl_theo_cau and (hl.get("qid") or hl.get("option_key")):
             continue
         if hl["muc_dich"] == "on_lai":
             ds = sai.get(khoa)
@@ -537,7 +542,8 @@ def _khoi_rong() -> dict:
 
 async def dung_khoi(session: AsyncSession, cau: list[CauKq], *, user_id: int,
                     attempt_id: int | None, tb: TestbankClient | None,
-                    danh_muc: DanhMuc | None = None, hoi_testbank: bool = True) -> dict:
+                    danh_muc: DanhMuc | None = None, hoi_testbank: bool = True,
+                    bo_hl_theo_cau: bool = False) -> dict:
     """Dựng `de_xuat` cho một bài đã chấm. Không bao giờ ném lỗi của kho học liệu /
     testbank ra ngoài: điểm và đáp án là việc chính, khối này là phần phụ (KB 33)."""
     danh_muc = danh_muc or await doc_danh_muc(session)
@@ -562,7 +568,7 @@ async def dung_khoi(session: AsyncSession, cau: list[CauKq], *, user_id: int,
         kho_loi = True
         log.exception("Không đọc được kho học liệu khi dựng khối Đề xuất")
 
-    kq = tinh_de_xuat(cau, hoc_lieu, danh_muc, chua_vung)
+    kq = tinh_de_xuat(cau, hoc_lieu, danh_muc, chua_vung, bo_hl_theo_cau=bo_hl_theo_cau)
 
     # ── Test thêm ──
     dem: dict[str, list[bool]] = defaultdict(list)
@@ -598,7 +604,8 @@ async def dung_khoi(session: AsyncSession, cau: list[CauKq], *, user_id: int,
 
 async def them_de_xuat(session: AsyncSession, ket_qua: dict, *, loai: str, user_id: int,
                        attempt_id: int | None, tb: TestbankClient | None,
-                       topic_id: int | None = None, hoi_testbank: bool = True) -> dict:
+                       topic_id: int | None = None, hoi_testbank: bool = True,
+                       bo_hl_theo_cau: bool = False) -> dict:
     """BẢN SAO của `ket_qua` kèm `de_xuat` và `bai_xuat_ban` trên từng câu.
 
     `loai`: "testbank" (kết quả có `cau`: đề cuối kỳ, đề giao, luyện thêm) hoặc "quiz" (kết
@@ -619,7 +626,8 @@ async def them_de_xuat(session: AsyncSession, ket_qua: dict, *, loai: str, user_
         async with session.begin_nested():
             danh_muc = await doc_danh_muc(session)
             de_xuat = await dung_khoi(session, cau, user_id=user_id, attempt_id=attempt_id,
-                                      tb=tb, danh_muc=danh_muc, hoi_testbank=hoi_testbank)
+                                      tb=tb, danh_muc=danh_muc, hoi_testbank=hoi_testbank,
+                                      bo_hl_theo_cau=bo_hl_theo_cau)
             xuat_ban = await _xuat_ban_theo_bai(session, cau, loai)
     except Exception:  # noqa: BLE001
         log.exception("Dựng khối Đề xuất lỗi — trả kết quả không kèm đề xuất")

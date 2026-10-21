@@ -181,6 +181,7 @@ export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai, tuLuanNhap }: {
         </div>
       )}
 
+      {daNop && kq!.ly_do_ghi_chu && <div className="ck-tl">{kq!.ly_do_ghi_chu}</div>}
       {daNop && kq!.giai_html && (
         <div className="ex-giai"><b>Lời giải:</b> <span dangerouslySetInnerHTML={{ __html: kq!.giai_html }} /></div>
       )}
@@ -331,8 +332,9 @@ export function CuoiKyView({ exam, ten, moDe, moLoai, role, onMoBai, onDong }: {
 
   if (maBai) {
     return (
-      <BaiMaView key={maBai.de_id} bai={maBai} onVe={() => { setMaBai(null); setLoi(null); }}
-        onTuSinh={() => { setMaBai(null); void rut(); }} />
+      <BaiMaView key={maBai.de_id} bai={maBai} exam={exam} onVe={() => { setMaBai(null); setLoi(null); }}
+        onTuSinh={() => { setMaBai(null); void rut(); }} onMoBai={onMoBai}
+        onMoDe={(id) => { setMaBai(null); void mo(id, true); }} />
     );
   }
 
@@ -514,6 +516,8 @@ export function LichSu({ ls, onMo, tieuDe = "Các lần làm trước", nhanXoaH
                   {ngung ? "Chưa nộp (đề giao đã ngừng)" : `${ngayGio(x.nop_luc ?? x.luc)}${x.loai === "testbank" ? "" : ` · ${x.so_cau} câu`}`}</span>
               </span>
               <span className="kq">{ngung ? "" : pct !== null ? `${pct}%` : "Làm tiếp →"}</span>
+              {/* Bài theo mã mức 1 (US-30): nhãn trạng thái dựng từ bản chép, không hỏi Testbank. */}
+              {x.nhan_trang_thai && <span className="ck-ls-nhan">{x.nhan_trang_thai}</span>}
             </button>
             {/* Bài thầy cô giao không có nút xoá: là dữ liệu của giáo viên (US-26 KB 24). */}
             {x.xoa_duoc && (

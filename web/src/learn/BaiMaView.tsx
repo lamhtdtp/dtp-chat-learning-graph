@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, luuBaiMa, moBaiMa, nopBaiMa } from "../api";
-import type { BaiMa, CauCuoiKy, KetQuaCauMa } from "../types";
+import type { BaiMa, CauCuoiKy, KetQuaCau, KetQuaCauMa } from "../types";
 import { Cau } from "./CuoiKyView";
+import { DeXuatView } from "./DeXuatView";
 
 /** Bài theo MÃ THẦY CÔ PHÁT TRÊN TESTBANK (US-29), làm ngay trong app.
  *
  *  Máy chủ learning giữ khoá bài làm và gọi Testbank thay em — trình duyệt chỉ biết `de_id`.
- *  Không có đáp án / lời giải ở đây vì Testbank không gửi (kể cả sau khi nộp): kết quả chỉ có điểm
- *  phần chấm tự động và Đúng / Sai từng câu.
+ *  Bài mức 0 (US-29): kết quả chỉ có điểm phần chấm tự động và Đúng / Sai từng câu. Bài mức 1 (US-30)
+ *  có hai giai đoạn: 1) ngay sau nộp — kết quả theo YCCĐ, khối Đề xuất, "Xem lại bài", KHÔNG có đáp án;
+ *  2) khi thầy cô đóng bài — thêm đáp án, lời giải, lý do từng phương án. Giai đoạn do MÁY CHỦ quyết
+ *  (`giai_doan`); giao diện chỉ hiện những gì máy chủ đã gửi, không tự suy ra đáp án ở đâu cả.
  *
  *  Lựa chọn lưu dần lên Testbank; chưa lưu được (mất mạng, Testbank bận) thì GIỮ TRÊN MÁY
  *  (localStorage) và gửi lại khi có mạng — đúng điều em cần để "đừng đóng app" có nghĩa. */
@@ -43,12 +46,36 @@ function chonChu(c: CauCuoiKy | undefined, chon: string): string {
   return chon;
 }
 
-export function BaiMaView({ bai: ban, onVe, onTuSinh }: {
+/** Câu tự luận (hoặc không chấm tự động được) ở giai đoạn 2: bài làm của em, nhãn chấm như Testbank trả ở
+ *  lần learning chép bản đầy đủ, lời giải của tờ đề (nếu có). Không có lý do từng phương án. */
+function CauKhongTuCham({ c, k }: { c: CauCuoiKy; k: KetQuaCauMa }) {
+  return (
+    <div className="ex-card ck-cau ma-kq-cau">
+      <div className="ex-head">
+        <b>Câu {c.stt}</b>
+        <span className="ma-nhan cho">{k.nhan}</span>
+        {k.diem != null && k.diem_toi_da != null && <span className="ck-dang">{so(k.diem)}/{so(k.diem_toi_da)} điểm</span>}
+      </div>
+      <div className="ex-q ck-q" dangerouslySetInnerHTML={{ __html: c.de_html }} />
+      <div className="ma-chon">Bài làm của em: <b>{chonChu(c, k.chon ?? "")}</b></div>
+      {k.dap_an_html && <div className="ma-chon">Đáp án: <b dangerouslySetInnerHTML={{ __html: k.dap_an_html }} /></div>}
+      {k.giai_html && <div className="ex-giai"><b>Lời giải:</b> <span dangerouslySetInnerHTML={{ __html: k.giai_html }} /></div>}
+    </div>
+  );
+}
+
+export function BaiMaView({ bai: ban, exam, onVe, onTuSinh, onMoBai, onMoDe }: {
   bai: BaiMa;
+  /** Kỳ của màn đề cuối kỳ — "Test thêm" ghi vào đúng kỳ. */
+  exam: string;
   /** Về màn đề cuối kỳ (đóng bài). */
   onVe: () => void;
   /** "Làm đề tự sinh để luyện thêm". */
   onTuSinh: () => void;
+  /** "Xem lại bài" / bài học trong khối Đề xuất. */
+  onMoBai: (topicId: number, phan?: string) => void;
+  /** Mở bài "Test thêm" vừa tạo. */
+  onMoDe: (deId: string) => void;
 }) {
   const [bai, setBai] = useState<BaiMa>(ban);
   const [chon, setChon] = useState<Record<string, string>>(() => {
@@ -186,6 +213,7 @@ export function BaiMaView({ bai: ban, onVe, onTuSinh }: {
       {daNop && kq && (
         <div className="ck-kq">
           {bai.thong_bao && <div className="ck-thieu" role="status">ℹ️ {bai.thong_bao}</div>}
+          {bai.ghi_chu.map((g) => <div className="ck-thieu" role="status" key={g}>ℹ️ {g}</div>)}
           <div className="pmach">
             <div className="pmach-h">
               <span className="tt">Em được {so(kq.diem)} / {so(kq.tong)} điểm phần chấm tự động</span>
@@ -193,8 +221,22 @@ export function BaiMaView({ bai: ban, onVe, onTuSinh }: {
             {kq.so_cau_cho_cham > 0 && (
               <div className="ck-ghi">{kq.so_cau_cho_cham} câu thầy cô chấm sau</div>
             )}
-            <div className="ck-ghi">Thầy cô sẽ chữa bài trên lớp.</div>
+            {bai.giai_doan === 0 && bai.ghi_chu.length === 0 && (
+              <div className="ck-ghi">Thầy cô sẽ chữa bài trên lớp.</div>
+            )}
+            {/* Kết quả theo YÊU CẦU CẦN ĐẠT, đúng thứ tự ma trận (giống đề tự sinh). */}
+            {!!kq.theo_ycd?.length && (
+              <div className="ycd">
+                {kq.theo_ycd.map((y) => (
+                  <div className="ycd-row" key={y.ar_id}>
+                    <span className={"badge b-" + y.trang}>{y.dung}/{y.tong}</span>
+                    <span className="ck-ycd-tx">{y.ycd}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+          {kq.de_xuat && <DeXuatView dx={kq.de_xuat} exam={exam} onMoBai={onMoBai} onMoDe={onMoDe} />}
           <div className="ot-nop">
             <button className="btn btn-primary" type="button" onClick={onTuSinh}>Làm đề tự sinh để luyện thêm</button>
           </div>
@@ -210,6 +252,15 @@ export function BaiMaView({ bai: ban, onVe, onTuSinh }: {
             );
           }
           const k = theoStt.get(c.stt);
+          // Giai đoạn 2: máy chủ đã gửi đáp án (`dap_an` có mặt) — dùng lại thẻ câu của đề tự sinh.
+          if (k && k.dap_an !== undefined) {
+            const day = k as KetQuaCauMa & KetQuaCau;
+            if (c.dang === "TL" || k.cham_duoc === false) return <CauKhongTuCham key={c.qid} c={c} k={k} />;
+            return (
+              <Cau key={c.qid} c={c} chon={k.chon ?? ""} kq={{ ...day, qid: c.qid, ly_do: k.ly_do ?? {} }}
+                onChon={() => undefined} onMoBai={onMoBai} />
+            );
+          }
           const cls = k?.trang_thai === "DUNG" ? "ok" : k?.trang_thai === "CHO_GIAO_VIEN_CHAM" ? "cho" : "no";
           return (
             <div className="ex-card ck-cau ma-kq-cau" key={c.qid}>
@@ -221,6 +272,14 @@ export function BaiMaView({ bai: ban, onVe, onTuSinh }: {
               </div>
               <div className="ex-q ck-q" dangerouslySetInnerHTML={{ __html: c.de_html }} />
               <div className="ma-chon">Em đã chọn: <b>{chonChu(c, k?.chon ?? "")}</b></div>
+              {/* Giai đoạn 1: chỉ nút "Xem lại bài" cho câu chưa đúng có YCCĐ khớp bài học đã xuất bản. */}
+              {k && k.cham_duoc && !k.dung && k.topic_id != null && k.bai_xuat_ban !== false && (
+                <div className="ex-foot">
+                  <button className="hoi-cau" type="button" onClick={() => onMoBai(k.topic_id!, "kien_thuc")}>
+                    📚 Xem lại bài: {k.don_vi}
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}

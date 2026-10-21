@@ -274,6 +274,29 @@ class TestbankClient:
             r = await gui(await self._dang_nhap())
         return self._doc(r, url)
 
+    async def goi_tho(self, method: str, url: str, *, body: Any = None,
+                      timeout: httpx.Timeout | None = None) -> httpx.Response:
+        """Gọi một URL BẤT KỲ của Testbank bằng token tài khoản dịch vụ, trả NGUYÊN response (không
+        đổi mã lỗi thành `TestbankLoi`) — dịch vụ phát đề (`/doi-tac/*`, US-30) có mã lỗi nghiệp vụ
+        riêng (404 mã sai, 410 quá hạn, 429 + Retry-After) mà chỗ gọi phải đọc.
+
+        Chung chuyện token với `goi` / `lay`: làm mới khi sắp hết, 401 thì đăng nhập lại và thử ĐÚNG
+        MỘT lần. Mạng hỏng / đăng nhập hỏng vẫn là `TestbankLoi`. KHÔNG log `url`: có chứa mã bài làm."""
+        async def gui(token: str) -> httpx.Response:
+            try:
+                return await self._http.request(
+                    method, url, json=body, headers={"authorization": f"Bearer {token}"},
+                    timeout=timeout or TIMEOUT)
+            except httpx.HTTPError as exc:
+                log.warning("Không gọi được Testbank (%s %s)", method, type(exc).__name__)
+                raise TestbankLoi("Không kết nối được DTP Testbank") from exc
+
+        r = await gui(await self._token())
+        if r.status_code == 401:
+            await self._kho.xoa()
+            r = await gui(await self._dang_nhap())
+        return r
+
     async def goi(self, dich: Dich, duong: str, body: Any) -> Any:
         """POST."""
         url = f"{self.ch.goc(dich)}{duong}"

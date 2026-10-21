@@ -58,10 +58,12 @@ class Settings(BaseSettings):
     # Testbank): https://testbank.dtpsoft.vn/api/delivery. Để trống = chưa nối: ô nhập mã chuyển
     # sang phương án dự phòng (mở trang làm bài của Testbank), KHÔNG lỗi 500.
     testbank_delivery_url: str = ""
-    # Mức 1 (T7: /doi-tac/*, token đối tác) và chi tiết sau nộp (T5) — Testbank CHƯA làm.
-    # Cờ chỉ để đặt chỗ: bật khi Testbank báo xong. Hiện bật cũng chưa có tác dụng (xem
-    # app/integrations/testbank/delivery.py), nên mặc định TẮT.
+    # Mức 1 (US-30): vào thi bằng đường ĐỐI TÁC của Testbank (`/doi-tac/*`, token tài khoản dịch vụ) thay
+    # cho đường học sinh. Cờ chỉ quyết định bài MỚI vào bằng đường nào; mức của bài đã có giữ nguyên.
+    # Bật khi tài khoản dịch vụ đã có đúng một vai đối tác "Gia sư DTP" (US-30 C2).
     testbank_doi_tac_bat: bool = False
+    # Chi tiết sau nộp (T5): kết quả theo YCCĐ + Đề xuất ngay sau nộp; đáp án / lời giải / lý do từng
+    # phương án khi thầy cô đã đóng lượt. Chỉ có nghĩa với bài mức 1.
     testbank_chi_tiet_sau_nop_bat: bool = False
     # Gốc web-student của Testbank (dự phòng P2: mở `<gốc>/?ma=<mã>` ở tab mới) và gốc web-teacher
     # (nút "Soạn & giao đề trên Testbank"). Ví dụ máy dev: http://localhost:5174 ; prod:

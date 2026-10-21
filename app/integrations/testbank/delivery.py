@@ -5,8 +5,8 @@ Mức 0 = dùng nguyên đường học sinh Testbank đã có: vào thi bằng 
 vụ. Máy chủ learning gọi THAY học sinh; khoá nằm ở DB của learning, không bao giờ xuống trình
 duyệt (nên trình duyệt không gọi thẳng Testbank thay learning được).
 
-Mức 1 (`/doi-tac/*`, token đối tác, T7) và chi tiết sau nộp (T5) CHƯA có ở Testbank: chỉ đặt chỗ
-sau hai cờ cấu hình, mặc định tắt (xem `chi_tiet_sau_nop`).
+Mức 1 (`/doi-tac/*`, token đối tác, T7) và chi tiết sau nộp (T5) ở `doi_tac.py` (US-30), sau hai cờ
+cấu hình `TESTBANK_DOI_TAC_BAT` / `TESTBANK_CHI_TIET_SAU_NOP_BAT`.
 
 Hợp đồng nguồn: docs/YEU-CAU-TESTBANK-GIAO-DE.md, đối chiếu `services/delivery/.../routers/hs.py`
 và `schemas.py` của Testbank.
@@ -51,6 +51,8 @@ class DeliveryLoi(Exception):
         self.ma = ma
         self.thong_diep = thong_diep
         self.retry_after = retry_after
+        #: Thân 422 của lưu câu trả lời khi vẫn là `LuuOut` (đường đối tác dựng ngoại lệ trước khi đọc thân).
+        self.luu_out: dict | None = None
 
     @property
     def tam_thoi(self) -> bool:
@@ -94,12 +96,21 @@ class DeliveryClient:
             return r.json()
         ma, td = _doc_detail(r)
         ra = None
+        luu_out = None
+        if r.status_code == 422:
+            try:
+                d = r.json()
+            except ValueError:
+                d = None
+            luu_out = d if isinstance(d, dict) and "da_luu" in d else None
         if r.status_code == 429:
             try:
                 ra = max(1, int(r.headers.get("retry-after", "")))
             except ValueError:
                 ra = 600
-        raise DeliveryLoi(r.status_code, ma=ma, thong_diep=td, retry_after=ra)
+        e = DeliveryLoi(r.status_code, ma=ma, thong_diep=td, retry_after=ra)
+        e.luu_out = luu_out
+        raise e
 
     async def vao_thi(self, ma: str, ho_ten: str) -> tuple[str, dict]:
         """Trả `(khoá bài làm, BaiLamHs)`. Mỗi lần gọi Testbank tạo MỘT BÀI MỚI — bên gọi phải
@@ -137,24 +148,9 @@ def tao_delivery_client() -> DeliveryClient:
     global _http
     if not (settings.testbank_delivery_url or "").strip():
         raise DeliveryChuaCauHinh()
-    if settings.testbank_doi_tac_bat:
-        # Mức 1 (T7) chưa có ở Testbank; bật cờ sớm thì vẫn chạy mức 0 thay vì gãy.
-        log.warning("TESTBANK_DOI_TAC_BAT=true nhưng mức 1 (/doi-tac/*) chưa cài: dùng mức 0")
     if _http is None:
         _http = httpx.AsyncClient(timeout=TIMEOUT)
     return DeliveryClient(settings.testbank_delivery_url, _http)
-
-
-async def chi_tiet_sau_nop(client: DeliveryClient, bai_id: str) -> dict | None:
-    """T5: đáp án / lời giải / YCCĐ từng câu sau khi nộp. Testbank CHƯA có (`/doi-tac/bai-lam/{id}/
-    chi-tiet`), nên luôn None -> màn kết quả chỉ có điểm + Đúng/Sai, không khối Đề xuất, không ghi
-    thống kê YCCĐ (US-29 KB 17, 20). Khi Testbank xong T5: cài ở đây, đặt sau
-    `TESTBANK_CHI_TIET_SAU_NOP_BAT`."""
-    from app.config import settings
-
-    if settings.testbank_chi_tiet_sau_nop_bat:
-        log.warning("TESTBANK_CHI_TIET_SAU_NOP_BAT=true nhưng T5 chưa cài ở learning: bỏ qua")
-    return None
 
 
 # ── Hàm thuần ───────────────────────────────────────────────────────────────
@@ -164,6 +160,13 @@ def ho_ten_gui(ten: str, user_id: int) -> str:
     hau_to = f" · HS{user_id}"
     ten = " ".join((ten or "").split()) or "Học sinh"
     return ten[: _TEN_TOI_DA - len(hau_to)].rstrip() + hau_to
+
+
+def ho_ten_thuan(ten: str) -> str:
+    """Họ tên gửi Testbank ở mức 1 (US-30 C4): thuần, KHÔNG hậu tố — nhãn phân biệt học sinh trùng tên
+    ("Gia sư DTP · HS<mã>") do Testbank dựng từ mã học sinh. Testbank nhận 2-100 ký tự."""
+    ten = " ".join((ten or "").split())[:_TEN_TOI_DA].rstrip()
+    return ten if len(ten) >= 2 else "Học sinh"
 
 
 def chon_sang_tra_loi(cau: dict, chon: str) -> Any:

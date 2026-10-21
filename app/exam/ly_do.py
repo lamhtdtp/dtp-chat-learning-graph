@@ -100,15 +100,21 @@ def boc_ly_do(raw: str, keys: list[str]) -> dict[str, str]:
             if isinstance(data.get(k), (str, int, float)) and str(data[k]).strip()}
 
 
+async def sinh_ly_do(cau: dict) -> dict[str, str] | None:
+    """Gọi model một lần. `None` = model KHÔNG trả lời (hết quota / chết): chưa sinh được, nên chỗ gọi
+    không được coi là "đã sinh" mà đánh dấu. `{}` = model trả lời nhưng không dùng được."""
+    try:
+        raw = await gateway.complete(
+            "rationale_gen", [{"role": "user", "content": tao_prompt(cau)}], max_tokens=1500)
+    except LLMUnavailable as exc:
+        log.warning("Không sinh được lý do cho %s (%s) — bỏ qua", cau.get("qid"), exc)
+        return None
+    return boc_ly_do(raw, [o["key"] for o in cau["options"]])
+
+
 async def _sinh(cau: dict, khoa: asyncio.Semaphore) -> dict[str, str]:
     async with khoa:
-        try:
-            raw = await gateway.complete(
-                "rationale_gen", [{"role": "user", "content": tao_prompt(cau)}], max_tokens=1500)
-        except LLMUnavailable as exc:
-            log.warning("Không sinh được lý do cho %s (%s) — bỏ qua", cau.get("qid"), exc)
-            return {}
-    return boc_ly_do(raw, [o["key"] for o in cau["options"]])
+        return await sinh_ly_do(cau) or {}
 
 
 async def _doc(session: AsyncSession, caus: list[dict]) -> dict[str, dict[str, dict]]:
