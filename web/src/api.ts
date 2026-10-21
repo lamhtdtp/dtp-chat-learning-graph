@@ -16,7 +16,6 @@ import type {
   Neo,
   PhamVi,
   QuizResult,
-  Role,
   ThoiGianHoc,
   TutorAnswer,
   YcdMach,
@@ -81,9 +80,9 @@ export async function register(
   email: string,
   password: string,
   name: string,
-  role: Role,
 ): Promise<AuthResult> {
-  const res = await post<AuthResult>("/auth/register", { email, password, name, role });
+  // Không gửi `role`: tự đăng ký chỉ tạo học sinh (US-26), tài khoản giáo viên do admin cấp.
+  const res = await post<AuthResult>("/auth/register", { email, password, name });
   tokenStore.set(res.token);
   return res;
 }
@@ -227,6 +226,16 @@ export function xoaHetDeCuoiKy(exam?: string): Promise<{ da_xoa: number }> {
 /** Mở lại một đề: chưa nộp thì như lúc rút (không đáp án), đã nộp thì kèm `ket_qua`. */
 export function moDeCuoiKy(deId: string): Promise<DeCuoiKy> {
   return req(`/exam/cuoi-ky/${encodeURIComponent(deId)}`, { auth: true });
+}
+
+// ── Đề thầy cô giao bằng mã (US-26) ──
+/** Nhập mã: mở (hoặc mở lại) đề thầy cô giao. Không có đáp án; đã nộp thì kèm `ket_qua`. */
+export function vaoDeGiao(ma: string): Promise<DeCuoiKy> {
+  return req("/de-giao/vao", { auth: true, body: { ma } });
+}
+/** Nộp bài theo mã (mỗi em một lần; nộp lại trả kết quả lần đầu). */
+export function nopDeGiao(deId: string, traLoi: Record<string, string>): Promise<KetQuaCuoiKy> {
+  return req("/de-giao/nop", { auth: true, body: { de_id: deId, tra_loi: traLoi } });
 }
 
 /** Rút một lượt "Luyện thêm từ kho đề" của bài (tối đa 4 câu, không có đáp án). */

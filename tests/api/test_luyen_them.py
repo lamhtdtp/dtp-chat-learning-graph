@@ -197,10 +197,8 @@ def _han_muc(mocker):
 
 
 async def _hs(client, session=None, role="hoc_sinh"):
-    email = f"lt-{uuid.uuid4().hex[:8]}@vd.vn"
-    r = await client.post("/auth/register", json={
-        "email": email, "password": "matkhau123", "name": "An", "role": role})
-    h = {"Authorization": f"Bearer {r.json()['token']}"}
+    from tests.api.conftest import tao_tai_khoan
+    email, h = await tao_tai_khoan(client, role, "An", "lt")
     if session is None:
         return h
     uid = await session.scalar(select(User.id).where(User.email == email))

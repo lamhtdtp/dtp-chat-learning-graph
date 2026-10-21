@@ -955,3 +955,15 @@
 .learn .lt-kq .lt-diem{font-weight:800;font-size:15px}
 .learn .lt-kq.ok{background:var(--primary-weak);color:var(--teal-ink)}
 .learn .lt-kq.no{background:var(--accent-weak);color:var(--accent-ink)}
+
+/* Đề thầy cô giao bằng mã (US-26) */
+.learn .ck-giao-ghi{margin:-4px 0 14px;font-size:13px;font-weight:700;color:var(--teal-ink)}
+.learn .ck-ma{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.learn .ck-ma label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:var(--ink-2)}
+.learn .ck-ma input{width:220px;border:1px solid var(--border);background:var(--surface);color:var(--ink);
+  border-radius:10px;padding:10px 14px;font:inherit;font-size:20px;font-weight:800;letter-spacing:.18em;
+  text-transform:uppercase}
+.learn .ck-ma input::placeholder{font-size:14px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--ink-3)}
+.learn .ck-ma input:focus{outline:2px solid var(--ring);border-color:var(--primary)}
+.learn .ck-dat.ok{color:var(--teal-ink)}
+.learn .ck-dat.no{color:color-mix(in srgb,var(--danger) 62%,var(--ink))}

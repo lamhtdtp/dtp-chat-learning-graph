@@ -20,6 +20,7 @@ export default defineConfig({
       // không nằm dưới /cms — thiếu dòng này thì dev server trả index.html và
       // client báo "không tải được" mà không có lỗi HTTP nào để lần.
       "/on-tap": "http://localhost:8000",
+      "/de-giao": "http://localhost:8000",     // giao đề bằng mã (US-26) — thiếu thì dev nhận index.html
       "/health": "http://localhost:8000",
     },
   },

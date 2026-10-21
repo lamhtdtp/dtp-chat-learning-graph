@@ -6,8 +6,8 @@
 - GET  /admin/users/{id}/result      — kết quả Kiểm tra nhanh từng lần       [giáo viên + admin]
 - POST /admin/users                  — tạo tài khoản chuyên gia / quản trị            [admin]
 
-/auth/register KHÔNG cho chọn role=admin (chống tự nâng quyền); tài khoản chuyên
-gia và quản trị tạo qua POST /admin/users — hoặc CLI `python -m app.create_admin`
+/auth/register chỉ tạo học sinh (gửi role khác bị từ chối 400 — US-26); tài khoản
+giáo viên, chuyên gia và quản trị tạo qua POST /admin/users — hoặc CLI `python -m app.create_admin`
 cho admin ĐẦU TIÊN, khi chưa có ai để đăng nhập.
 """
 from datetime import date, timedelta
@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import security
 from app.api.deps import get_current_user
-from app.db.models import (CurriculumTopic, QuizAttempt, StudentProgress, StudySession,
+from app.db.models import (CurriculumTopic, DeCuoiKy, DeGiao, QuizAttempt, StudentProgress, StudySession,
                            TopicContent, User, luot_khong_xet_dat)
 from app.db.session import get_session
 from app.lessons import phien as phien_svc
@@ -157,11 +157,27 @@ async def student_result(
         .order_by(QuizAttempt.created_at.desc(), QuizAttempt.id.desc())
     )).all()
 
+    # Lần nộp theo mã (US-26): nhãn nguồn "Đề giao · mã XXX" — giáo viên cần biết bài
+    # này thuộc mã nào. Nối qua de_cuoi_ky.attempt_id -> de_giao.ma.
+    ma_cua_lan = {aid: ma for aid, ma in (await session.execute(
+        select(DeCuoiKy.attempt_id, DeGiao.ma)
+        .join(DeGiao, DeGiao.id == DeCuoiKy.de_giao_id)
+        .where(DeCuoiKy.user_id == user_id, DeCuoiKy.attempt_id.is_not(None)))).all()}
+
+    def _ten(a: QuizAttempt, dv: str | None) -> str:
+        if a.nguon == "cuoi_ky":
+            return "Đề cuối kỳ"
+        if a.nguon == "de_giao":
+            return f"Đề giao · mã {ma_cua_lan.get(a.id, '?')}"
+        return (dv or "").strip()
+
     lan = [{
         "topic_id": a.topic_id,
-        "ten": "Đề cuối kỳ" if a.nguon == "cuoi_ky" else (dv or "").strip(),
+        "ten": _ten(a, dv),
         "mach": ("Rút từ kho đề DTP Testbank · chấm theo yêu cầu cần đạt"
-                 if a.nguon == "cuoi_ky" else (mach or "").strip()),
+                 if a.nguon == "cuoi_ky" else
+                 "Giáo viên giao bằng mã · chấm theo yêu cầu cần đạt"
+                 if a.nguon == "de_giao" else (mach or "").strip()),
         "diem": a.diem, "tong": a.tong, "dat": a.dat, "nguon": a.nguon or "nhanh",
         "phan_tram": round(100 * a.diem / a.tong) if a.tong else 0,
         "luc": a.created_at.isoformat(),
@@ -221,7 +237,7 @@ async def student_result(
             if t is not None:
                 _o(tid, t.don_vi_kien_thuc, t.mach_noi_dung)
     for x in lan:
-        # Đề cuối kỳ phủ cả học kỳ, không thuộc đơn vị nào — chỉ hiện ở "Từng lần
+        # Đề cuối kỳ / đề giao phủ cả học kỳ, không thuộc đơn vị nào — chỉ hiện ở "Từng lần
         # nộp", không sinh dòng đơn vị rỗng trong bảng theo bài.
         if x["topic_id"] is None:
             continue
@@ -249,6 +265,7 @@ async def student_result(
         "tong_lan_on_tap": sum(1 for x in lan if x["nguon"] == "on_tap"),
         "tong_lan_cuoi_ky": sum(1 for x in lan if x["nguon"] == "cuoi_ky"),
         "tong_lan_luyen_them": sum(1 for x in lan if x["nguon"] == "luyen_them"),
+        "tong_lan_de_giao": sum(1 for x in lan if x["nguon"] == "de_giao"),
         "so_lan_dat": sum(1 for x in nhanh if x["dat"]),
         "diem_tb": round(sum(x["phan_tram"] for x in nhanh) / len(nhanh)) if nhanh else 0,
         # Sắp theo trạng thái (đạt trước) rồi tới số lần làm — giáo viên tìm em
@@ -275,8 +292,8 @@ async def create_staff(
 ) -> dict:
     """Tạo tài khoản CHUYÊN GIA (giáo viên) hoặc QUẢN TRỊ. Chỉ quản trị được gọi.
 
-    /auth/register cố ý KHÔNG cho chọn role=admin (chống tự nâng quyền), nên trước
-    đây tạo admin phải chạy CLI trên server. Đường này thay thế cho việc đó, và
+    /auth/register chỉ tạo học sinh (chống tự nâng quyền; US-26 chặn cả vai giáo viên,
+    vì giáo viên xem được đáp án của đề giao), nên trước đây tạo admin phải chạy CLI trên server. Đường này thay thế cho việc đó, và
     quyền tạo nằm trong tay người đã là admin.
 
     Không tạo học sinh ở đây: học sinh tự đăng ký qua /auth/register.

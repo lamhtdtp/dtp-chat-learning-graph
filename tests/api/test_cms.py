@@ -9,10 +9,8 @@ from app.db.models import CurriculumTopic, Grade, Subject
 
 
 async def _auth(client, role="giao_vien") -> dict:
-    email = f"cms-{uuid.uuid4().hex[:8]}@vd.vn"
-    r = await client.post("/auth/register", json={
-        "email": email, "password": "matkhau123", "name": "GV", "role": role})
-    return {"Authorization": f"Bearer {r.json()['token']}"}
+    from tests.api.conftest import tao_tai_khoan
+    return (await tao_tai_khoan(client, role, "GV", "cms"))[1]
 
 
 async def _seed(session):
@@ -438,13 +436,8 @@ async def _auth_noi_bo(client, session, role: str) -> dict:
     (chống tự nâng quyền), nên đăng ký thường rồi đổi vai trò thẳng trong DB."""
     from app.db.models import User
 
-    email = f"nb-{uuid.uuid4().hex[:8]}@vd.vn"
-    r = await client.post("/auth/register", json={
-        "email": email, "password": "matkhau123", "name": "NB", "role": "giao_vien"})
-    u = await session.scalar(select(User).where(User.email == email))
-    u.role = role
-    await session.commit()
-    return {"Authorization": f"Bearer {r.json()['token']}"}
+    from tests.api.conftest import tao_tai_khoan
+    return (await tao_tai_khoan(client, role, "NB", "nb"))[1]
 
 
 async def test_dang_ky_thuong_khong_tu_chon_duoc_chuyen_gia(client):
@@ -452,7 +445,8 @@ async def test_dang_ky_thuong_khong_tu_chon_duoc_chuyen_gia(client):
     r = await client.post("/auth/register", json={
         "email": f"z-{uuid.uuid4().hex[:6]}@vd.vn", "password": "matkhau123",
         "name": "Z", "role": "chuyen_gia"})
-    assert r.status_code == 422
+    # 422 (luật cũ) hoặc 400 (US-26 KB 38) — cả hai đều là từ chối, không tạo tài khoản
+    assert r.status_code in (400, 422)
 
 
 async def test_chuyen_gia_vao_duoc_cms_hoc_sinh_thi_khong(client, session):

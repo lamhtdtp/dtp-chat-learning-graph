@@ -6,10 +6,8 @@ from app.db.models import User
 
 
 async def _reg(client, role: str = "hoc_sinh"):
-    email = f"adm-{uuid.uuid4().hex[:8]}@vd.vn"
-    r = await client.post("/auth/register", json={
-        "email": email, "password": "matkhau123", "name": "An", "role": role})
-    return email, {"Authorization": f"Bearer {r.json()['token']}"}
+    from tests.api.conftest import tao_tai_khoan
+    return await tao_tai_khoan(client, role, "An", "adm")
 
 
 async def _make_admin(client, session):

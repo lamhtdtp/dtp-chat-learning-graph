@@ -103,7 +103,7 @@ export interface KetQuaLan {
    *  cuoi_ky = đề cuối kỳ rút từ DTP Testbank (topic_id null, không thuộc bài nào) ·
    *  luyen_them = Luyện thêm từ kho đề (US-25): `tong` = số câu chấm được; dưới 3 câu thì
    *  "không xét đạt bài" (dat = false nhưng không phải trượt). */
-  nguon: "nhanh" | "on_tap" | "cuoi_ky" | "luyen_them";
+  nguon: "nhanh" | "on_tap" | "cuoi_ky" | "luyen_them" | "de_giao";
 }
 export interface KetQuaDonVi {
   topic_id: number; ten: string; mach: string;
@@ -132,6 +132,8 @@ export interface KetQuaHocSinh {
   tong_lan_cuoi_ky: number;
   /** Tổng lượt Luyện thêm từ kho đề — đếm riêng, không tính vào điểm TB kiểm tra nhanh. */
   tong_lan_luyen_them: number;
+  /** Số lần nộp bài theo mã thầy cô giao (US-26) — đếm riêng, không tính vào Kiểm tra nhanh. */
+  tong_lan_de_giao: number;
   theo_don_vi: KetQuaDonVi[];
   lan: KetQuaLan[];
 }
@@ -263,3 +265,62 @@ export interface BookJob {
   loi: string | null; tao_luc: string | null;
   canh_bao?: string;
 }
+
+
+// ── Giao đề bằng mã (US-26) — /de-giao ──
+export interface LyDoCms { noi_dung: string; nguon: string; dung: boolean }
+/** Một câu của đề giao, giáo viên được xem KÈM đáp án / lời giải / lý do. */
+export interface CauDeGiao {
+  stt: number; qid: string; dang: "TN1" | "TNN" | "DS" | "DSN" | "TL" | string;
+  muc_do: string; ar_id: string; ycd: string; don_vi: string;
+  de_html: string; phuong_an: { key: string; html: string }[];
+  du_kien_html: string; cau_dan: string; tu_cham: boolean;
+  dap_an: string; dap_an_html: string; giai_html: string;
+  ly_do: Record<string, LyDoCms>;
+}
+export interface XemTruocDeGiao {
+  /** null khi kho không có câu nào — không lưu gì, không có nút "Cấp mã". */
+  nhap_id: number | null;
+  exam: "CK1" | "CK2"; total: number; so_cau: number;
+  du_cau: boolean; co_the_cap_ma: boolean; thong_bao: string;
+  cau: CauDeGiao[];
+}
+export interface DeGiaoCapMa { id: number; ma: string; trang_thai: "mo"; so_cau: number; total: number }
+export interface DeGiaoTomTat {
+  id: number; ma: string; exam: "CK1" | "CK2"; so_cau: number; total: number; created_at: string;
+  trang_thai: "mo" | "dong"; dong_luc: string | null;
+  so_da_nop: number; so_dang_lam: number; nguoi_tao: string;
+}
+export interface DeGiaoChiTiet {
+  id: number; ma: string; exam: "CK1" | "CK2"; total: number; so_cau: number;
+  du_cau: boolean; thong_bao: string; trang_thai: "mo" | "dong";
+  created_at: string; dong_luc: string | null; cau: CauDeGiao[];
+}
+export interface HocSinhDeGiao {
+  user_id: number; ten: string;
+  trang_thai: "da_nop" | "dang_lam" | "chua_nop_ma_dong";
+  diem: number | null; tong: number | null; dat: boolean | null; nop_luc: string | null;
+}
+export interface YcdDeGiao {
+  ar_id: string; ycd: string; so_hs_dung_het: number; so_hs_da_nop: number;
+  /** 0..1 */
+  ti_le_dung: number;
+}
+export interface KetQuaDeGiao {
+  tong: { da_nop: number; dat: number; dang_lam: number };
+  hoc_sinh: HocSinhDeGiao[];
+  theo_ycd: YcdDeGiao[];
+}
+export interface KetQuaCauGv {
+  stt: number; qid: string; dang: string; ar_id: string; ycd: string;
+  chon: string; dap_an: string; dap_an_html: string; cham_duoc: boolean; dung: boolean;
+  giai_html: string; ly_do: Record<string, LyDoCms>;
+}
+export type BaiDeGiao =
+  | { da_nop: false; thong_bao: string }
+  | {
+    da_nop: true; hoc_sinh: { id: number; ten: string }; nop_luc: string | null;
+    diem: number; tong: number; dat_yeu_cau: boolean; khong_cham: number;
+    cau: KetQuaCauGv[];
+    theo_ycd: { ar_id: string; ycd: string; dung: number; tong: number; trang: "dat" | "dang" | "chua" }[];
+  };

@@ -5,10 +5,8 @@ from app.db.models import CurriculumTopic, Grade, Subject
 
 
 async def _auth(client, role="hoc_sinh") -> dict:
-    email = f"quiz-{uuid.uuid4().hex[:8]}@vd.vn"
-    r = await client.post("/auth/register", json={
-        "email": email, "password": "matkhau123", "name": "An", "role": role})
-    return {"Authorization": f"Bearer {r.json()['token']}"}
+    from tests.api.conftest import tao_tai_khoan
+    return (await tao_tai_khoan(client, role, "An", "quiz"))[1]
 
 
 async def _seed(session):

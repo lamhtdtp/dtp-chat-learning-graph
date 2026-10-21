@@ -20,7 +20,7 @@ BAT_BUOC = [
     "chat_daily_limit", "chat_max_chars", "tro_ly_bao_tri", "tro_ly_bao_tri_nhan",
     "testbank_identity_url", "testbank_content_url", "testbank_exam_url",
     "testbank_email", "testbank_password", "de_cuoi_ky_daily_limit",
-    "luyen_them_daily_limit",
+    "luyen_them_daily_limit", "de_giao_daily_limit",
 ]
 
 

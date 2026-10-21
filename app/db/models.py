@@ -195,6 +195,38 @@ class QuizAttemptItem(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class DeGiao(Base):
+    """Một đề do giáo viên giao bằng mã (US-26): rút từ testbank MỘT lần, lưu ở máy
+    chủ, gắn với đúng một mã 6 ký tự.
+
+    Có hai pha: `nhap` (bản xem trước, chưa có mã, huỷ được) rồi `mo` (đã cấp mã) và
+    `dong` (giáo viên đóng, không mở lại). Học sinh vào bằng mã thì nhận MỘT bản chép
+    của `cau_json` trong `de_cuoi_ky` (loai="de_giao") — đề đóng băng ở lúc cấp mã,
+    kho testbank sửa câu sau đó không đổi bài đang làm.
+
+    `cau_json` chứa CẢ ĐÁP ÁN, lời giải, lý do — chỉ đọc ở máy chủ; chỉ người tạo /
+    admin xem được qua `GET /de-giao/{id}`."""
+
+    __tablename__ = "de_giao"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    #: NULL khi còn nháp. Unique: một mã đã cấp (kể cả đã đóng) không bao giờ cấp lại.
+    ma: Mapped[str | None] = mapped_column(unique=True, default=None)
+    nguoi_tao_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    exam: Mapped[str]                                    # CK1 | CK2
+    total: Mapped[int]                                   # số câu giáo viên yêu cầu
+    #: Số câu thật sự có (<= total khi kho thiếu) — để liệt kê khỏi phải đọc `cau_json`.
+    so_cau: Mapped[int]
+    tham_so_json: Mapped[str] = mapped_column(Text)
+    thong_bao: Mapped[str] = mapped_column(Text, default="")
+    cau_json: Mapped[str] = mapped_column(Text)
+    trang_thai: Mapped[str] = mapped_column(default="nhap", server_default="nhap")  # nhap | mo | dong
+    dong_luc: Mapped[datetime | None] = mapped_column(default=None)
+    #: clock_timestamp (không phải now()): hai đề tạo sát nhau trong cùng một giao
+    #: dịch phải có giờ khác nhau thì "mới tạo trước" mới đúng.
+    created_at: Mapped[datetime] = mapped_column(server_default=func.clock_timestamp())
+
+
 class DeCuoiKy(Base):
     """Một đề cuối kỳ đã rút từ DTP Testbank cho MỘT học sinh, chờ nộp.
 
@@ -231,8 +263,14 @@ class DeCuoiKy(Base):
     #: Bài của lượt luyện thêm; NULL với đề cuối kỳ.
     topic_id: Mapped[int | None] = mapped_column(
         ForeignKey("curriculum_topics.id", ondelete="SET NULL"), default=None, index=True)
+    #: Bài theo mã (US-26, loai="de_giao"): đề giao mà bài này thuộc về. Unique cùng
+    #: user_id -> mỗi em chỉ có MỘT bài cho mỗi mã, hai thiết bị mở cùng lúc cũng vậy.
+    #: NULL với đề cuối kỳ tự rút (Postgres coi các NULL là khác nhau nên không vướng).
+    de_giao_id: Mapped[int | None] = mapped_column(ForeignKey("de_giao.id"), default=None, index=True)
     nop_luc: Mapped[datetime | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("de_giao_id", "user_id", name="uq_de_cuoi_ky_de_giao_user"),)
 
 
 class LyDoPhuongAn(Base):

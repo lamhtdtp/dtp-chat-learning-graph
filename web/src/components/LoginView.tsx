@@ -5,11 +5,6 @@ import { useTheme } from "../hooks/useTheme";
 import type { Role } from "../types";
 import "./login.css";
 
-const ROLES: { value: Role; icon: string; title: string; desc: string }[] = [
-  { value: "hoc_sinh", icon: "🎒", title: "Học sinh", desc: "Học theo mục lục · kiểm tra nhanh · trợ lý AI" },
-  { value: "giao_vien", icon: "👩‍🏫", title: "Giáo viên", desc: "Slide giảng dạy · hướng dẫn dạy từng bài" },
-];
-
 // Tính năng THẬT của bản giáo trình (bỏ i-Test/video/trích trang cũ).
 const FEATS = [
   { ic: "📚", t: "Bài học bám chương trình, 4 phần rõ ràng" },
@@ -30,7 +25,6 @@ export function LoginView({ onAuthed, chanDangNhap }: {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState<Role>("hoc_sinh");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -41,7 +35,7 @@ export function LoginView({ onAuthed, chanDangNhap }: {
     try {
       const res = mode === "login"
         ? await login(email, password)
-        : await register(email, password, name, role);
+        : await register(email, password, name);
       onAuthed(res.role);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Không kết nối được máy chủ");
@@ -99,25 +93,10 @@ export function LoginView({ onAuthed, chanDangNhap }: {
 
           <form className="login-form" onSubmit={submit}>
             {mode === "register" && (
-              <>
-                <label>Họ và tên
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nguyễn Minh An" required />
-                </label>
-                <div className="login-roles">
-                  <div className="login-role-label">Bạn là ai?</div>
-                  {ROLES.map((r) => (
-                    <button key={r.value} type="button" className={"login-role" + (role === r.value ? " sel" : "")}
-                      aria-pressed={role === r.value} onClick={() => setRole(r.value)}>
-                      <span className="ric" aria-hidden>{r.icon}</span>
-                      <span>
-                        <span className="rname" style={{ display: "block" }}>{r.title}</span>
-                        <span className="rdesc">{r.desc}</span>
-                      </span>
-                      <span className="rcheck" aria-hidden>✓</span>
-                    </button>
-                  ))}
-                </div>
-              </>
+              // Tự đăng ký chỉ tạo tài khoản học sinh (US-26) nên không còn chọn vai.
+              <label>Họ và tên
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nguyễn Minh An" required />
+              </label>
             )}
             <label>Email
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ten@email.com" required />

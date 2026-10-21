@@ -301,6 +301,8 @@ export interface YcdKetQua {
 
 export interface KetQuaCuoiKy {
   de_id: string;
+  /** Có khi là bài theo mã thầy cô giao (US-26). */
+  ma?: string;
   diem: number;
   tong: number;
   dat_yeu_cau: boolean;
@@ -323,6 +325,10 @@ export interface DeCuoiKy {
   ket_qua?: KetQuaCuoiKy | null;
   /** Có ở GET /exam/cuoi-ky/{de_id}: đề "làm bài mới" chỉ trong YCCĐ còn yếu. */
   on_lai?: boolean;
+  /** Mã thầy cô giao — chỉ có với bài theo mã (US-26); đề tự rút thì null/không có. */
+  ma?: string | null;
+  exam?: string | null;
+  ghi_chu?: string;
 }
 
 /** Một đề trong lịch sử (GET /exam/cuoi-ky) — chỉ tóm tắt, không nội dung câu. */
@@ -339,4 +345,8 @@ export interface DeCuoiKyTomTat {
   diem: number | null;
   tong: number | null;
   dat: boolean | null;
+  /** "de_giao" = bài theo mã thầy cô giao: có nhãn mã, KHÔNG xoá được. */
+  loai: "cuoi_ky" | "de_giao";
+  ma: string | null;
+  xoa_duoc: boolean;
 }

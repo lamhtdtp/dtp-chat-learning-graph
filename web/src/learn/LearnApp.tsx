@@ -89,7 +89,7 @@ export function LearnApp({ name, email, role, onLogout }: {
   // nó có biểu đồ + danh sách dài.
   const [trang, setTrang] = useState<"bai" | "ho_so" | "on_tap" | "cuoi_ky">("bai");
   // Đề cuối kỳ của học kỳ nào (CK1/CK2) — rút từ DTP Testbank.
-  const [cuoiKy, setCuoiKy] = useState<{ exam: string; ten: string; deId?: string } | null>(null);
+  const [cuoiKy, setCuoiKy] = useState<{ exam: string; ten: string; deId?: string; kieu?: "ma" } | null>(null);
   // Phạm vi ôn tập đang mở (mạch nào / học kỳ nào).
   const [onTap, setOnTap] = useState<{ pv: "mach" | "hoc_ky"; gt: string; ten: string } | null>(null);
   const [lesson, setLesson] = useState<Lesson | null>(null);
@@ -199,7 +199,7 @@ export function LearnApp({ name, email, role, onLogout }: {
         <div className="tp-ck">
           {[1, 2].map((hk) => (
             <button key={hk} type="button"
-              className={"tp-ontap" + (trang === "cuoi_ky" && cuoiKy?.exam === `CK${hk}` ? " dang" : "")}
+              className={"tp-ontap" + (trang === "cuoi_ky" && !cuoiKy?.kieu && cuoiKy?.exam === `CK${hk}` ? " dang" : "")}
               onClick={() => {
                 setCuoiKy({ exam: `CK${hk}`, ten: `Đề cuối học kỳ ${hk} · Toán 6` });
                 setSlide(false); setTrang("cuoi_ky");
@@ -208,6 +208,18 @@ export function LearnApp({ name, email, role, onLogout }: {
               <div><b>Làm đề cuối kỳ {hk}</b><span>12 câu từ kho đề · chấm theo yêu cầu cần đạt</span></div>
             </button>
           ))}
+          {/* Đề thầy cô giao bằng mã (US-26): chỉ tài khoản học sinh nhập mã được. */}
+          {role === "hoc_sinh" && (
+            <button type="button"
+              className={"tp-ontap" + (trang === "cuoi_ky" && cuoiKy?.kieu === "ma" ? " dang" : "")}
+              onClick={() => {
+                setCuoiKy({ exam: "", ten: "Đề thầy cô giao", kieu: "ma" });
+                setSlide(false); setTrang("cuoi_ky");
+              }}>
+              <span className="ic" aria-hidden>🔑</span>
+              <div><b>Nhập mã đề thầy cô giao</b><span>Cả lớp cùng làm một đề · 6 chữ và số</span></div>
+            </button>
+          )}
         </div>
         <div className="tp-scroll col">
           {groups.map((g, gi) => {
@@ -290,8 +302,8 @@ export function LearnApp({ name, email, role, onLogout }: {
 
         {err && <div className="lesson-empty">⚠️ {err}</div>}
         {!err && (trang === "cuoi_ky" && cuoiKy
-          ? <CuoiKyView key={cuoiKy.exam + (cuoiKy.deId ?? "")} exam={cuoiKy.exam} ten={cuoiKy.ten}
-              moDe={cuoiKy.deId} onMoBai={moBaiTuHoSo} onDong={() => setTrang("bai")} />
+          ? <CuoiKyView key={(cuoiKy.kieu ?? "") + cuoiKy.exam + (cuoiKy.deId ?? "")} exam={cuoiKy.exam} ten={cuoiKy.ten}
+              moDe={cuoiKy.deId} kieu={cuoiKy.kieu} onMoBai={moBaiTuHoSo} onDong={() => setTrang("bai")} />
           : trang === "on_tap" && onTap
           ? <OnTapView phamVi={onTap.pv} giaTri={onTap.gt} ten={onTap.ten}
               onMoBai={openTopic} onDong={() => setTrang("bai")} />

@@ -25,6 +25,7 @@ export default defineConfig({
       // được" mà không có mã HTTP nào để lần — đã mất một lần ở web-admin.
       "/on-tap": "http://localhost:8000",
       "/exam": "http://localhost:8000",         // đề cuối kỳ rút từ DTP Testbank
+      "/de-giao": "http://localhost:8000",      // nhập mã đề thầy cô giao (US-26)
     },
   },
 });

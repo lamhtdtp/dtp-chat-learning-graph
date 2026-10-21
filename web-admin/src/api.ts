@@ -23,6 +23,12 @@ import type {
   CmsQuiz,
   KetQuaHocSinh,
   Role,
+  BaiDeGiao,
+  DeGiaoCapMa,
+  DeGiaoChiTiet,
+  DeGiaoTomTat,
+  KetQuaDeGiao,
+  XemTruocDeGiao,
 } from "./types";
 
 const TOKEN_KEY = "chat_learning_token";
@@ -63,6 +69,9 @@ async function req<T>(
     }
     throw new ApiError(res.status, detail);
   }
+  // 204 không có thân bài và không có Content-Type: phải xét TRƯỚC phép kiểm JSON bên dưới,
+  // không thì huỷ bản nháp đề giao (DELETE -> 204) bị báo nhầm "không phải JSON" dù đã xoá.
+  if (res.status === 204) return undefined as T;
   // Route KHÔNG được proxy về API sẽ trả index.html của SPA với status 200:
   // `res.ok` là true, rồi `res.json()` nổ SyntaxError thô, caller chỉ thấy
   // "Không gọi được máy chủ" và không có gì để lần. Nói thẳng ra bệnh.
@@ -334,4 +343,33 @@ export async function cmsNapMaTran(file: File, mon: string, khoi: string, hoc_ky
     throw new ApiError(res.status, detail);
   }
   return res.json();
+}
+
+
+// ── Giao đề bằng mã (US-26) ──
+/** Rút đề + sinh lý do, lưu BẢN NHÁP (chưa có mã). Mất tới ~1 phút khi sinh lý do 12 câu. */
+export function deGiaoXemTruoc(exam: "CK1" | "CK2", total: number): Promise<XemTruocDeGiao> {
+  return req("/de-giao/xem-truoc", { auth: true, body: { exam, total } });
+}
+export function deGiaoCapMa(nhapId: number): Promise<DeGiaoCapMa> {
+  return req(`/de-giao/${nhapId}/cap-ma`, { method: "POST", auth: true });
+}
+/** Huỷ bản nháp (đề đã cấp mã thì máy chủ từ chối: chỉ đóng được). */
+export function deGiaoHuy(nhapId: number): Promise<void> {
+  return req(`/de-giao/${nhapId}`, { method: "DELETE", auth: true });
+}
+export function deGiaoDs(): Promise<{ de_giao: DeGiaoTomTat[] }> {
+  return req("/de-giao", { auth: true });
+}
+export function deGiaoChiTiet(id: number): Promise<DeGiaoChiTiet> {
+  return req(`/de-giao/${id}`, { auth: true });
+}
+export function deGiaoKetQua(id: number): Promise<KetQuaDeGiao> {
+  return req(`/de-giao/${id}/ket-qua`, { auth: true });
+}
+export function deGiaoBai(id: number, userId: number): Promise<BaiDeGiao> {
+  return req(`/de-giao/${id}/bai/${userId}`, { auth: true });
+}
+export function deGiaoDong(id: number): Promise<{ trang_thai: "dong"; dong_luc: string }> {
+  return req(`/de-giao/${id}/dong`, { method: "POST", auth: true });
 }

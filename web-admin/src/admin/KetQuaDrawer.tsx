@@ -51,13 +51,14 @@ export function KetQuaDrawer({ userId, onClose }: { userId: number; onClose: () 
         <div className="dw-body">
           {err && <div className="warn-box">⚠️ {err}</div>}
           {!d && !err && <div style={{ color: "var(--ink-3)" }}>Đang tải…</div>}
-          {d && d.theo_don_vi.length === 0 && (
+          {d && d.theo_don_vi.length === 0 && d.lan.length === 0 && (
             <div className="locked"><span className="lk">📭</span><div>
               <b>Chưa có lần làm bài nào.</b><br />
               <span style={{ fontSize: 12 }}>Kết quả chỉ được lưu từ khi tính năng này bật — các lượt làm trước đó không dựng lại được.</span>
             </div></div>
           )}
-          {d && d.theo_don_vi.length > 0 && (
+          {/* Em chỉ làm đề giao / đề cuối kỳ (không có đơn vị nào) vẫn phải thấy từng lần nộp. */}
+          {d && (d.theo_don_vi.length > 0 || d.lan.length > 0) && (
             <>
               {/* Hai ô đầu là con số HỌC SINH nhìn thấy trên vòng tiến độ. Trước
                   đây bảng này chỉ đếm lượt làm quiz, nên bài các em bấm "Đã hoàn
@@ -104,13 +105,18 @@ export function KetQuaDrawer({ userId, onClose }: { userId: number; onClose: () 
                   đề DTP Testbank) — xem ở "Từng lần nộp", không tính vào điểm từng bài.</div>
               )}
 
+              {d.tong_lan_de_giao > 0 && (
+                <div className="kq-ghi">Đã làm <b>{d.tong_lan_de_giao} đề thầy cô giao bằng mã</b> — xem ở
+                  {" "}"Từng lần nộp" (nhãn "Đề giao · mã …"), không tính vào số liệu Kiểm tra nhanh.</div>
+              )}
+
               {d.tong_lan_luyen_them > 0 && (
                 <div className="kq-ghi">Đã <b>luyện thêm {d.tong_lan_luyen_them} lượt</b> từ kho đề
                   {" "}— đếm riêng, không tính vào số lần / điểm trung bình Kiểm tra nhanh
                   (trạng thái đạt của bài thì dùng chung).</div>
               )}
 
-              <div className="esec">
+              {d.theo_don_vi.length > 0 && <div className="esec">
                 <div className="esec-h"><span className="n">📊</span> Theo đơn vị kiến thức</div>
                 <table>
                   <thead><tr><th>Đơn vị</th><th>Trạng thái</th><th className="tnum">Thời gian</th><th className="tnum">Số lần</th><th className="tnum">Tốt nhất</th><th className="tnum">Gần nhất</th></tr></thead>
@@ -135,7 +141,7 @@ export function KetQuaDrawer({ userId, onClose }: { userId: number; onClose: () 
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </div>}
 
               <div className="esec">
                 <div className="esec-h"><span className="n">🕒</span> Từng lần nộp
@@ -154,7 +160,8 @@ export function KetQuaDrawer({ userId, onClose }: { userId: number; onClose: () 
                       <div className="u-name">{x.ten}
                         {x.nguon === "on_tap" && <span className="kq-ot">ôn tập</span>}
                         {x.nguon === "cuoi_ky" && <span className="kq-ot">cuối kỳ</span>}
-                        {x.nguon === "luyen_them" && <span className="kq-ot">luyện thêm</span>}</div>
+                        {x.nguon === "luyen_them" && <span className="kq-ot">luyện thêm</span>}
+                        {x.nguon === "de_giao" && <span className="kq-ot">đề giao</span>}</div>
                       <div className="u-mach">{fmt(x.luc)}</div>
                     </div>
                     {x.nguon === "luyen_them" && x.tong < 3

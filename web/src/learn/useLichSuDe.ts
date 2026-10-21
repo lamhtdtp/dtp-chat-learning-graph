@@ -58,14 +58,15 @@ export function useLichSuDe(exam: string | undefined, gioiHan: number, bat = tru
   const xoaHet = async (): Promise<boolean> => {
     const pham_vi = exam ? `mọi đề cuối kỳ ${exam.replace(/\D/g, "")}` : "toàn bộ lịch sử đề cuối kỳ";
     if (!window.confirm(`Xoá hẳn ${pham_vi}?\n\nMọi kết quả và thống kê của các đề này sẽ mất, `
-      + "thầy cô cũng không còn thấy. Không khôi phục được.")) return false;
+      + "thầy cô cũng không còn thấy. Không khôi phục được.\n\nBài thầy cô giao sẽ được giữ lại.")) return false;
     setLoi(null);
     try {
       await xoaHetDeCuoiKy(exam);
       try {
-        for (const x of ds ?? []) localStorage.removeItem(`ck-nhap:${x.de_id}`);
+        for (const x of ds ?? []) if (x.xoa_duoc) localStorage.removeItem(`ck-nhap:${x.de_id}`);
       } catch { /* bỏ qua */ }
-      setDs([]); setConNua(false);
+      // Bài theo mã được giữ lại (máy chủ không xoá) nên danh sách cũng giữ.
+      setDs((cu) => (cu ?? []).filter((x) => !x.xoa_duoc));
       return true;
     } catch (e) {
       setLoi(e instanceof ApiError ? e.message : "Không xoá được, thử lại nhé");
@@ -73,5 +74,9 @@ export function useLichSuDe(exam: string | undefined, gioiHan: number, bat = tru
     }
   };
 
-  return { ds, conNua, dangTai, loi, tai, xemThem, xoa, xoaHet };
+  // Còn trang sau thì chưa biết hết -> coi là có. Chỉ ẩn khi đã thấy TẤT CẢ và toàn bài thầy cô giao
+  // (nút "Xoá tất cả" sẽ xoá 0 bài).
+  const coXoaDuoc = conNua || (ds ?? []).some((x) => x.xoa_duoc);
+
+  return { ds, conNua, dangTai, loi, tai, xemThem, xoa, xoaHet, coXoaDuoc };
 }

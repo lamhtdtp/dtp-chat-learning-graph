@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.config import settings
 from app.db.models import (
-    BlueprintCell, CurriculumTopic, DeCuoiKy, Grade, QuizAttempt, QuizAttemptItem, Subject, User,
+    BlueprintCell, CurriculumTopic, DeCuoiKy, DeGiao, Grade, QuizAttempt, QuizAttemptItem, Subject, User,
 )
 from app.db.session import get_session
 from app.exam import ly_do as ly_do_svc
@@ -56,6 +56,8 @@ _XP_DAT = 10
 #: Bao nhiêu lần nộp gần nhất dùng để chọn YCCĐ còn yếu — bám trình độ HIỆN TẠI.
 _GAN_DAY = 5
 
+MSG_KHONG_XOA_BAI_GIAO = "Bài thầy cô giao không xoá được"
+MSG_MA_DA_DONG = "Mã này đã đóng, em không làm được nữa"
 _MSG_CHUA_NOI = ("Đề cuối kỳ chưa được kết nối với kho câu hỏi. "
                  "Em làm bài kiểm tra nhanh trong từng bài trước nhé!")
 _MSG_BAN = "Kho đề đang bận, em thử lại sau ít phút nhé."
@@ -64,19 +66,28 @@ _MSG_SU_CO = "Kho đề đang gặp sự cố, chưa rút được đề. Thầy
 
 MSG_CHUA_NOI_LUYEN_THEM = ("Luyện thêm chưa được kết nối với kho câu hỏi. "
                            "Em làm Bài kiểm tra nhanh ở trên trước nhé!")
+MSG_CHUA_NOI_DE_GIAO = ("Kho đề chưa được kết nối, thầy cô báo quản trị viên kiểm tra "
+                        "cấu hình giúp nhé.")
 
 
 def lay_testbank(request: Request) -> TestbankClient:
     """Dependency — test thay bằng testbank giả qua `app.dependency_overrides`.
 
-    Dùng chung với "Luyện thêm" (`app/api/luyen_them.py`, tiền tố /lessons): chưa
-    cấu hình thì mỗi tính năng nói câu của mình — đề cuối kỳ mà bảo "làm Bài kiểm
-    tra nhanh ở trên" ở mục luyện thêm là lạc chỗ."""
+    Dùng chung với "Luyện thêm" (`app/api/luyen_them.py`, tiền tố /lessons) và "Giao
+    đề" (`app/api/de_giao.py`, tiền tố /de-giao): chưa cấu hình thì mỗi tính năng nói
+    câu của mình — đề cuối kỳ mà bảo "làm Bài kiểm tra nhanh ở trên" ở mục luyện thêm
+    là lạc chỗ, và nói "em" với giáo viên đang tạo đề giao thì sai người nghe."""
     try:
         return tao_client()
     except TestbankChuaCauHinh as e:
         log.warning("%s", e)
-        msg = MSG_CHUA_NOI_LUYEN_THEM if request.url.path.startswith("/lessons/") else _MSG_CHUA_NOI
+        path = request.url.path
+        if path.startswith("/lessons/"):
+            msg = MSG_CHUA_NOI_LUYEN_THEM
+        elif path.startswith("/de-giao/"):
+            msg = MSG_CHUA_NOI_DE_GIAO
+        else:
+            msg = _MSG_CHUA_NOI
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, msg) from e
 
 
@@ -157,6 +168,44 @@ def _de_cong_khai(cau: list[dict]) -> list[dict]:
     return out
 
 
+async def rut_va_chuan_bi(
+    session: AsyncSession, tb: TestbankClient, *, subject: str, grade: str, exam: str | None,
+    total: int, ar_ids: list[str] | None, seed: int,
+) -> tuple[list[dict], list[str]]:
+    """Rút đề (xem trước, không trừ hạn mức testbank) + lấy nội dung + gắn YCCĐ về bài
+    + sinh SẴN lý do. Trả `(câu, thông báo)`; thông báo rỗng = đủ câu.
+
+    Dùng chung cho đề cuối kỳ tự rút và đề giao (US-26) để hai nơi không lệch nhau về
+    cách báo thiếu / khớp YCCĐ / sinh lý do. `TestbankLoi` để nguyên cho chỗ gọi tự map
+    sang lời của mình (học sinh: "em thử lại"; giáo viên: "thầy cô thử lại")."""
+    de = await rut_de(tb, subject=subject, grade=grade, exam=exam,
+                      total=total, ar_ids=ar_ids, seed=seed)
+    caus = await lay_cau(tb, [x.qid for x in de.items]) if de.items else []
+
+    thong_bao = [] if de.is_complete else [de.message or "Kho chưa đủ câu cho đề này."]
+    if len(caus) < len(de.items):
+        # resolve bỏ qua LẶNG LẼ câu không thuộc kho mình thấy — phải tự so.
+        thieu = len(de.items) - len(caus)
+        log.warning("Testbank resolve trả thiếu %d/%d câu", thieu, len(de.items))
+        thong_bao.append(f"Kho trả thiếu {thieu} câu so với đề đã rút.")
+
+    ban_do = await _ban_do_yccd(session, subject, grade)
+    khong_khop = set()
+    for c in caus:
+        tid, dv = ban_do.get(chuan_hoa(c.get("yccd_text") or ""), (None, ""))
+        if tid is None:
+            khong_khop.add(c.get("ar_id"))
+        c["_topic_id"], c["_don_vi"] = tid, dv
+    if khong_khop and ban_do:
+        log.error("YCCĐ testbank không khớp ma trận của mình (không đoán): %s", sorted(khong_khop))
+
+    # Sinh SẴN lý do từng phương án — lúc nộp không còn ai phải chờ model.
+    ly_do = await ly_do_svc.dam_bao_ly_do(session, caus)
+    for c in caus:
+        c["_ly_do"] = ly_do.get(c["qid"], {})
+    return caus, thong_bao
+
+
 class GenerateBody(BaseModel):
     subject: str = Field("TO", pattern=r"^[A-Z]{2}$")
     grade: str = Field("06", pattern=r"^\d{2}$")
@@ -178,33 +227,11 @@ async def generate(
     await _han_muc(user)
     seed = body.seed if body.seed is not None else secrets.randbelow(2**31)
     try:
-        de = await rut_de(tb, subject=body.subject, grade=body.grade, exam=body.exam,
-                          total=body.total, ar_ids=body.ar_ids, seed=seed)
-        caus = await lay_cau(tb, [x.qid for x in de.items]) if de.items else []
+        caus, thong_bao = await rut_va_chuan_bi(
+            session, tb, subject=body.subject, grade=body.grade, exam=body.exam,
+            total=body.total, ar_ids=body.ar_ids, seed=seed)
     except TestbankLoi as e:
         raise _loi_http(e) from e
-
-    thong_bao = [] if de.is_complete else [de.message or "Kho chưa đủ câu cho đề này."]
-    if len(caus) < len(de.items):
-        # resolve bỏ qua LẶNG LẼ câu không thuộc kho mình thấy — phải tự so.
-        thieu = len(de.items) - len(caus)
-        log.warning("Testbank resolve trả thiếu %d/%d câu", thieu, len(de.items))
-        thong_bao.append(f"Kho trả thiếu {thieu} câu so với đề đã rút.")
-
-    ban_do = await _ban_do_yccd(session, body.subject, body.grade)
-    khong_khop = set()
-    for c in caus:
-        tid, dv = ban_do.get(chuan_hoa(c.get("yccd_text") or ""), (None, ""))
-        if tid is None:
-            khong_khop.add(c.get("ar_id"))
-        c["_topic_id"], c["_don_vi"] = tid, dv
-    if khong_khop and ban_do:
-        log.error("YCCĐ testbank không khớp ma trận của mình (không đoán): %s", sorted(khong_khop))
-
-    # Sinh SẴN lý do từng phương án — lúc nộp không còn ai phải chờ model.
-    ly_do = await ly_do_svc.dam_bao_ly_do(session, caus)
-    for c in caus:
-        c["_ly_do"] = ly_do.get(c["qid"], {})
 
     if not caus:
         await session.commit()
@@ -233,11 +260,13 @@ class SubmitBody(BaseModel):
     tra_loi: dict[str, str] = Field(default_factory=dict, max_length=200)
 
 
-async def _de_cua(session: AsyncSession, de_id: str, user: User) -> DeCuoiKy:
+async def _de_cua(session: AsyncSession, de_id: str, user: User,
+                  loai: tuple[str, ...] = ("cuoi_ky",)) -> DeCuoiKy:
     de = await session.get(DeCuoiKy, de_id)
     # Đề của người khác cũng trả 404 như đề không tồn tại — không xác nhận id nào có thật.
-    # `loai`: lượt luyện thêm nằm cùng bảng nhưng không phải đề cuối kỳ.
-    if de is None or de.user_id != user.id or de.loai != "cuoi_ky":
+    # `loai`: lượt luyện thêm / bài theo mã nằm cùng bảng nhưng không phải đề cuối kỳ
+    # tự rút — nộp bài qua đường này chỉ nhận đúng loại của nó.
+    if de is None or de.user_id != user.id or de.loai not in loai:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy đề này.")
     return de
 
@@ -278,19 +307,15 @@ def _theo_ycd(ket_qua: list[dict]) -> list[dict]:
     return [gom[a] for a in sorted(gom)]
 
 
-@router.post("/submit")
-async def submit(
-    body: SubmitBody,
-    user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
-) -> dict:
-    de = await _de_cua(session, body.de_id, user)
-    if de.ket_qua_json:
-        # Bấm "Nộp" hai lần (mạng chậm): trả lại kết quả cũ, không thành hai lần làm bài.
-        return json.loads(de.ket_qua_json)
+async def cham_va_ghi(session: AsyncSession, user: User, de: DeCuoiKy, tra_loi: dict[str, str],
+                      *, nguon: str, them: dict | None = None) -> dict:
+    """Chấm bài ở máy chủ trên bản đã lưu, ghi lần nộp + chi tiết theo YCCĐ + XP, lưu
+    kết quả vào `de`. Chưa commit. Dùng chung cho đề cuối kỳ (`nguon="cuoi_ky"`) và
+    bài theo mã (`nguon="de_giao"`, `them={"ma": ...}`) — cùng một máy chấm, cùng ngưỡng.
 
+    `them` được gộp vào kết quả TRƯỚC khi lưu để mở lại / nộp lại trả đúng cùng một bản."""
     caus = json.loads(de.cau_json)
-    ket_qua = [_cham_cau(c, (body.tra_loi.get(c["qid"]) or "").strip()[:255], i)
+    ket_qua = [_cham_cau(c, (tra_loi.get(c["qid"]) or "").strip()[:255], i)
                for i, c in enumerate(caus, start=1)]
     cham_duoc = [k for k in ket_qua if k["cham_duoc"]]
     diem, tong = sum(1 for k in cham_duoc if k["dung"]), len(cham_duoc)
@@ -299,7 +324,7 @@ async def submit(
     # Một lần nộp = một QuizAttempt KHÔNG gắn bài (đề phủ cả học kỳ). Chi tiết theo
     # YCCĐ ở quiz_attempt_items — chỉ câu chấm được, để số dòng khớp `tong`.
     attempt = QuizAttempt(user_id=user.id, topic_id=None, diem=diem, tong=tong, dat=dat,
-                          nguon="cuoi_ky")
+                          nguon=nguon)
     session.add(attempt)
     await session.flush()
     for k in cham_duoc:
@@ -327,13 +352,28 @@ async def submit(
     out = {"de_id": de.id, "diem": diem, "tong": tong, "dat_yeu_cau": dat,
            "khong_cham": len(ket_qua) - tong, "cau": ket_qua, "theo_ycd": theo_ycd,
            "goi_y": {"ar_ids": ar_yeu, "tai_lieu": tai_lieu,
-                     "de_moi": {k: tham_so.get(k) for k in ("subject", "grade", "exam")}}}
+                     "de_moi": {k: tham_so.get(k) for k in ("subject", "grade", "exam")}},
+           **(them or {})}
     de.ket_qua_json = json.dumps(out, ensure_ascii=False)
     de.attempt_id = attempt.id
     # Giờ của POSTGRES, cùng nguồn với created_at và mọi cột thời gian khác của
     # app. Trước đây lấy datetime.now(utc) của Python: DB chạy giờ +07 nên lịch sử
     # hiện "nộp lúc 11:20" cho bài nộp 18:20 — lệch đúng 7 tiếng.
     de.nop_luc = func.clock_timestamp()
+    return out
+
+
+@router.post("/submit")
+async def submit(
+    body: SubmitBody,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    de = await _de_cua(session, body.de_id, user)
+    if de.ket_qua_json:
+        # Bấm "Nộp" hai lần (mạng chậm): trả lại kết quả cũ, không thành hai lần làm bài.
+        return json.loads(de.ket_qua_json)
+    out = await cham_va_ghi(session, user, de, body.tra_loi, nguon="cuoi_ky")
     await session.commit()
     return out
 
@@ -348,16 +388,24 @@ async def danh_sach_de(session: AsyncSession, user_id: int, *, exam: str | None 
                        gioi_han: int = 10, bo_qua: int = 0) -> tuple[list[dict], bool]:
     """Các đề cuối kỳ của một học sinh, mới nhất trước — cả đề đã nộp lẫn đề rút
     rồi bỏ dở — kèm cờ còn trang sau. Dùng chung cho màn đề cuối kỳ và Hồ sơ.
+    Gồm cả bài THEO MÃ thầy cô giao (`loai="de_giao"`, không xoá được); lượt luyện
+    thêm thì không.
 
     Chỉ tóm tắt (điểm, đạt, thời điểm) — KHÔNG có nội dung câu hay đáp án."""
-    rows = (await session.scalars(
-        select(DeCuoiKy).where(DeCuoiKy.user_id == user_id, DeCuoiKy.loai == "cuoi_ky",
-                               *_loc_ky(exam))
+    rows = (await session.execute(
+        select(DeCuoiKy, DeGiao.ma)
+        .outerjoin(DeGiao, DeGiao.id == DeCuoiKy.de_giao_id)
+        .where(DeCuoiKy.user_id == user_id, DeCuoiKy.loai.in_(("cuoi_ky", "de_giao")),
+               # Bài theo mã em mở dở mà mã đã đóng: không nộp được, không xoá được, không có
+               # kết quả nào để xem — để lại chỉ thành dòng "Làm tiếp →" dẫn tới lỗi 410.
+               ~((DeCuoiKy.loai == "de_giao") & DeCuoiKy.ket_qua_json.is_(None)
+                 & (DeGiao.trang_thai == "dong")),
+               *_loc_ky(exam))
         # id phá hoà khi hai đề trùng giờ — không thì trang sau lặp/sót đề.
         .order_by(DeCuoiKy.created_at.desc(), DeCuoiKy.id.desc())
         .offset(bo_qua).limit(gioi_han + 1))).all()   # lấy dư 1 để biết còn trang sau
     out = []
-    for d in rows[:gioi_han]:
+    for d, ma in rows[:gioi_han]:
         ts = json.loads(d.tham_so_json)
         kq = json.loads(d.ket_qua_json) if d.ket_qua_json else None
         out.append({
@@ -368,6 +416,7 @@ async def danh_sach_de(session: AsyncSession, user_id: int, *, exam: str | None 
             "nop_luc": d.nop_luc.isoformat() if d.nop_luc else None,
             "diem": kq["diem"] if kq else None, "tong": kq["tong"] if kq else None,
             "dat": kq["dat_yeu_cau"] if kq else None,
+            "loai": d.loai, "ma": ma, "xoa_duoc": d.loai == "cuoi_ky",
         })
     return out, len(rows) > gioi_han
 
@@ -426,7 +475,11 @@ async def xoa_mot(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
-    de = await _de_cua(session, de_id, user)
+    de = await _de_cua(session, de_id, user, ("cuoi_ky", "de_giao"))
+    if de.loai == "de_giao":
+        # Bài theo mã là dữ liệu của giáo viên (bảng kết quả, thống kê YCCĐ): học sinh
+        # xoá thì điểm của cả lớp đổi theo. Chặn ở máy chủ, không chỉ ẩn nút.
+        raise HTTPException(status.HTTP_403_FORBIDDEN, MSG_KHONG_XOA_BAI_GIAO)
     await _xoa_han(session, user.id, [de])
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -438,9 +491,16 @@ async def mo_lai(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    de = await _de_cua(session, de_id, user)
+    de = await _de_cua(session, de_id, user, ("cuoi_ky", "de_giao"))
     out = {"de_id": de.id, "cau": _de_cong_khai(json.loads(de.cau_json)),
            "du_cau": not de.thong_bao, "thong_bao": de.thong_bao,
            "on_lai": bool(json.loads(de.tham_so_json).get("ar_ids")),
-           "ket_qua": json.loads(de.ket_qua_json) if de.ket_qua_json else None}
+           "ket_qua": json.loads(de.ket_qua_json) if de.ket_qua_json else None,
+           "loai": de.loai, "ma": None, "exam": json.loads(de.tham_so_json).get("exam")}
+    if de.loai == "de_giao":
+        giao = await session.get(DeGiao, de.de_giao_id)
+        out["ma"] = giao.ma
+        if giao.trang_thai == "dong" and not de.ket_qua_json:
+            # Đóng mã rồi thì bài dở không nộp được nữa: mở ra chỉ để em bấm Nộp rồi bị từ chối.
+            raise HTTPException(status.HTTP_410_GONE, MSG_MA_DA_DONG)
     return out

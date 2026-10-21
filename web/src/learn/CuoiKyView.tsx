@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, moDeCuoiKy, nopDeCuoiKy, rutDeCuoiKy } from "../api";
+import { ApiError, moDeCuoiKy, nopDeCuoiKy, nopDeGiao, rutDeCuoiKy, vaoDeGiao } from "../api";
 import type { CauCuoiKy, DeCuoiKy, DeCuoiKyTomTat, KetQuaCau, KetQuaCuoiKy } from "../types";
 import { useLichSuDe } from "./useLichSuDe";
 
@@ -197,9 +197,12 @@ export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai }: {
  *  Đáp án KHÔNG có ở client trước khi nộp — server chấm, rồi mới trả đáp án,
  *  lời giải và lý do từng phương án. Kết quả chấm theo YÊU CẦU CẦN ĐẠT (khoá bền
  *  `ar_id`), không theo số câu: đề sinh lại thì số câu đổi, YCCĐ thì không. */
-export function CuoiKyView({ exam, ten, moDe, onMoBai, onDong }: {
+export function CuoiKyView({ exam, ten, moDe, kieu, onMoBai, onDong }: {
   exam: string;
   ten: string;
+  /** "ma" = màn NHẬP MÃ đề thầy cô giao (US-26): cùng khung làm bài / nộp / kết quả, chỉ khác
+   *  lối vào (nhập mã thay vì rút) và nơi nộp (`/de-giao/nop`). */
+  kieu?: "ma";
   /** Mở thẳng đề này (bấm từ Hồ sơ học tập) thay vì màn bắt đầu. */
   moDe?: string;
   onMoBai: (topicId: number, phan?: string) => void;
@@ -212,6 +215,7 @@ export function CuoiKyView({ exam, ten, moDe, onMoBai, onDong }: {
   const [loi, setLoi] = useState<string | null>(null);
   // "Bài làm mới" chỉ trong các YCCĐ còn yếu -> ghi lại để tiêu đề nói đúng.
   const [onLai, setOnLai] = useState(false);
+  const [maNhap, setMaNhap] = useState("");
   // Khung cuộn là cột `.main`, không phải window — window.scrollTo không làm gì.
   const dau = useRef<HTMLDivElement>(null);
   // Cuộn SAU khi đã render: gọi ngay lúc setState thì khối kết quả chèn vào phía
@@ -233,7 +237,8 @@ export function CuoiKyView({ exam, ten, moDe, onMoBai, onDong }: {
       const k = d.ket_qua ?? null;
       setDe(d); setKq(k); setOnLai(onLaiDe || !!d.on_lai);
       // Đã nộp: dựng lại lựa chọn từ kết quả để các ô hiện đúng em đã chọn gì.
-      setChon(k ? Object.fromEntries(k.cau.map((c) => [c.qid, c.chon])) : docNhap(deId));
+      // Bài theo mã không có nháp (bản demo không lưu lựa chọn dở — US-26 KB 21).
+      setChon(k ? Object.fromEntries(k.cau.map((c) => [c.qid, c.chon])) : d.ma ? {} : docNhap(deId));
       veDau();
     } catch (e) {
       setLoi(e instanceof ApiError ? e.message : "Không mở được đề, thử lại nhé");
@@ -243,13 +248,30 @@ export function CuoiKyView({ exam, ten, moDe, onMoBai, onDong }: {
 
   // Lưu nháp khi đang làm (chưa nộp).
   useEffect(() => {
-    if (de?.de_id && !kq && Object.keys(chon).length) ghiNhap(de.de_id, chon);
+    if (de?.de_id && !de.ma && !kq && Object.keys(chon).length) ghiNhap(de.de_id, chon);
   }, [de, kq, chon]);
+
+  /** Kỳ của đề đang làm: đề theo mã thì lấy theo đề (màn nhập mã không biết trước kỳ). */
+  const examDe = de?.exam ?? kq?.goi_y.de_moi.exam ?? exam;
+
+  const vaoMa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDang("rut"); setLoi(null);
+    try {
+      const d = await vaoDeGiao(maNhap);
+      setDe(d); setKq(d.ket_qua ?? null); setOnLai(false);
+      setChon(d.ket_qua ? Object.fromEntries(d.ket_qua.cau.map((c) => [c.qid, c.chon])) : {});
+      veDau();
+    } catch (err) {
+      setLoi(err instanceof ApiError ? err.message : "Không mở được đề, thử lại nhé");
+    } finally { setDang(""); }
+  };
 
   const rut = async (arIds?: string[]) => {
     setDang("rut"); setLoi(null);
     try {
-      const d = await rutDeCuoiKy({ exam, arIds, total: arIds?.length ? soCauDeMoi(arIds.length) : 12 });
+      // "Làm bài mới" sau bài theo mã: đề tự rút RIÊNG của em, không thuộc mã (US-26 KB 22).
+      const d = await rutDeCuoiKy({ exam: examDe, arIds, total: arIds?.length ? soCauDeMoi(arIds.length) : 12 });
       setDe(d); setChon({}); setKq(null); setOnLai(!!arIds?.length);
       veDau();
     } catch (e) {
@@ -261,7 +283,7 @@ export function CuoiKyView({ exam, ten, moDe, onMoBai, onDong }: {
     if (!de?.de_id) return;
     setDang("nop"); setLoi(null);
     try {
-      setKq(await nopDeCuoiKy(de.de_id, chon));
+      setKq(await (de.ma ? nopDeGiao : nopDeCuoiKy)(de.de_id, chon));
       xoaNhap(de.de_id);
       veDau();
     } catch (e) {
@@ -277,16 +299,38 @@ export function CuoiKyView({ exam, ten, moDe, onMoBai, onDong }: {
   return (
     <div className="lesson ck" ref={dau}>
       <div className="ot-top">
-        <span className="badge-hoc">📝 ĐỀ {onLai ? "ÔN LẠI CHỖ CÒN YẾU" : "CUỐI KỲ"}</span>
+        <span className="badge-hoc">
+          {de?.ma ? `🔑 ĐỀ THẦY CÔ GIAO · MÃ ${de.ma}` : `📝 ĐỀ ${onLai ? "ÔN LẠI CHỖ CÒN YẾU" : "CUỐI KỲ"}`}
+        </span>
         {de && (
-          <button className="ot-dong" type="button" onClick={() => { setDe(null); setKq(null); }}>
-            ☰ Các lần làm</button>
+          <button className="ot-dong" type="button" onClick={() => { setDe(null); setKq(null); setLoi(null); }}>
+            {kieu === "ma" ? "🔑 Nhập mã khác" : "☰ Các lần làm"}</button>
         )}
         <button className="ot-dong ck-ve" type="button" onClick={onDong}>← Về bài học</button>
       </div>
-      <h1>{ten}</h1>
+      <h1>{de?.ma ? `Đề cuối học kỳ ${(de.exam ?? "").replace(/\D/g, "") || ""} · Toán 6` : ten}</h1>
+      {de?.ma && <p className="ck-giao-ghi">{de.ghi_chu ?? "Đề thầy cô giao"} · cả lớp làm cùng một đề</p>}
 
-      {!de && (
+      {!de && kieu === "ma" && (
+        <div className="ck-mo">
+          <p className="ot-sub">Thầy cô đọc cho cả lớp một mã gồm 6 chữ và số. Em nhập mã để làm đúng đề
+            thầy cô giao. Mỗi em chỉ nộp được một lần cho mỗi mã.</p>
+          <form className="ck-ma" onSubmit={(e) => void vaoMa(e)}>
+            <label>
+              <span>Mã đề</span>
+              <input type="text" value={maNhap} maxLength={12} autoComplete="off" autoCapitalize="characters"
+                spellCheck={false} placeholder="Ví dụ: K7M3PX" aria-label="Mã đề thầy cô giao"
+                onChange={(e) => setMaNhap(e.target.value)} />
+            </label>
+            <button className="btn btn-primary" type="submit" disabled={dang === "rut" || !maNhap.trim()}>
+              {dang === "rut" ? "Đang mở đề…" : "Vào làm bài →"}
+            </button>
+          </form>
+          {loi && <div className="ot-loi" role="alert">⚠️ {loi}</div>}
+        </div>
+      )}
+
+      {!de && kieu !== "ma" && (
         <div className="ck-mo">
           <p className="ot-sub">12 câu rút từ kho đề ôn luyện của DTP Testbank, đúng tỉ lệ ma trận:
             5 câu Biết · 4 câu Hiểu · 3 câu Vận dụng. Làm xong em xem được vì sao từng phương án
@@ -334,9 +378,15 @@ export function CuoiKyView({ exam, ten, moDe, onMoBai, onDong }: {
           ) : (
             <div className="ot-nop">
               <span>Chấm ở máy chủ · đáp án chỉ gửi về sau khi nộp.</span>
-              <button className="btn" type="button" disabled={dang === "rut"} onClick={() => void rut()}>
-                Làm một đề khác
-              </button>
+              {de.ma ? (
+                <button className="btn" type="button" onClick={() => { setDe(null); setKq(null); setLoi(null); }}>
+                  Nhập mã khác
+                </button>
+              ) : (
+                <button className="btn" type="button" disabled={dang === "rut"} onClick={() => void rut()}>
+                  Làm một đề khác
+                </button>
+              )}
             </div>
           )}
         </>
@@ -358,7 +408,9 @@ function KetQua({ kq, onMoBai, onDeMoi, dangRut }: {
     <div className="ck-kq">
       <div className="pmach">
         <div className="pmach-h">
-          <span className="tt">Kết quả: {kq.diem}/{kq.tong} câu</span>
+          <span className="tt">Kết quả: {kq.diem}/{kq.tong} câu
+            {kq.ma && <b className={"ck-dat " + (kq.dat_yeu_cau ? "ok" : "no")}> · {kq.dat_yeu_cau ? "Đạt" : "Chưa đạt"}</b>}
+          </span>
           <div className="bar-track"><div className="bar-fill" style={{ width: `${pct}%` }} /></div>
           <span className="num">{pct}%</span>
         </div>
@@ -433,14 +485,18 @@ export function LichSu({ ls, onMo, tieuDe = "Các lần làm trước", nhanXoaH
                 ? <span className={"badge " + (x.dat ? "b-dat" : "b-dang")}>{x.diem}/{x.tong}</span>
                 : <span className="badge b-chua">Chưa nộp</span>}
               <span className="tx">
-                <b>{x.exam ? `Cuối kỳ ${x.exam.replace(/\D/g, "")}` : "Đề cuối kỳ"}
+                <b>{x.loai === "de_giao" ? `Thầy cô giao · mã ${x.ma}`
+                  : x.exam ? `Cuối kỳ ${x.exam.replace(/\D/g, "")}` : "Đề cuối kỳ"}
                   {x.on_lai && " · ôn lại chỗ yếu"}</b>
                 <span className="num">{ngayGio(x.nop_luc ?? x.luc)} · {x.so_cau} câu</span>
               </span>
               <span className="kq">{pct !== null ? `${pct}%` : "Làm tiếp →"}</span>
             </button>
-            <button type="button" className="ck-ls-xoa" title="Xoá hẳn đề này"
-              aria-label="Xoá hẳn đề này" onClick={() => void ls.xoa(x)}>🗑</button>
+            {/* Bài thầy cô giao không có nút xoá: là dữ liệu của giáo viên (US-26 KB 24). */}
+            {x.xoa_duoc && (
+              <button type="button" className="ck-ls-xoa" title="Xoá hẳn đề này"
+                aria-label="Xoá hẳn đề này" onClick={() => void ls.xoa(x)}>🗑</button>
+            )}
           </div>
         );
       })}
@@ -450,8 +506,10 @@ export function LichSu({ ls, onMo, tieuDe = "Các lần làm trước", nhanXoaH
           <button type="button" className="ck-ls-them" disabled={ls.dangTai}
             onClick={() => void ls.xemThem()}>{ls.dangTai ? "Đang tải…" : "Xem thêm ↓"}</button>
         )}
-        <button type="button" className="ck-ls-xoahet" onClick={() => void ls.xoaHet()}>
-          🗑 {nhanXoaHet}</button>
+        {ls.coXoaDuoc && (
+          <button type="button" className="ck-ls-xoahet" onClick={() => void ls.xoaHet()}>
+            🗑 {nhanXoaHet}</button>
+        )}
       </div>
     </div>
   );

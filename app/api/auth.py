@@ -1,8 +1,6 @@
 """Đăng ký / đăng nhập email + mật khẩu -> JWT. Phase này chỉ register + login
 thô (quên/đổi mật khẩu để sau — xem full-system-spec mục 2)."""
 
-from typing import Literal
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
@@ -15,12 +13,15 @@ from app.db.session import get_session
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+MSG_CHI_HOC_SINH = "Chỉ đăng ký được tài khoản học sinh. Tài khoản giáo viên do quản trị viên cấp."
+
 
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     name: str
-    role: Literal["hoc_sinh", "giao_vien"] = "hoc_sinh"
+    #: Giữ trường để bên gọi cũ gửi `role` vẫn nhận câu trả lời rõ ràng thay vì bị bỏ qua lặng lẽ.
+    role: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -43,6 +44,12 @@ class MeResponse(BaseModel):
 
 @router.post("/register", response_model=TokenResponse)
 async def register(body: RegisterRequest, session: AsyncSession = Depends(get_session)) -> TokenResponse:
+    # Tự đăng ký CHỈ tạo học sinh (US-26 KB 38). Trước đây ai cũng chọn được "giáo viên"
+    # rồi thấy đáp án trong bản xem trước đề giao. Từ chối hẳn (không bỏ qua lặng lẽ)
+    # để bên gọi biết rõ và không có tài khoản nào bị tạo; giáo viên do admin cấp
+    # qua POST /admin/users.
+    if body.role not in (None, "hoc_sinh"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, MSG_CHI_HOC_SINH)
     exists = await session.scalar(select(User).where(User.email == body.email))
     if exists is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Email đã được đăng ký")
@@ -51,7 +58,7 @@ async def register(body: RegisterRequest, session: AsyncSession = Depends(get_se
         email=body.email,
         password_hash=security.hash_password(body.password),
         name=body.name,
-        role=body.role,
+        role="hoc_sinh",
     )
     session.add(user)
     await session.commit()
