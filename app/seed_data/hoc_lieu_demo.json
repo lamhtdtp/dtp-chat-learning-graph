@@ -1,0 +1,143 @@
+{
+  "mo_ta": "Bộ học liệu DEMO US-27. Chỉ gồm video AI nội bộ CÓ THẬT (video_jobs DONE, tệp có trong kho video). CHƯA có học liệu SGK/SBT/BTTC vì chưa có đường dẫn thật — xem kết quả `--kiem-do-phu`.",
+  "de_demo_ar_ids": [
+    "AR26-TO06-CK1-001",
+    "AR26-TO06-CK1-002",
+    "AR26-TO06-CK1-003",
+    "AR26-TO06-CK1-004",
+    "AR26-TO06-CK1-005",
+    "AR26-TO06-CK1-010",
+    "AR26-TO06-CK1-014",
+    "AR26-TO06-CK1-017",
+    "AR26-TO06-CK1-024",
+    "AR26-TO06-CK1-033",
+    "AR26-TO06-CK1-040",
+    "AR26-TO06-CK1-041"
+  ],
+  "hoc_lieu": [
+    {
+      "ma": "VD-TO06-001",
+      "loai": "VIDEO",
+      "nhan": "Làm quen với Tập hợp",
+      "url": "/video/files/tap_hop__cung_kham_pha_2024.mp4",
+      "muc_dich": "on_lai",
+      "ycd": "Nhận biết được tập hợp các số tự nhiên"
+    },
+    {
+      "ma": "VD-TO06-002",
+      "loai": "VIDEO",
+      "nhan": "Làm quen với Tập hợp",
+      "url": "/video/files/tap_hop__cung_kham_pha_2024.mp4",
+      "muc_dich": "on_lai",
+      "ycd": "Sử dụng được thuật ngữ tập hợp, phần tử thuộc (không thuộc) một tập hợp; sử dụng được cách cho tập hợp."
+    },
+    {
+      "ma": "VD-TO06-003",
+      "loai": "VIDEO",
+      "nhan": "Khám phá về Luỹ thừa",
+      "url": "/video/files/luy_thua__cung_kham_pha_2024.mp4",
+      "muc_dich": "on_lai",
+      "ycd": "Thực hiện được phép tính luỹ thừa với số mũ tự nhiên; thực hiện được các phép nhân và phép chia hai luỹ thừa cùng cơ số với số mũ tự nhiên"
+    },
+    {
+      "ma": "VD-TO06-004",
+      "loai": "VIDEO",
+      "nhan": "Khám phá Ước và Bội",
+      "url": "/video/files/uoc_va_boi__cung_kham_pha_2024.mp4",
+      "muc_dich": "on_lai",
+      "ycd": "Nhận biết được quan hệ chia hết, khái niệm ước"
+    },
+    {
+      "ma": "VD-TO06-005",
+      "loai": "VIDEO",
+      "nhan": "Tìm hiểu về Số nguyên tố",
+      "url": "/video/files/so_nguyen_to__cung_kham_pha_2024.mp4",
+      "muc_dich": "on_lai",
+      "ycd": "Nhận biết được khái niệm số nguyên tố, hợp số."
+    },
+    {
+      "ma": "VD-TO06-006",
+      "loai": "VIDEO",
+      "nhan": "Cách tìm ước chung lớn nhất (ƯCLN)",
+      "url": "/video/files/uoc_chung_lon_nhat__cung_kham_pha_2024.mp4",
+      "muc_dich": "on_lai",
+      "ycd": "Xác định được ước chung, ước chung lớn nhất, bội chung, bội chung nhỏ nhất của hai hoặc ba số tự nhiên; nhận biết được phân số tối giản; thực hiện được phép cộng, phép trừ phân số bằng cách sử dụng ước chung lớn nhất, bội chung nhỏ nhất."
+    },
+    {
+      "ma": "VD-TO06-007",
+      "loai": "VIDEO",
+      "nhan": "Tính chất chia hết và Dấu hiệu chia hết cho 9",
+      "url": "/video/files/dau_hieu_chia_het__cung_kham_pha_2024.mp4",
+      "muc_dich": "on_lai",
+      "ycd": "Vận dụng được dấu hiệu chia hết cho 2, 5, 9, 3 để xác định một số đã cho có chia hết cho 2, 5, 9, 3 hay không."
+    },
+    {
+      "ma": "VD-TO06-008",
+      "loai": "VIDEO",
+      "nhan": "Làm quen với số nguyên âm",
+      "url": "/video/files/so_nguyen_am__cung_kham_pha_2024.mp4",
+      "muc_dich": "on_lai",
+      "ycd": "Nhận biết được số nguyên âm, tập hợp các số nguyên"
+    },
+    {
+      "ma": "VD-TO06-009",
+      "loai": "VIDEO",
+      "nhan": "Khám phá Tam giác đều",
+      "url": "/video/files/tam_giac_deu__cung_kham_pha_2024.mp4",
+      "muc_dich": "on_lai",
+      "ycd": "Nhận dạng được tam giác đều, hình vuông, lục giác đều"
+    },
+    {
+      "ma": "VD-TO06-010",
+      "loai": "VIDEO",
+      "nhan": "Tính chu vi và diện tích hình chữ nhật",
+      "url": "/video/files/chu_vi_dien_tich__cung_kham_pha_2024.mp4",
+      "muc_dich": "on_lai",
+      "ycd": "Giải quyết được một số vấn đề thực tiễn gắn với việc tính chu vi và diện tích của các hình đặc biệt nói trên (ví dụ: tính chu vi hoặc diện tích của một số đối tượng có dạng đặc biệt nói trên,...)."
+    },
+    {
+      "ma": "VD-TO06-011",
+      "loai": "VIDEO",
+      "nhan": "Tính chất chia hết và Dấu hiệu chia hết cho 9",
+      "url": "/video/files/dau_hieu_chia_het__cung_kham_pha_2024.mp4",
+      "muc_dich": "cung_co",
+      "ycd": "Nhận biết được quan hệ chia hết, khái niệm ước"
+    },
+    {
+      "ma": "VD-TO06-012",
+      "loai": "VIDEO",
+      "nhan": "Tìm hiểu về Bội chung và Bội chung nhỏ nhất",
+      "url": "/video/files/boi_chung_nho_nhat__cung_kham_pha_2024.mp4",
+      "muc_dich": "cung_co",
+      "ycd": "Xác định được ước chung, ước chung lớn nhất, bội chung, bội chung nhỏ nhất của hai hoặc ba số tự nhiên; nhận biết được phân số tối giản; thực hiện được phép cộng, phép trừ phân số bằng cách sử dụng ước chung lớn nhất, bội chung nhỏ nhất."
+    },
+    {
+      "ma": "VD-TO06-013",
+      "loai": "VIDEO",
+      "nhan": "Làm quen với số nguyên âm",
+      "url": "/video/files/so_nguyen_am__cung_kham_pha_2024.mp4",
+      "muc_dich": "cung_co",
+      "ycd": "Nhận biết được ý nghĩa của số nguyên âm trong một số bài toán thực tiễn"
+    },
+    {
+      "ma": "VD-TO06-014",
+      "loai": "VIDEO",
+      "nhan": "Khám phá về Luỹ thừa — xem lại khi chọn nhầm phương án D",
+      "url": "/video/files/luy_thua__cung_kham_pha_2024.mp4",
+      "muc_dich": "on_lai",
+      "ycd": "Nhận biết được thứ tự thực hiện các phép tính",
+      "qid": "Q26-000004",
+      "option_key": "D"
+    },
+    {
+      "ma": "VD-TO06-015",
+      "loai": "VIDEO",
+      "nhan": "Tìm hiểu về Số nguyên tố — xem lại khi chọn nhầm phương án B",
+      "url": "/video/files/so_nguyen_to__cung_kham_pha_2024.mp4",
+      "muc_dich": "on_lai",
+      "ycd": "Nhận biết được khái niệm số nguyên tố, hợp số.",
+      "qid": "Q26-000012",
+      "option_key": "B"
+    }
+  ]
+}

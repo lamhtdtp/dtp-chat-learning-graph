@@ -10,7 +10,7 @@ kia, mà "trượt bài kiểm tra của Bài 11" thì không nói được em h
 """
 from dataclasses import dataclass
 
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import QuizAttempt, QuizAttemptItem
@@ -32,7 +32,8 @@ class ThongKeYcd:
 
 
 async def theo_ycd(
-    session: AsyncSession, user_id: int, *, gan_day: int | None = None
+    session: AsyncSession, user_id: int, *, gan_day: int | None = None,
+    den_attempt_id: int | None = None,
 ) -> list[ThongKeYcd]:
     """Đúng/tổng theo từng YCCĐ của một học sinh, nhiều câu nhất lên trước.
 
@@ -40,14 +41,30 @@ async def theo_ycd(
     giới hạn thì gợi ý bám theo trình độ HIỆN TẠI: em đã sửa được lỗi từ tháng
     trước mà vẫn bị gợi ý ôn lại chỗ đó là phản tác dụng.
 
+    `den_attempt_id`: chỉ tính các lần nộp TỪ lần nộp này trở về trước. Khối "Đề xuất"
+    được tính lại mỗi lần mở kết quả cũ; nếu cửa sổ "5 lần gần nhất" trượt theo các bài
+    làm sau đó thì cùng một kết quả hôm nay nói "chưa vững", mai nói "vững".
+
     Bỏ qua dòng có `ycd_key` rỗng (câu sinh từ trước khi quiz_json có trường
     `ycd`): không gom theo YCCĐ được thì đếm vào cũng chỉ làm sai con số.
     """
     dieu_kien = [QuizAttempt.user_id == user_id, QuizAttemptItem.ycd_key != ""]
     if gan_day is not None:
+        gioi_han = [QuizAttempt.user_id == user_id]
+        moc = None
+        if den_attempt_id is not None:
+            moc = (await session.execute(
+                select(QuizAttempt.created_at, QuizAttempt.id)
+                .where(QuizAttempt.id == den_attempt_id, QuizAttempt.user_id == user_id)
+            )).first()
+        if moc is not None:
+            # So cặp (created_at, id) như thứ tự sắp xếp bên dưới: created_at là mốc đầu
+            # giao dịch nên các lần nộp cùng giao dịch trùng giờ, id phá hoà.
+            gioi_han.append(or_(QuizAttempt.created_at < moc[0],
+                                and_(QuizAttempt.created_at == moc[0], QuizAttempt.id <= moc[1])))
         gan_nhat = (
             select(QuizAttempt.id)
-            .where(QuizAttempt.user_id == user_id)
+            .where(*gioi_han)
             .order_by(QuizAttempt.created_at.desc(), QuizAttempt.id.desc())
             .limit(gan_day)
         )

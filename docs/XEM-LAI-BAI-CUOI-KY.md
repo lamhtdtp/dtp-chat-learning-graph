@@ -1,5 +1,7 @@
 # Làm sai đề cuối kỳ → gợi ý xem lại bài
 
+> **Cập nhật US-27:** các khối "Đọc lại trước khi làm tiếp" và "Làm bài mới" mô tả dưới đây đã được thay bằng khối "Đề xuất" chung (xem `DE-XUAT-KHO-HOC-LIEU.md`). Trường `goi_y` vẫn còn trong API nhưng giao diện không dùng nữa.
+
 Tài liệu giải thích: khi học sinh làm sai một câu trong **đề cuối kỳ** (rút từ DTP
 Testbank), hệ thống dựa vào đâu để chỉ em quay về **đúng bài học**, và những gợi ý
 nào hiện ra sau khi nộp.

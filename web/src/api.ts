@@ -200,6 +200,11 @@ export function rutDeCuoiKy(opts: {
     total: opts.total ?? 12, ar_ids: opts.arIds?.length ? opts.arIds : undefined,
   } });
 }
+/** "Test thêm" từ khối Đề xuất (US-27): bài mới chỉ gồm câu của các YCCĐ còn yếu. Lỗi kho đề -> 503
+ *  với thông điệp tiếng Việt; không tạo bài nào. */
+export function testThem(arIds: string[], boQid: string[], exam?: string): Promise<DeCuoiKy> {
+  return req("/exam/cuoi-ky/test-them", { auth: true, body: { ar_ids: arIds, bo_qid: boQid, exam } });
+}
 /** Nộp bài. `traLoi`: qid -> "B" | "A,C" | "Đ,S,Đ,S" | đáp số đã điền. */
 export function nopDeCuoiKy(deId: string, traLoi: Record<string, string>): Promise<KetQuaCuoiKy> {
   return req("/exam/cuoi-ky/submit", { auth: true, body: { de_id: deId, tra_loi: traLoi } });

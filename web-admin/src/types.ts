@@ -324,3 +324,37 @@ export type BaiDeGiao =
     cau: KetQuaCauGv[];
     theo_ycd: { ar_id: string; ycd: string; dung: number; tong: number; trang: "dat" | "dang" | "chua" }[];
   };
+
+// ── Kho học liệu có mã (US-27) ──
+export type LoaiHocLieu = "VIDEO" | "SGK" | "SBT" | "BTTC";
+export type MucDichHocLieu = "on_lai" | "cung_co";
+export interface HocLieu {
+  id: number;
+  ma: string;
+  loai: LoaiHocLieu;
+  nhan: string;
+  url: string;
+  muc_dich: MucDichHocLieu;
+  ycd: string;
+  ycd_key: string;
+  qid: string | null;
+  option_key: string | null;
+  /** "YCCĐ" · "YCCĐ · câu Q-0123" · "YCCĐ · câu Q-0123 · phương án B". */
+  pham_vi: string;
+  nguoi_tao: string;
+  tao_luc: string;
+  nguoi_sua: string;
+  sua_luc: string | null;
+}
+export interface HocLieuNhap {
+  ma: string;
+  loai: LoaiHocLieu;
+  nhan: string;
+  url: string;
+  muc_dich: MucDichHocLieu | "";
+  ycd: string;
+  qid: string;
+  option_key: string;
+}
+export interface MucYcdHocLieu { ycd: string; ycd_key: string; don_vi: string; topic_id: number }
+export interface VideoNoiBo { url: string; tieu_de: string }

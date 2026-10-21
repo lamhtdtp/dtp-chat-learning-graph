@@ -446,6 +446,7 @@ async def vao(
     body: VaoBody,
     hs: User = Depends(_hoc_sinh),
     session: AsyncSession = Depends(get_session),
+    tb: TestbankClient | None = Depends(cuoi_ky.lay_testbank_tuy_chon),
 ) -> dict:
     if await _bi_chan_do_ma(hs):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, MSG_CHAN_DO)
@@ -476,12 +477,16 @@ async def vao(
         bai = await _bai_cua_em(session, giao_id, uid)
 
     cau = cuoi_ky._de_cong_khai(json.loads(bai.cau_json))
+    ket_qua = json.loads(bai.ket_qua_json) if bai.ket_qua_json else None
+    if ket_qua:
+        ket_qua = await cuoi_ky.gan_de_xuat(session, tb, ket_qua, user_id=uid,
+                                            attempt_id=bai.attempt_id)
     # `thong_bao` của đề viết cho GIÁO VIÊN (nhắc kho, ma trận). Học sinh chỉ cần biết số câu.
     thong_bao = f"Đề này có {len(cau)} câu." if bai.thong_bao else ""
     return {"de_id": bai.id, "ma": ma, "exam": json.loads(bai.tham_so_json).get("exam"),
             "ghi_chu": _GHI_CHU, "cau": cau,
             "du_cau": not bai.thong_bao, "thong_bao": thong_bao,
-            "ket_qua": json.loads(bai.ket_qua_json) if bai.ket_qua_json else None}
+            "ket_qua": ket_qua}
 
 
 @router.post("/nop")
@@ -489,6 +494,7 @@ async def nop(
     body: cuoi_ky.SubmitBody,
     hs: User = Depends(_hoc_sinh),
     session: AsyncSession = Depends(get_session),
+    tb: TestbankClient | None = Depends(cuoi_ky.lay_testbank_tuy_chon),
 ) -> dict:
     # Khoá hàng bài làm: hai thiết bị nộp cùng lúc thì request sau chờ, rồi thấy kết quả
     # request trước đã ghi (populate_existing đọc lại sau khi có khoá) và trả đúng bản đó.
@@ -498,8 +504,11 @@ async def nop(
     # Đề của người khác / đề tự rút / lượt luyện thêm: cùng một 404 như không tồn tại.
     if bai is None or bai.user_id != hs.id or bai.loai != "de_giao":
         raise HTTPException(status.HTTP_404_NOT_FOUND, _MSG_KHONG_THAY_DE_HS)
+    uid = hs.id                                      # đọc TRƯỚC commit
     if bai.ket_qua_json:
-        return json.loads(bai.ket_qua_json)          # nộp lại -> kết quả lần đầu, kể cả khi mã đã đóng
+        # Nộp lại -> kết quả lần đầu, kể cả khi mã đã đóng; `de_xuat` tính lại theo kho hiện tại.
+        return await cuoi_ky.gan_de_xuat(session, tb, json.loads(bai.ket_qua_json),
+                                         user_id=uid, attempt_id=bai.attempt_id)
     # Khoá ĐỌC hàng đề giao: giáo viên bấm "Đóng mã" (UPDATE) phải chờ bài đang nộp xong, nên
     # bài nhận trọn vẹn trước lúc đóng thì được tính, sau lúc đóng thì bị từ chối (KB 34).
     giao = await session.scalar(
@@ -509,5 +518,6 @@ async def nop(
         raise HTTPException(status.HTTP_409_CONFLICT, MSG_NOP_SAU_DONG)
     out = await cuoi_ky.cham_va_ghi(session, hs, bai, body.tra_loi, nguon="de_giao",
                                     them={"ma": giao.ma})
+    attempt_id = bai.attempt_id
     await session.commit()
-    return out
+    return await cuoi_ky.gan_de_xuat(session, tb, out, user_id=uid, attempt_id=attempt_id)

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ApiError, getDeOnTap, getOnTap, submitOnTap } from "../api";
 import { renderMath } from "../mathHtml";
 import type { DeOnTap, OnTap, QuizResult } from "../types";
+import { DeXuatView } from "./DeXuatView";
 
 const TT: Record<string, [string, string]> = {
   dat: ["ot-dat", "Đã đạt"], dang: ["ot-dang", "Đang học"], chua: ["ot-chua", "Chưa học"],
@@ -15,11 +16,14 @@ const AZ = (i: number) => String.fromCharCode(65 + i);
  *  kỳ) — danh sách bài kèm trạng thái, các ý phải nhớ, và một đề gom từ chính đề
  *  kiểm tra nhanh của từng bài. Gom lại chứ không sinh mới bằng AI: sinh mới sẽ
  *  lệch khỏi ma trận đặc tả và tốn AI cho thứ đã có sẵn. */
-export function OnTapView({ phamVi, giaTri, ten, onMoBai, onDong }: {
+export function OnTapView({ phamVi, giaTri, ten, onMoBai, onMoDe, onDong }: {
   phamVi: "mach" | "hoc_ky";
   giaTri: string;
   ten: string;
-  onMoBai: (topicId: number) => void;
+  /** Mở bài học (tại phần `phan` nếu có) — dùng cho danh sách bài và mục "Đọc thêm" của khối Đề xuất. */
+  onMoBai: (topicId: number, phan?: string) => void;
+  /** Mở bài "Test thêm" vừa tạo. */
+  onMoDe: (deId: string) => void;
   onDong: () => void;
 }) {
   const [d, setD] = useState<OnTap | null>(null);
@@ -166,12 +170,16 @@ export function OnTapView({ phamVi, giaTri, ten, onMoBai, onDong }: {
           {loiDe && <div className="ot-loi">⚠️ {loiDe}</div>}
 
           {kq ? (
-            <div className={"ot-kq " + (kq.dat_yeu_cau ? "dat" : "chua")}>
-              <b>{kq.dat_yeu_cau ? "🎉 Đạt yêu cầu!" : "Chưa đạt — ôn lại rồi thử lần nữa nhé."}</b>
-              <span>Đúng <b className="tnum">{kq.diem}/{kq.tong}</b></span>
-              <button className="btn-primary" type="button"
-                onClick={() => { setKq(null); setChon({}); moDe(); }}>Làm lại →</button>
-            </div>
+            <>
+              <div className={"ot-kq " + (kq.dat_yeu_cau ? "dat" : "chua")}>
+                <b>{kq.dat_yeu_cau ? "🎉 Đạt yêu cầu!" : "Chưa đạt — ôn lại rồi thử lần nữa nhé."}</b>
+                <span>Đúng <b className="tnum">{kq.diem}/{kq.tong}</b></span>
+                <button className="btn-primary" type="button"
+                  onClick={() => { setKq(null); setChon({}); moDe(); }}>Làm lại →</button>
+              </div>
+              {/* Khối "Đề xuất" chung cho mọi loại bài (US-27). */}
+              <DeXuatView dx={kq.de_xuat} onMoBai={onMoBai} onMoDe={onMoDe} />
+            </>
           ) : (
             <div className="ot-nop">
               <span className="tnum">Đã trả lời {daTraLoi}/{de.so_cau}</span>

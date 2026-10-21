@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api import security
+from app.api import cuoi_ky, security
 from app.api.deps import get_current_user
 from app.db.models import (
     BlueprintCell, CurriculumTopic, Grade, QuizAttempt, QuizAttemptItem, StudentProgress,
@@ -32,6 +32,7 @@ from app.lessons import phien as phien_svc
 from app.lessons import nhac as nhac_svc
 from app.lessons import quiz as quiz_svc
 from app.lessons import stats as stats_svc
+from app.integrations.testbank.client import TestbankClient
 from app.llm.gateway import LLMUnavailable
 
 # XP thưởng: mỗi câu đúng + thưởng khi đạt bài / khi tự đánh dấu hoàn thành.
@@ -393,6 +394,7 @@ async def submit_quiz(
     body: QuizSubmit,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    tb: TestbankClient | None = Depends(cuoi_ky.lay_testbank_tuy_chon),
 ) -> dict:
     """HS nộp bài kiểm tra nhanh -> chấm ở SERVER (đáp án không gửi ra client),
     cập nhật tiến độ đơn vị: đúng ≥70% -> 'dat', ngược lại 'dang'."""
@@ -442,8 +444,11 @@ async def submit_quiz(
         "trang_thai": trang_thai_cuoi, "ket_qua": ket_qua,
         "xp": xp, "xp_week": xp_week, "streak": streak,
     }
+    uid, attempt_id = user.id, attempt.id              # đọc TRƯỚC commit
     await session.commit()
-    return out
+    # Khối "Đề xuất" dựng SAU khi điểm đã ghi, và không phụ thuộc testbank đã cấu hình (US-27 KB 33).
+    return await cuoi_ky.gan_de_xuat(session, tb, out, user_id=uid, attempt_id=attempt_id,
+                                     loai="quiz", topic_id=body.topic_id)
 
 
 class PhienBody(BaseModel):
@@ -788,6 +793,7 @@ async def submit_on_tap(
     body: OnTapSubmit,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    tb: TestbankClient | None = Depends(cuoi_ky.lay_testbank_tuy_chon),
 ) -> dict:
     """Chấm đề ôn tập ở server.
 
@@ -834,5 +840,7 @@ async def submit_on_tap(
     out = {"diem": diem, "tong": tong, "dat_yeu_cau": dat,
            "trang_thai": "dat" if dat else "dang", "ket_qua": ket_qua,
            "xp": xp, "xp_week": st.week_points, "streak": st.streak_days}
+    uid, attempt_id = user.id, max(a.id for a in attempts.values())   # đọc TRƯỚC commit
     await session.commit()
-    return out
+    return await cuoi_ky.gan_de_xuat(session, tb, out, user_id=uid, attempt_id=attempt_id,
+                                     loai="quiz")

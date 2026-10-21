@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ApiError, submitQuiz } from "../api";
 import type { Neo, QuizQuestion, QuizResult } from "../types";
 import { renderMath } from "../mathHtml";
+import { DeXuatView } from "./DeXuatView";
 import { TroLyCard } from "./TroLyCard";
 
 const LV: Record<string, string> = { de: "Dễ", trung_binh: "Trung bình", kho: "Khó" };
@@ -22,8 +23,12 @@ function nhacCauSai(q: QuizQuestion, chon: number, dapAn: number, giai: string):
 
 /** Bài kiểm tra nhanh (trắc nghiệm) — chấm ở server, cập nhật tiến độ.
  *  Style theo ex-card của mockup student-app. */
-export function QuizView({ topicId, quiz, onGraded, phanHien, onDocLai, onHoiPhan }: {
+export function QuizView({ topicId, quiz, onGraded, phanHien, onDocLai, onHoiPhan, onMoBai, onMoDe }: {
   topicId: number; quiz: QuizQuestion[]; onGraded?: (r: QuizResult) => void;
+  /** Mở bài học khác (mục "Đọc thêm" của khối Đề xuất) — bài đang học thì cuộn tới phần, không mở lại. */
+  onMoBai?: (topicId: number, phan?: string) => void;
+  /** Mở bài "Test thêm" vừa tạo. */
+  onMoDe?: (deId: string) => void;
   /** Các phần đang hiện — để đổi id phần thành emoji + tên người đọc hiểu được. */
   phanHien?: { id: string; ten: string; em: string }[];
   /** Cuộn tới phần đó + loé viền (§3.4). */
@@ -90,7 +95,7 @@ export function QuizView({ topicId, quiz, onGraded, phanHien, onDocLai, onHoiPha
             {res && rk?.giai && <div className="ex-giai" dangerouslySetInnerHTML={{ __html: renderMath(rk.giai) }} />}
             {/* §3.4 — câu SAI thì chỉ thẳng phần cần đọc lại. Không có `phan`
                 (đề sinh trước khi có khoá này) thì không hiện khối rỗng. */}
-            {res && rk && !rk.dung && rk.phan && (() => {
+            {res && rk && !rk.dung && rk.phan && rk.bai_xuat_ban !== false && (() => {
               const p = phanHien?.find((x) => x.id === rk.phan);
               return (
                 <div className="sai-nhac">
@@ -125,25 +130,12 @@ export function QuizView({ topicId, quiz, onGraded, phanHien, onDocLai, onHoiPha
         );
       })}
 
-      {/* Gom TẤT CẢ phần cần đọc lại, khử trùng, GIỮ thứ tự trong bài — sắp theo
-          số câu sai sẽ làm mất mạch đọc của học sinh. */}
-      {res && (() => {
-        const sai = res.ket_qua.filter((k) => !k.dung && k.phan).map((k) => k.phan!);
-        const ds = (phanHien ?? []).filter((p) => sai.includes(p.id));
-        if (!ds.length) return null;
-        return (
-          <div className="on-lai">
-            <b>💡 Nên đọc lại {ds.length} phần trước khi làm lại</b>
-            <div className="ol-ds">
-              {ds.map((p) => (
-                <button className="chip" type="button" key={p.id} onClick={() => onDocLai?.(p.id)}>
-                  {p.em} {p.ten}
-                </button>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
+      {/* Khối "Đề xuất" chung cho mọi loại bài (US-27) — thay khối gợi ý riêng của Bài kiểm tra nhanh. */}
+      {res && (
+        <DeXuatView dx={res.de_xuat}
+          onMoBai={(tid, phan) => (tid === topicId ? onDocLai?.(phan ?? "kien_thuc") : onMoBai?.(tid, phan))}
+          onMoDe={(id) => onMoDe?.(id)} />
+      )}
 
       <div className="ex-foot">
         {!res ? (

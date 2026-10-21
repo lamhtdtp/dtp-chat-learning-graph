@@ -226,6 +226,7 @@ async def submit(
     body: SubmitBody,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    tb: TestbankClient | None = Depends(cuoi_ky.lay_testbank_tuy_chon),
 ) -> dict:
     # FOR UPDATE: hai request nộp cùng lúc (hai thẻ trình duyệt, bấm đúp) xếp hàng ở
     # đây; request sau thấy `ket_qua_json` của request trước và trả lại, không ghi lần hai.
@@ -235,8 +236,11 @@ async def submit(
     # Lượt của người khác / đề cuối kỳ / id không có: cùng một thông báo, không xác nhận gì.
     if de is None or de.user_id != user.id or de.loai != LOAI:
         raise HTTPException(status.HTTP_404_NOT_FOUND, _MSG_KHONG_THAY)
+    uid = user.id                                      # đọc TRƯỚC commit
     if de.ket_qua_json:
-        return json.loads(de.ket_qua_json)
+        # Nộp lại: kết quả lần đầu, nhưng `de_xuat` tính lại theo kho hiện tại (US-27 Q11).
+        return await cuoi_ky.gan_de_xuat(session, tb, json.loads(de.ket_qua_json),
+                                         user_id=uid, attempt_id=de.attempt_id, hoi_testbank=False)
 
     topic_id = de.topic_id
     caus = json.loads(de.cau_json)
@@ -276,5 +280,8 @@ async def submit(
     de.ket_qua_json = json.dumps(out, ensure_ascii=False)
     de.attempt_id = attempt.id
     de.nop_luc = func.clock_timestamp()
+    attempt_id = attempt.id
     await session.commit()
-    return out
+    # Không hỏi testbank: nộp luyện thêm không gọi kho đề (US-25 NFR) — "Test thêm" theo ar_ids của lượt.
+    return await cuoi_ky.gan_de_xuat(session, tb, out, user_id=uid, attempt_id=attempt_id,
+                                     hoi_testbank=False)

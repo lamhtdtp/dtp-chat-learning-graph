@@ -4,7 +4,7 @@ Qdrant, xem app/ingestion/matrix_parser.py và specs/full-system-spec.md mục 4
 
 from datetime import date, datetime
 
-from sqlalchemy import ForeignKey, Text, UniqueConstraint, text
+from sqlalchemy import ForeignKey, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -455,6 +455,42 @@ class VideoJob(Base):
     duration_sec: Mapped[float | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+
+class HocLieu(Base):
+    """Một học liệu có mã trong kho (US-27): video / SGK / SBT / BTTC gắn vào MỘT YCCĐ,
+    tuỳ chọn thu hẹp theo một câu (`qid`, mã ổn định của kho đề testbank) và theo một
+    phương án của câu đó (`option_key`, chỉ khi có `qid`).
+
+    Cùng khuôn với học liệu của testbank (loai / nhan / url / qid / option_key) cộng ba
+    phần mở rộng của learning: `ma`, `muc_dich` (on_lai | cung_co) và gắn theo YCCĐ không
+    cần câu — để sau này đổi nguồn chỉ là đồng bộ dữ liệu, giao diện học sinh không đổi.
+
+    `ycd_key` là khoá nhận diện (`app/lessons/ycd_key.chuan_hoa`), KHÔNG khoá ngoại tới
+    `blueprint_cells.id`: nạp lại ma trận là xoá sạch cell cũ rồi chèn cell mới.
+    `ma` lưu CHỮ HOA. Xoá mềm: dòng ở lại nên mã đã dùng không bao giờ dùng lại.
+    Thời gian lấy đồng hồ Postgres (`clock_timestamp`, không phải `now()` là mốc đầu
+    giao dịch) để danh sách "mới sửa trước" đúng thứ tự dù hai dòng tạo sát nhau."""
+
+    __tablename__ = "hoc_lieu"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ma: Mapped[str] = mapped_column(String(64))
+    loai: Mapped[str] = mapped_column(String(8))                 # VIDEO | SGK | SBT | BTTC
+    nhan: Mapped[str] = mapped_column(String(255))
+    url: Mapped[str] = mapped_column(String(1024))
+    muc_dich: Mapped[str] = mapped_column(String(8))             # on_lai | cung_co
+    ycd_key: Mapped[str] = mapped_column(Text, index=True)
+    ycd_text: Mapped[str] = mapped_column(Text)
+    qid: Mapped[str | None] = mapped_column(default=None)
+    option_key: Mapped[str | None] = mapped_column(String(8), default=None)
+    nguoi_tao_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
+    tao_luc: Mapped[datetime] = mapped_column(server_default=func.clock_timestamp())
+    nguoi_sua_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
+    sua_luc: Mapped[datetime | None] = mapped_column(default=None)
+    xoa_luc: Mapped[datetime | None] = mapped_column(default=None)
+
+    __table_args__ = (UniqueConstraint("ma", name="uq_hoc_lieu_ma"),)
 
 
 def luot_khong_xet_dat():

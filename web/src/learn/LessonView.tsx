@@ -180,13 +180,15 @@ const CAU_MO: Record<string, string> = {
 };
 const cauMoViDu = (i: number) => `Ví dụ ${i + 1}: giải thích từng bước giúp mình`;
 
-export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded, onMoBai }: {
+export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded, onMoBai, onMoDe }: {
   lesson: Lesson; teacher: boolean; onMarkDone?: () => void;
   /** Gọi sau khi nộp Bài kiểm tra nhanh (có kết quả) hoặc Luyện thêm (không kèm kết quả). */
   onQuizGraded?: (r?: QuizResult) => void;
   /** Mở sang bài khác — dùng cho lối mở bài trong câu trả lời "cả cuốn". Chỉ
    *  LearnApp đổi được bài đang mở nên phải truyền từ trên xuống. */
-  onMoBai?: (topicId: number) => void;
+  onMoBai?: (topicId: number, phan?: string) => void;
+  /** Mở bài "Test thêm" vừa tạo từ khối Đề xuất (cùng màn với đề cuối kỳ). */
+  onMoDe?: (deId: string) => void;
 }) {
   const [showQuiz, setShowQuiz] = useState(false);
   /** Cuộn tới một phần + loé viền 2.2s (§3.4 "↑ Đọc lại phần này").
@@ -421,7 +423,8 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded, onMoBai 
             YCCĐ của ma trận) nên vẫn dùng được ở bài chưa biên soạn. Chưa có phần "Kiến thức"
             để cuộn tới -> không truyền `onDocLai`, nút "Đọc lại phần này" tự ẩn. */}
         <div className="divider" />
-        <LuyenThemView topicId={lesson.topic_id} onGraded={() => onQuizGraded?.()} />
+        <LuyenThemView topicId={lesson.topic_id} onGraded={() => onQuizGraded?.()}
+          onMoBai={onMoBai} onMoDe={onMoDe} />
       </article>
     );
   }
@@ -483,6 +486,7 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded, onMoBai 
           <>
             <h3><span className="hi">✅</span> Bài kiểm tra nhanh</h3>
             <QuizView topicId={lesson.topic_id} quiz={lesson.quiz} onGraded={onQuizGraded}
+              onMoBai={onMoBai} onMoDe={onMoDe}
               phanHien={phanHien} onDocLai={docLai} onHoiPhan={(id, ten) =>
                 moThe(id, { neo: id as Neo, nhan: ten, hoi: CAU_MO[id] ?? `Giải thích phần ${ten.toLowerCase()} giúp mình` })} />
           </>
@@ -511,7 +515,7 @@ export function LessonView({ lesson, teacher, onMarkDone, onQuizGraded, onMoBai 
           làm thử được; kết quả vẫn ghi theo tài khoản đó. */}
       <div className="divider" />
       <LuyenThemView topicId={lesson.topic_id} phanHien={phanHien} onDocLai={docLai}
-        onGraded={() => onQuizGraded?.()} />
+        onGraded={() => onQuizGraded?.()} onMoBai={onMoBai} onMoDe={onMoDe} />
 
       {/* Bù cho việc bỏ cột chat: nơi xem lại mọi câu đã hỏi trong bài. Thẻ đóng
           rồi vẫn còn ở đây và mở lại được nguyên hội thoại. */}

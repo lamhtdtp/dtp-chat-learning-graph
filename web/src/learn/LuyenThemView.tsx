@@ -3,6 +3,7 @@ import { ApiError, nopLuyenThem, rutLuyenThem } from "../api";
 import type { CauCuoiKy, DeLuyenThem, KetQuaLuyenThem } from "../types";
 import { escHtml } from "../mathHtml";
 import { Cau } from "./CuoiKyView";
+import { DeXuatView } from "./DeXuatView";
 import { TroLyCard } from "./TroLyCard";
 
 /** Lời nhắc cho một câu sai — dựng HOÀN TOÀN ở client từ kết quả server đã trả
@@ -27,13 +28,17 @@ function nhacCauSai(c: CauCuoiKy, chon: string, dapAn: string, dapAnHtml: string
  *  Câu do người biên soạn của DTP Testbank, đúng YCCĐ của bài; chấm ở máy chủ nên
  *  đáp án / lời giải chỉ có sau khi nộp. Chỉ rút khi học sinh bấm (không rút lúc mở bài:
  *  mỗi lần rút tốn lời gọi kho + model). Đủ 3 câu chấm được thì bài mới được xét đạt. */
-export function LuyenThemView({ topicId, phanHien, onDocLai, onGraded }: {
+export function LuyenThemView({ topicId, phanHien, onDocLai, onGraded, onMoBai, onMoDe }: {
   topicId: number;
   /** Các phần đang hiện — để đổi id phần thành emoji + tên người đọc hiểu được. */
   phanHien?: { id: string; ten: string; em: string }[];
   onDocLai?: (phan: string) => void;
   /** Gọi sau khi nộp xong để cập nhật vòng tiến độ / điểm thưởng bên ngoài. */
   onGraded?: () => void;
+  /** Mở bài học khác (mục "Đọc thêm" của khối Đề xuất); bài đang học thì cuộn tới phần. */
+  onMoBai?: (topicId: number, phan?: string) => void;
+  /** Mở bài "Test thêm" vừa tạo. */
+  onMoDe?: (deId: string) => void;
 }) {
   const [de, setDe] = useState<DeLuyenThem | null>(null);
   const [chon, setChon] = useState<Record<string, string>>({});
@@ -139,7 +144,7 @@ export function LuyenThemView({ topicId, phanHien, onDocLai, onGraded }: {
                     <div className="sai-nhac">
                       <div className="sn-d">📍 Câu này thuộc phần {phanKien ? `${phanKien.em} ${phanKien.ten}` : "Kiến thức"}</div>
                       {k.ycd && <div className="sn-y">Yêu cầu cần đạt: {k.ycd}</div>}
-                      {onDocLai && (
+                      {onDocLai && k.bai_xuat_ban !== false && (
                         <div className="sn-nut">
                           <button type="button" onClick={() => onDocLai("kien_thuc")}>↑ Đọc lại phần này</button>
                         </div>
@@ -164,6 +169,13 @@ export function LuyenThemView({ topicId, phanHien, onDocLai, onGraded }: {
               );
             })}
           </div>
+
+          {/* Khối "Đề xuất" chung cho mọi loại bài (US-27), sau phần kết quả từng câu. */}
+          {kq && (
+            <DeXuatView dx={kq.de_xuat}
+              onMoBai={(tid, phan) => (tid === topicId ? onDocLai?.(phan ?? "kien_thuc") : onMoBai?.(tid, phan))}
+              onMoDe={(id) => onMoDe?.(id)} />
+          )}
 
           {coDsn && !kq && (
             <div className="ck-tl">Câu điền đáp số: em viết số không dùng dấu chấm phân cách hàng nghìn

@@ -543,11 +543,6 @@
   background:var(--surface);color:var(--accent-ink);font:inherit;font-weight:700;font-size:12.5px;
   padding:6px 11px;border-radius:var(--radius-xs)}
 .learn .sn-nut button:hover{background:var(--accent-weak)}
-/* Ô gom phần cần ôn ở cuối đề */
-.learn .on-lai{margin-top:14px;padding:13px 15px;border-radius:var(--radius-sm);
-  background:var(--surface-2);border:1px solid var(--border)}
-.learn .on-lai b{font-size:13.5px}
-.learn .on-lai .ol-ds{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
 
 /* ── §3.6 Hồ sơ học tập ──────────────────────────────────────────────────────*/
 .learn .hs4{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin:4px 0 6px}
@@ -886,21 +881,6 @@
 .learn .ck-kq .pmach{max-width:none}
 .learn .ck-ghi{padding:0 16px 10px;font-size:12px;color:var(--ink-2)}
 .learn .ck-ycd-tx{flex:1;min-width:0;line-height:1.45}
-.learn .ck-goiy h3{margin-top:18px}
-.learn .ck-tl-ds{display:flex;flex-direction:column;gap:8px}
-.learn .ck-tl-ds button{display:flex;align-items:center;gap:12px;text-align:left;border:1px solid var(--border);
-  background:var(--surface);border-radius:12px;padding:11px 14px;font:inherit;color:var(--ink);transition:.14s}
-.learn .ck-tl-ds button:hover{border-color:var(--primary);background:var(--primary-weak)}
-.learn .ck-tl-ds .ic{font-size:18px;flex:none}
-.learn .ck-tl-ds .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.learn .ck-tl-ds .tx b{font-size:13.5px}
-.learn .ck-tl-ds .tx span{font-size:12px;color:var(--ink-2)}
-.learn .ck-tl-ds .mui{color:var(--ink-3)}
-.learn .ck-moi{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:14px;padding:14px 16px;
-  border:1px solid color-mix(in srgb,var(--primary) 35%,var(--border));border-radius:14px;background:var(--primary-weak)}
-.learn .ck-moi div{display:flex;flex-direction:column;gap:3px;flex:1;min-width:220px}
-.learn .ck-moi b{font-size:14px}
-.learn .ck-moi span{font-size:12.5px;color:var(--ink-2)}
 .learn .tp-ck{padding:10px 14px 4px;display:flex;flex-direction:column;gap:6px}
 .learn .tp-ck .tp-ontap{margin:0;border-color:color-mix(in srgb,var(--primary) 32%,transparent);
   background:color-mix(in srgb,var(--primary) 8%,transparent)}
@@ -967,3 +947,50 @@
 .learn .ck-ma input:focus{outline:2px solid var(--ring);border-color:var(--primary)}
 .learn .ck-dat.ok{color:var(--teal-ink)}
 .learn .ck-dat.no{color:color-mix(in srgb,var(--danger) 62%,var(--ink))}
+
+/* ── Khối "Đề xuất" (US-27) — MỘT component cho mọi loại bài làm ── */
+.learn .dx{margin-top:20px;padding:16px;border:1px solid color-mix(in srgb,var(--primary) 30%,var(--border));
+  border-radius:16px;background:var(--surface)}
+.learn .dx>h3{margin:0 0 10px}
+.learn .dx-khen{padding:11px 14px;border-radius:12px;font-weight:700;font-size:14px;margin-bottom:10px;
+  background:color-mix(in srgb,var(--ok,#16a34a) 12%,var(--surface));
+  border:1px solid color-mix(in srgb,var(--ok,#16a34a) 40%,var(--border))}
+.learn .dx-tb{padding:10px 14px;border-radius:12px;font-size:13.5px;margin-bottom:10px;color:var(--ink-2);
+  background:var(--surface-2);border:1px solid var(--border)}
+.learn .dx-nhom{margin-top:14px}
+.learn .dx-nhom h4{margin:0 0 8px;font-size:13.5px;font-weight:800;letter-spacing:.02em}
+.learn .dx-ds{display:flex;flex-direction:column;gap:8px}
+.learn .dx-row{display:flex;align-items:center;gap:12px;border:1px solid var(--border);background:var(--surface);
+  border-radius:12px;padding:8px 8px 8px 14px;min-width:0}
+.learn .dx-row .ic{font-size:18px;flex:none}
+.learn .dx-row .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;overflow-wrap:anywhere}
+.learn .dx-row .tx b{font-size:13.5px}
+.learn .dx-row .tx span{font-size:12px;color:var(--ink-2)}
+/* Nút mở ≥ 44×44 px (ngón tay), kể cả khi là thẻ <a>. */
+.learn .dx-mo{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-width:44px;min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--primary);
+  background:var(--primary-weak);color:var(--primary-ink);font:inherit;font-size:13px;font-weight:700;
+  text-decoration:none;cursor:pointer}
+.learn .dx-mo:hover{background:color-mix(in srgb,var(--primary) 18%,var(--surface))}
+.learn .dx-them{margin-top:8px;min-height:44px;padding:0 16px;border:1px dashed var(--border-strong,var(--border));
+  background:none;border-radius:10px;font:inherit;font-size:13px;font-weight:700;color:var(--ink-2);cursor:pointer}
+.learn .dx-them:hover{border-color:var(--primary);color:var(--primary-ink)}
+.learn .dx-mo-ta{margin:0 0 6px;font-size:13.5px}
+.learn .dx-thieu{margin:0 0 6px;font-size:12.5px;color:var(--ink-2)}
+.learn .dx-tt{min-height:44px}
+/* Khung phát nổi: phủ cả màn hình, video co theo bề ngang (360 px vẫn không cuộn ngang). */
+.learn .dx-phu{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
+  padding:12px;background:rgba(10,16,32,.72)}
+.learn .dx-khung{width:min(860px,100%);max-height:100%;display:flex;flex-direction:column;gap:8px;
+  background:var(--surface);border-radius:14px;padding:12px;box-shadow:0 18px 48px rgba(0,0,0,.4)}
+.learn .dx-khung-h{display:flex;align-items:center;gap:10px}
+.learn .dx-khung-h b{flex:1;min-width:0;font-size:14px;overflow-wrap:anywhere}
+.learn .dx-dong{flex:none;min-width:44px;min-height:44px;border:1px solid var(--border);border-radius:10px;
+  background:var(--surface-2);font-size:16px;cursor:pointer;color:var(--ink)}
+.learn .dx-video{width:100%;max-height:70vh;background:#000;border-radius:10px}
+.learn .dx-video-loi{display:flex;align-items:center;justify-content:center;min-height:160px;padding:20px;
+  text-align:center;border-radius:10px;background:var(--surface-2);font-weight:700;color:var(--ink-2)}
+@media (max-width:420px){
+  .learn .dx{padding:12px}
+  .learn .dx-row{gap:8px;padding-left:10px}
+}

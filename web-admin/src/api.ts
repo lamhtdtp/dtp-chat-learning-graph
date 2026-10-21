@@ -1,5 +1,9 @@
 import { API_BASE } from "./config";
 import type {
+  HocLieu,
+  HocLieuNhap,
+  MucYcdHocLieu,
+  VideoNoiBo,
   AdminOverview,
   AdminUser,
   AuthResult,
@@ -372,4 +376,35 @@ export function deGiaoBai(id: number, userId: number): Promise<BaiDeGiao> {
 }
 export function deGiaoDong(id: number): Promise<{ trang_thai: "dong"; dong_luc: string }> {
   return req(`/de-giao/${id}/dong`, { method: "POST", auth: true });
+}
+
+
+// ── Kho học liệu có mã (US-27) ──
+export function hocLieuDs(loc: { ycd?: string; loai?: string; q?: string } = {}): Promise<{ hoc_lieu: HocLieu[] }> {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(loc)) if (v) q.set(k, v);
+  const qs = q.toString();
+  return req(`/cms/hoc-lieu${qs ? `?${qs}` : ""}`, { auth: true });
+}
+export function hocLieuYcd(): Promise<{ ycd: MucYcdHocLieu[] }> {
+  return req("/cms/hoc-lieu/ycd", { auth: true });
+}
+export function hocLieuVideoNoiBo(): Promise<{ video: VideoNoiBo[] }> {
+  return req("/cms/hoc-lieu/video-noi-bo", { auth: true });
+}
+export function hocLieuMaKeTiep(loai: string): Promise<{ ma: string }> {
+  return req(`/cms/hoc-lieu/ma-ke-tiep?loai=${encodeURIComponent(loai)}`, { auth: true });
+}
+/** `qid` / `option_key` rỗng -> gửi null (không gắn theo câu / phương án). */
+const thanDuLieu = (b: HocLieuNhap) => ({
+  ...b, qid: b.qid.trim() || null, option_key: b.option_key.trim() || null,
+});
+export function hocLieuThem(b: HocLieuNhap): Promise<HocLieu> {
+  return req("/cms/hoc-lieu", { auth: true, body: thanDuLieu(b) });
+}
+export function hocLieuSua(id: number, b: HocLieuNhap): Promise<HocLieu> {
+  return req(`/cms/hoc-lieu/${id}`, { method: "PATCH", auth: true, body: thanDuLieu(b) });
+}
+export function hocLieuXoa(id: number): Promise<void> {
+  return req(`/cms/hoc-lieu/${id}`, { method: "DELETE", auth: true });
 }

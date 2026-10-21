@@ -13,6 +13,7 @@
 Lỗi testbank không thành 500: chưa cấu hình / mạng / 5xx -> 503, testbank từ chối
 (4xx, sai tài khoản) -> 502. Thông điệp tiếng Việt, chi tiết nằm ở log.
 """
+import asyncio
 import json
 import logging
 import secrets
@@ -38,6 +39,7 @@ from app.integrations.testbank.client import (
 from app.integrations.testbank.exam import rut_de
 from app.integrations.testbank.hien_thi import sang_html
 from app.integrations.testbank.noi_dung import lay_cau
+from app.lessons import de_xuat as de_xuat_svc
 from app.lessons import stats as stats_svc
 from app.lessons import ycd_thong_ke as ycd_tk_svc
 from app.lessons.ycd_key import chuan_hoa
@@ -81,6 +83,8 @@ def lay_testbank(request: Request) -> TestbankClient:
         return tao_client()
     except TestbankChuaCauHinh as e:
         log.warning("%s", e)
+        if getattr(request.state, "tb_tuy_chon", False):
+            return None                # chỗ gọi nói testbank chỉ là phần phụ (xem `lay_testbank_tuy_chon`)
         path = request.url.path
         if path.startswith("/lessons/"):
             msg = MSG_CHUA_NOI_LUYEN_THEM
@@ -89,6 +93,33 @@ def lay_testbank(request: Request) -> TestbankClient:
         else:
             msg = _MSG_CHUA_NOI
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, msg) from e
+
+
+def _danh_dau_tuy_chon(request: Request) -> None:
+    request.state.tb_tuy_chon = True
+
+
+def lay_testbank_tuy_chon(
+    _dau: None = Depends(_danh_dau_tuy_chon),      # khai TRƯỚC: phải chạy trước `lay_testbank`
+    tb: TestbankClient | None = Depends(lay_testbank),
+) -> TestbankClient | None:
+    """Như `lay_testbank` nhưng chưa cấu hình thì trả None thay vì 503.
+
+    Dành cho chỗ testbank chỉ là PHẦN PHỤ: khối "Đề xuất" của Bài kiểm tra nhanh / ôn tập chương
+    (nộp bài không được phụ thuộc kho đề — US-27 KB 33) và CMS kho học liệu khi chưa gắn câu.
+    Đi qua `lay_testbank` nên `app.dependency_overrides[lay_testbank]` (test cắm testbank giả)
+    vẫn có tác dụng."""
+    return tb
+
+
+async def gan_de_xuat(session: AsyncSession, tb: TestbankClient | None, ket_qua: dict, *, user_id: int,
+                      attempt_id: int | None, loai: str = "testbank",
+                      topic_id: int | None = None, hoi_testbank: bool = True) -> dict:
+    """Bản sao kết quả đã chấm kèm khối `de_xuat` (US-27), tính theo kho học liệu HIỆN TẠI —
+    gọi ở mọi chỗ trả kết quả, kể cả mở lại / nộp lần hai. Không lưu vào `ket_qua_json`."""
+    return await de_xuat_svc.them_de_xuat(
+        session, ket_qua, loai=loai, user_id=user_id, attempt_id=attempt_id,
+        tb=tb, topic_id=topic_id, hoi_testbank=hoi_testbank)
 
 
 def _loi_http(e: TestbankLoi) -> HTTPException:
@@ -100,19 +131,34 @@ def _loi_http(e: TestbankLoi) -> HTTPException:
     return HTTPException(status.HTTP_502_BAD_GATEWAY, _MSG_SU_CO)
 
 
-async def _han_muc(user: User) -> None:
-    """Chặn TRƯỚC khi gọi testbank. Redis lỗi -> cho qua (fail-open, như trợ lý)."""
+_TTL_HAN_MUC = 60 * 60 * 26
+
+
+async def _han_muc(user: User) -> str | None:
+    """Chặn TRƯỚC khi gọi testbank. Redis lỗi -> cho qua (fail-open, như trợ lý). Trả khoá đã đếm
+    (hoặc None nếu không đếm) để lỡ rút hỏng còn `_tra_han_muc`."""
     limit = settings.de_cuoi_ky_daily_limit
     if user.role == "admin" or limit <= 0:
-        return
+        return None
     key = f"dequota:{user.id}:{datetime.now(timezone.utc):%Y%m%d}"
     try:
-        used = await llm_cache.incr_quota(key, ttl=60 * 60 * 26)
+        used = await llm_cache.incr_quota(key, ttl=_TTL_HAN_MUC)
     except Exception:  # noqa: BLE001
-        return
+        return None
     if used > limit:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
                             f"Hôm nay em đã rút {limit} đề rồi, mai làm tiếp nhé!")
+    return key
+
+
+async def _tra_han_muc(key: str | None) -> None:
+    """Không rút được đề (testbank lỗi / kho trống) thì không mất lượt của em — như luyện thêm."""
+    if not key:
+        return
+    try:
+        await llm_cache.giam_quota(key, _TTL_HAN_MUC)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 async def _ban_do_yccd(session: AsyncSession, subject: str, grade: str) -> dict[str, tuple[int, str]]:
@@ -189,6 +235,13 @@ async def rut_va_chuan_bi(
         log.warning("Testbank resolve trả thiếu %d/%d câu", thieu, len(de.items))
         thong_bao.append(f"Kho trả thiếu {thieu} câu so với đề đã rút.")
 
+    await gan_bai_va_ly_do(session, caus, subject, grade)
+    return caus, thong_bao
+
+
+async def gan_bai_va_ly_do(session: AsyncSession, caus: list[dict], subject: str, grade: str) -> None:
+    """Gắn YCCĐ của từng câu về bài của mình (`_topic_id`, `_don_vi`) + sinh SẴN lý do từng
+    phương án. Dùng chung cho đề rút theo kỳ và bài "Test thêm"."""
     ban_do = await _ban_do_yccd(session, subject, grade)
     khong_khop = set()
     for c in caus:
@@ -203,7 +256,6 @@ async def rut_va_chuan_bi(
     ly_do = await ly_do_svc.dam_bao_ly_do(session, caus)
     for c in caus:
         c["_ly_do"] = ly_do.get(c["qid"], {})
-    return caus, thong_bao
 
 
 class GenerateBody(BaseModel):
@@ -224,16 +276,18 @@ async def generate(
     session: AsyncSession = Depends(get_session),
     tb: TestbankClient = Depends(lay_testbank),
 ) -> dict:
-    await _han_muc(user)
+    khoa = await _han_muc(user)
     seed = body.seed if body.seed is not None else secrets.randbelow(2**31)
     try:
         caus, thong_bao = await rut_va_chuan_bi(
             session, tb, subject=body.subject, grade=body.grade, exam=body.exam,
             total=body.total, ar_ids=body.ar_ids, seed=seed)
     except TestbankLoi as e:
+        await _tra_han_muc(khoa)
         raise _loi_http(e) from e
 
     if not caus:
+        await _tra_han_muc(khoa)
         await session.commit()
         return {"de_id": None, "cau": [], "du_cau": False,
                 "thong_bao": " ".join(thong_bao) or "Kho chưa có câu nào cho đề này."}
@@ -246,6 +300,76 @@ async def generate(
                          # clock_timestamp chứ không phải now(): now() là mốc BẮT ĐẦU
                          # transaction, hai đề rút sát nhau trùng giờ và danh sách
                          # "mới nhất trước" sắp tuỳ ý.
+                         created_at=func.clock_timestamp()))
+    out = {"de_id": de_id, "cau": _de_cong_khai(caus), "du_cau": not thong_bao,
+           "thong_bao": " ".join(thong_bao), "seed": seed}
+    await session.commit()
+    return out
+
+
+MSG_TEST_THEM_LOI = "Chưa tạo được bài mới, em thử lại sau ít phút"
+#: Testbank im lặng quá chừng này thì báo lỗi (US-27 KB 30) — không đợi tới timeout 20 giây
+#: của client HTTP, học sinh nhìn màn hình trống thì tưởng đã treo.
+_HAN_TEST_THEM_GIAY = 10
+
+
+class TestThemBody(BaseModel):
+    __test__ = False
+
+    #: Các YCCĐ còn yếu (mã `ar_id` của testbank) — chính là `de_xuat.test_them.ar_ids`.
+    ar_ids: list[str] = Field(min_length=1, max_length=5)
+    #: Câu của bài vừa nộp: tránh nếu kho còn câu khác (chỉ là ưu tiên).
+    bo_qid: list[str] = Field(default_factory=list, max_length=200)
+    exam: str | None = Field("CK1", pattern=r"^[A-Z0-9+]{2,4}$")
+
+
+@router.post("/test-them")
+async def test_them(
+    body: TestThemBody,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+    tb: TestbankClient = Depends(lay_testbank),
+) -> dict:
+    """"Test thêm" từ khối Đề xuất (US-27): bài mới chỉ gồm câu của các YCCĐ còn yếu, 2 câu
+    mỗi YCCĐ, tổng 4-12. Cùng hình dạng với `/generate`; đề tự rút `loai="cuoi_ky"` (xoá được,
+    có trong lịch sử, tính hạn mức rút đề).
+
+    Chọn câu trên `/pool` chứ KHÔNG dùng `exams:preview`: preview ép tỉ lệ mức độ 40/30/30,
+    trong khi ở đây chỉ có vài câu của vài YCCĐ nên sẽ báo thiếu oan. Testbank lỗi / quá 10
+    giây -> 503 và KHÔNG tạo đề nào (không có bài làm rỗng trong lịch sử)."""
+    khoa = await _han_muc(user)
+    seed = secrets.randbelow(2**31)
+    try:
+        async with asyncio.timeout(_HAN_TEST_THEM_GIAY):
+            pool = await tb.lay("content", "/pool", {"subject": de_xuat_svc.TB_MON,
+                                                     "grade": de_xuat_svc.TB_LOP, "limit": 2000})
+            chon = de_xuat_svc.chon_test_them(pool.get("items") or [], body.ar_ids,
+                                              set(body.bo_qid), seed=seed)
+            caus = await lay_cau(tb, chon) if chon else []
+    except (TestbankLoi, TimeoutError) as e:
+        log.warning("Test thêm: testbank lỗi / quá %ss (%s: %s)", _HAN_TEST_THEM_GIAY,
+                    type(e).__name__, e)
+        await _tra_han_muc(khoa)
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, MSG_TEST_THEM_LOI) from e
+
+    thong_bao = []
+    if len(caus) < len(chon):
+        thieu = len(chon) - len(caus)
+        log.warning("Testbank resolve trả thiếu %d/%d câu của Test thêm", thieu, len(chon))
+        thong_bao.append(f"Kho trả thiếu {thieu} câu so với bài đã chọn.")
+    if not caus:
+        await _tra_han_muc(khoa)
+        await session.commit()
+        return {"de_id": None, "cau": [], "du_cau": False,
+                "thong_bao": " ".join(thong_bao) or "Kho chưa có câu nào cho phần này."}
+
+    await gan_bai_va_ly_do(session, caus, "TO", "06")
+    de_id = secrets.token_urlsafe(12)
+    tham_so = {"subject": "TO", "grade": "06", "exam": body.exam, "total": len(caus),
+               "ar_ids": body.ar_ids, "seed": seed}
+    session.add(DeCuoiKy(id=de_id, user_id=user.id, tham_so_json=json.dumps(tham_so),
+                         thong_bao=" ".join(thong_bao),
+                         cau_json=json.dumps(caus, ensure_ascii=False),
                          created_at=func.clock_timestamp()))
     out = {"de_id": de_id, "cau": _de_cong_khai(caus), "du_cau": not thong_bao,
            "thong_bao": " ".join(thong_bao), "seed": seed}
@@ -368,14 +492,19 @@ async def submit(
     body: SubmitBody,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    tb: TestbankClient | None = Depends(lay_testbank_tuy_chon),
 ) -> dict:
     de = await _de_cua(session, body.de_id, user)
+    uid = user.id                                      # đọc TRƯỚC commit
     if de.ket_qua_json:
         # Bấm "Nộp" hai lần (mạng chậm): trả lại kết quả cũ, không thành hai lần làm bài.
-        return json.loads(de.ket_qua_json)
-    out = await cham_va_ghi(session, user, de, body.tra_loi, nguon="cuoi_ky")
-    await session.commit()
-    return out
+        # `de_xuat` thì vẫn tính lại theo kho hiện tại (Q11).
+        out, attempt_id = json.loads(de.ket_qua_json), de.attempt_id
+    else:
+        out = await cham_va_ghi(session, user, de, body.tra_loi, nguon="cuoi_ky")
+        attempt_id = de.attempt_id
+        await session.commit()                         # điểm được ghi trước, khối phụ dựng sau
+    return await gan_de_xuat(session, tb, out, user_id=uid, attempt_id=attempt_id)
 
 
 def _loc_ky(exam: str | None):
@@ -490,12 +619,17 @@ async def mo_lai(
     de_id: str,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    tb: TestbankClient | None = Depends(lay_testbank_tuy_chon),
 ) -> dict:
     de = await _de_cua(session, de_id, user, ("cuoi_ky", "de_giao"))
+    ket_qua = json.loads(de.ket_qua_json) if de.ket_qua_json else None
+    if ket_qua:
+        ket_qua = await gan_de_xuat(session, tb, ket_qua, user_id=user.id,
+                                    attempt_id=de.attempt_id)
     out = {"de_id": de.id, "cau": _de_cong_khai(json.loads(de.cau_json)),
            "du_cau": not de.thong_bao, "thong_bao": de.thong_bao,
            "on_lai": bool(json.loads(de.tham_so_json).get("ar_ids")),
-           "ket_qua": json.loads(de.ket_qua_json) if de.ket_qua_json else None,
+           "ket_qua": ket_qua,
            "loai": de.loai, "ma": None, "exam": json.loads(de.tham_so_json).get("exam")}
     if de.loai == "de_giao":
         giao = await session.get(DeGiao, de.de_giao_id)

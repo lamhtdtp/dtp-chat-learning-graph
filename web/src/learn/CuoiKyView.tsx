@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, moDeCuoiKy, nopDeCuoiKy, nopDeGiao, rutDeCuoiKy, vaoDeGiao } from "../api";
 import type { CauCuoiKy, DeCuoiKy, DeCuoiKyTomTat, KetQuaCau, KetQuaCuoiKy } from "../types";
+import { DeXuatView } from "./DeXuatView";
 import { useLichSuDe } from "./useLichSuDe";
 
 const MUC: Record<string, [string, string]> = {
@@ -9,11 +10,6 @@ const MUC: Record<string, [string, string]> = {
 const DANG: Record<string, string> = {
   TN1: "Một đáp án", TNN: "Nhiều đáp án", DS: "Đúng / Sai", DSN: "Điền đáp số", TL: "Tự luận",
 };
-/** Số câu của "bài làm mới": 2 câu mỗi chỗ còn yếu, trong khoảng 4–12. Ít hơn
- *  thì một chỗ một câu, làm đúng một câu chưa nói lên gì; nhiều hơn thì thành
- *  làm lại cả đề. */
-const soCauDeMoi = (n: number) => Math.min(12, Math.max(4, n * 2));
-
 /** Nháp đáp án của đề CHƯA nộp, theo de_id. Lỡ đóng tab hay tải lại giữa chừng
  *  thì mở lại đề vẫn còn những gì đã chọn. Chỉ là tiện ích của riêng trình duyệt
  *  này — localStorage có thể không dùng được (chế độ ẩn danh…) nên mọi lần đọc /
@@ -181,7 +177,8 @@ export function Cau({ c, chon, onChon, kq, onMoBai, anXemLai }: {
             {kq!.dung ? "✓ Đúng rồi!" : "✗ Chưa đúng"}
             {kq!.so_y != null && !kq!.dung && ` · đúng ${kq!.so_y_dung}/${kq!.so_y} ý`}
           </span>
-          {!kq!.dung && kq!.topic_id != null && !anXemLai && (
+          {/* Bài chưa xuất bản thì không có gì để xem lại — nút dẫn tới trang trống (US-27 KB 19). */}
+          {!kq!.dung && kq!.topic_id != null && !anXemLai && kq!.bai_xuat_ban !== false && (
             <button className="hoi-cau" type="button" onClick={() => onMoBai(kq!.topic_id!, "kien_thuc")}>
               📚 Xem lại bài: {kq!.don_vi}
             </button>
@@ -267,12 +264,12 @@ export function CuoiKyView({ exam, ten, moDe, kieu, onMoBai, onDong }: {
     } finally { setDang(""); }
   };
 
-  const rut = async (arIds?: string[]) => {
+  const rut = async () => {
     setDang("rut"); setLoi(null);
     try {
-      // "Làm bài mới" sau bài theo mã: đề tự rút RIÊNG của em, không thuộc mã (US-26 KB 22).
-      const d = await rutDeCuoiKy({ exam: examDe, arIds, total: arIds?.length ? soCauDeMoi(arIds.length) : 12 });
-      setDe(d); setChon({}); setKq(null); setOnLai(!!arIds?.length);
+      // Sau bài theo mã: đề tự rút RIÊNG của em, không thuộc mã (US-26 KB 22).
+      const d = await rutDeCuoiKy({ exam: examDe, total: 12 });
+      setDe(d); setChon({}); setKq(null); setOnLai(false);
       veDau();
     } catch (e) {
       setLoi(e instanceof ApiError ? e.message : "Không rút được đề, thử lại nhé");
@@ -359,7 +356,7 @@ export function CuoiKyView({ exam, ten, moDe, kieu, onMoBai, onDong }: {
             <div className="ck-thieu" role="status">ℹ️ Đề có {de.cau.length} câu. {de.thong_bao}</div>
           )}
 
-          {kq && <KetQua kq={kq} onMoBai={onMoBai} dangRut={dang === "rut"} onDeMoi={(a) => void rut(a)} />}
+          {kq && <KetQua kq={kq} exam={examDe} onMoBai={onMoBai} onMoDe={(id) => void mo(id, true)} />}
 
           <div className="ex-wrap">
             {de.cau.map((c) => (
@@ -395,15 +392,14 @@ export function CuoiKyView({ exam, ten, moDe, kieu, onMoBai, onDong }: {
   );
 }
 
-/** Kết quả theo YCCĐ + gợi ý (bước ④). */
-function KetQua({ kq, onMoBai, onDeMoi, dangRut }: {
+/** Kết quả theo YCCĐ + khối Đề xuất chung (bước ④). */
+function KetQua({ kq, exam, onMoBai, onMoDe }: {
   kq: KetQuaCuoiKy;
+  exam: string;
   onMoBai: (topicId: number, phan?: string) => void;
-  onDeMoi: (arIds: string[]) => void;
-  dangRut: boolean;
+  onMoDe: (deId: string) => void;
 }) {
   const pct = kq.tong ? Math.round((kq.diem * 100) / kq.tong) : 0;
-  const yeu = kq.goi_y.ar_ids;
   return (
     <div className="ck-kq">
       <div className="pmach">
@@ -428,36 +424,8 @@ function KetQua({ kq, onMoBai, onDeMoi, dangRut }: {
         </div>
       </div>
 
-      {(kq.goi_y.tai_lieu.length > 0 || yeu.length > 0) && (
-        <div className="ck-goiy">
-          {kq.goi_y.tai_lieu.length > 0 && (
-            <>
-              <h3><span className="hi">📚</span> Đọc lại trước khi làm tiếp</h3>
-              <div className="ck-tl-ds">
-                {kq.goi_y.tai_lieu.map((t) => (
-                  <button type="button" key={t.topic_id} onClick={() => onMoBai(t.topic_id, t.phan)}>
-                    <span className="ic" aria-hidden>📖</span>
-                    <span className="tx"><b>{t.don_vi}</b>
-                      <span>{t.ycd} · sai câu {t.cau.join(", ")}</span></span>
-                    <span className="mui" aria-hidden>↗</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-          {yeu.length > 0 && (
-            <div className="ck-moi">
-              <div>
-                <b>🔁 Bài làm mới — chỉ {yeu.length} yêu cầu cần đạt còn yếu</b>
-                <span>{soCauDeMoi(yeu.length)} câu rút lại từ kho đề, chỉ trong các yêu cầu này.</span>
-              </div>
-              <button className="btn btn-primary" type="button" disabled={dangRut} onClick={() => onDeMoi(yeu)}>
-                {dangRut ? "Đang rút đề…" : "Làm bài mới →"}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Đọc thêm · Video · Test thêm — một khối cho mọi loại bài (US-27), sau kết quả theo YCCĐ. */}
+      <DeXuatView dx={kq.de_xuat} exam={exam} onMoBai={onMoBai} onMoDe={onMoDe} />
     </div>
   );
 }

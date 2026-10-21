@@ -146,6 +146,11 @@ export function LearnApp({ name, email, role, onLogout }: {
         .getElementById(`phan-${phan}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 800);
     }
   };
+  /** Từ khối Đề xuất: mở bài "Test thêm" vừa tạo, cùng màn với đề cuối kỳ (đã nộp / chưa nộp đều mở được). */
+  const moDeMoi = (deId: string) => {
+    setCuoiKy({ exam: "CK1", ten: "Bài mới chỉ gồm chỗ còn yếu · Toán 6", deId });
+    setSlide(false); setTrang("cuoi_ky");
+  };
   const markDone = async () => {
     if (cur == null) return;
     try { await setProgress(cur, "dat"); loadCurriculum(false); loadStats(); } catch (e) { handle(e); }
@@ -306,7 +311,7 @@ export function LearnApp({ name, email, role, onLogout }: {
               moDe={cuoiKy.deId} kieu={cuoiKy.kieu} onMoBai={moBaiTuHoSo} onDong={() => setTrang("bai")} />
           : trang === "on_tap" && onTap
           ? <OnTapView phamVi={onTap.pv} giaTri={onTap.gt} ten={onTap.ten}
-              onMoBai={openTopic} onDong={() => setTrang("bai")} />
+              onMoBai={moBaiTuHoSo} onMoDe={moDeMoi} onDong={() => setTrang("bai")} />
           : trang === "ho_so"
           ? <HoSoView onMoBai={moBaiTuHoSo} ten={name}
               onMoDeCuoiKy={(exam, deId) => {
@@ -318,7 +323,7 @@ export function LearnApp({ name, email, role, onLogout }: {
             ? <SlideView lesson={lesson} />
             : lesson
               ? <LessonView lesson={lesson} teacher={teacher} onMarkDone={markDone}
-                  onQuizGraded={onQuizGraded} onMoBai={openTopic} />
+                  onQuizGraded={onQuizGraded} onMoBai={moBaiTuHoSo} onMoDe={moDeMoi} />
               : <div className="lesson-empty">Đang tải bài học…</div>)}
       </main>
     </div>

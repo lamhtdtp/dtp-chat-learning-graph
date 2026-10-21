@@ -37,6 +37,8 @@ export interface QuizQuestion {
   lv: "de" | "trung_binh" | "kho";
 }
 export interface QuizResultItem {
+  /** false = bài học của câu này chưa xuất bản: không hiện "Đọc lại phần này" (US-27 KB 19). */
+  bai_xuat_ban?: boolean;
   dung: boolean;
   chon: number;
   dap_an: number;
@@ -52,6 +54,8 @@ export interface QuizResult {
   dat_yeu_cau: boolean;
   trang_thai: "dat" | "dang";
   ket_qua: QuizResultItem[];
+  /** Khối "Đề xuất" — máy chủ tính lại theo kho học liệu hiện tại mỗi lần trả về (US-27). */
+  de_xuat?: DeXuat;
   /** Server vẫn luôn trả 3 khoá này (xem POST /quiz/submit) — trước đây type
    *  bỏ sót nên chỗ nào muốn hiện "+XP" đều phải ép kiểu. */
   xp?: number;
@@ -240,7 +244,37 @@ export interface LyDoPhuongAn {
   dung: boolean;
 }
 
+/** Một học liệu trong khối Đề xuất (US-27). `url` đã ký nếu là video nội bộ. */
+export interface MucHocLieu {
+  ma: string;
+  loai: "VIDEO" | "SGK" | "SBT" | "BTTC";
+  nhan: string;
+  url: string;
+  /** true = video AI nội bộ: phát trong khung nổi; false = link ngoài: mở tab mới. */
+  noi_bo: boolean;
+  muc_dich: "on_lai" | "cung_co";
+  /** "Vì em chọn B ở câu 3" · "Liên quan câu 2, 5, 8" · "Củng cố". */
+  ghi_chu: string;
+}
+export interface MucBaiHoc {
+  topic_id: number;
+  ten: string;
+  /** Id phần của bố cục bài ("kien_thuc", "vi_du", …). */
+  phan: string;
+  ghi_chu: string;
+}
+/** Khối "Đề xuất" — CÙNG MỘT hình dạng ở mọi loại bài làm. Nhóm rỗng là null. */
+export interface DeXuat {
+  loi_khen: string | null;
+  thong_bao: string | null;
+  doc_them: { bai_hoc: MucBaiHoc[]; hoc_lieu: MucHocLieu[]; toi_da_bai_hoc: number; toi_da_hoc_lieu: number } | null;
+  video: { hoc_lieu: MucHocLieu[]; toi_da: number } | null;
+  test_them: { ar_ids: string[]; ycd: string[]; so_cau: number; mo_ta: string; thieu: string[]; bo_qid: string[] } | null;
+}
+
 export interface KetQuaCau {
+  /** false = bài của YCCĐ này chưa xuất bản / không khớp bài nào: không hiện "Xem lại bài". */
+  bai_xuat_ban?: boolean;
   stt: number;
   qid: string;
   dang: DangCau;
@@ -287,6 +321,7 @@ export interface KetQuaLuyenThem {
   xp: number;
   /** Có khi không xét đạt: "Lượt này chỉ có N câu chấm tự động (cần ít nhất 3)…". */
   ghi_chu: string;
+  de_xuat?: DeXuat;
 }
 
 export interface YcdKetQua {
@@ -309,6 +344,7 @@ export interface KetQuaCuoiKy {
   khong_cham: number;
   cau: KetQuaCau[];
   theo_ycd: YcdKetQua[];
+  de_xuat?: DeXuat;
   goi_y: {
     ar_ids: string[];
     tai_lieu: { topic_id: number; don_vi: string; phan: string; ycd: string; ar_id: string; cau: number[] }[];

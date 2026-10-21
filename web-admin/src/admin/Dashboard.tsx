@@ -7,6 +7,7 @@ import type { CmsCatalog } from "../api";
 import { useTheme } from "../hooks/useTheme";
 import type { AdminUser, CmsGroup, CmsUnit, Role } from "../types";
 import { DeGiaoView } from "./DeGiaoView";
+import { HocLieuView } from "./HocLieuView";
 import { DrawerEditor } from "./DrawerEditor";
 import { HocTapChart } from "./HocTapChart";
 import { KetQuaDrawer } from "./KetQuaDrawer";
@@ -16,7 +17,7 @@ import { MaTranView } from "./MaTranView";
 import { TongQuanView } from "./TongQuanView";
 import { TaoTaiKhoan } from "./TaoTaiKhoan";
 
-type View = "overview" | "content" | "ingest" | "de_giao" | "catalog" | "matrix" | "users" | "settings";
+type View = "overview" | "content" | "ingest" | "hoc_lieu" | "de_giao" | "catalog" | "matrix" | "users" | "settings";
 type Flat = CmsUnit & { mach: string };
 
 // `chiAdmin`: nhóm chỉ quản trị thấy. Chuyên gia là vai trò CMS-only, chỉ được
@@ -26,6 +27,8 @@ const NAV: { group: string; chiAdmin?: boolean; items: { v: View; label: string;
     { v: "overview", label: "Tổng quan", icon: "M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z" },
     { v: "content", label: "Chương trình & nội dung", icon: "M4 19.5A2.5 2.5 0 016.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" },
     { v: "ingest", label: "Nạp sách bằng AI", icon: "M12 3v12m0-12l-4 4m4-4l4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" },
+    // Kho học liệu có mã (US-27): chuyên gia / giáo viên / admin đều quản trị — không chiAdmin.
+    { v: "hoc_lieu", label: "Kho học liệu", icon: "M15 10l4.55-2.28A1 1 0 0121 8.62v6.76a1 1 0 01-1.45.9L15 14M3 6h12a2 2 0 012 2v8a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2z" },
   ] },
   // Giao đề bằng mã (US-26): giáo viên / chuyên gia / admin đều dùng — không chiAdmin.
   { group: "Giao đề", items: [
@@ -40,7 +43,7 @@ const NAV: { group: string; chiAdmin?: boolean; items: { v: View; label: string;
 ];
 const CRUMB: Record<View, [string, string]> = {
   overview: ["Nội dung", "Tổng quan"], content: ["Nội dung", "Chương trình & nội dung"],
-  ingest: ["Nội dung", "Nạp sách bằng AI"], de_giao: ["Giao đề", "Đề giao"], matrix: ["Hệ thống", "Ma trận đặc tả"],
+  ingest: ["Nội dung", "Nạp sách bằng AI"], hoc_lieu: ["Nội dung", "Kho học liệu"], de_giao: ["Giao đề", "Đề giao"], matrix: ["Hệ thống", "Ma trận đặc tả"],
   catalog: ["Hệ thống", "Quản lý danh mục"],
   users: ["Hệ thống", "Người dùng"], settings: ["Hệ thống", "Cài đặt"],
 };
@@ -232,6 +235,7 @@ export function Dashboard({ name, role, onLogout }: {
 
           {view === "users" && <UsersView users={users} search={search} onPatch={patchUser} onCreated={loadUsers} />}
           {view === "ingest" && <KhoSgkView toast={toast} />}
+          {view === "hoc_lieu" && <HocLieuView toast={toast} onLogout={onLogout} />}
           {view === "de_giao" && <DeGiaoView role={role} onLogout={onLogout} />}
           {view === "catalog" && <DanhMucView mon={mon} khoi={khoi} toast={toast}
             onSua={(id) => setDrawer({ topicId: id, mode: "edit" })} />}
